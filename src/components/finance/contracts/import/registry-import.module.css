@@ -1,0 +1,295 @@
+/*
+ * Экран загрузки реестра: то, чего нет в общем блоке `.proto-*` globals.css.
+ *
+ * Классы здесь не слоёные, как и globals.css, поэтому утилиты Tailwind на них
+ * не действуют (ловушка каскада из CLAUDE.md) — прятать и показывать только
+ * этими правилами. Там, где общий класс задаёт то же свойство (`.proto-item`,
+ * `.fin-apply-bar`, `.proto-table select`), правило здесь стоит через
+ * `.screen`: две ступени специфичности не зависят от порядка файлов в сборке.
+ *
+ * Свойства, которые двигает GSAP (transform линий, opacity путей карты), здесь
+ * не задаются — см. правило 1 о GSAP в CLAUDE.md.
+ */
+
+.screen { display: block; min-width: 0; padding-bottom: 1rem; color: var(--fin-text); }
+
+/* ─── Шапка протокола ─── */
+.fileLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 0.5rem 0 1rem;
+  font-size: 0.875rem;
+}
+.fileName { overflow-wrap: anywhere; }
+.fileAction { margin-left: auto; }
+
+/* ─── Пункты ─── */
+.screen .item { position: relative; border-top: 0; scroll-margin-top: 4.5rem; }
+.rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--fin-line);
+  pointer-events: none;
+}
+.ruleEnd { position: relative; display: block; }
+.headText { min-width: 0; }
+.state { display: inline-flex; align-items: center; gap: 0.5rem; }
+.wait { color: var(--fin-text); font-weight: 600; }
+.chev {
+  color: var(--text-muted);
+  transform: rotate(90deg);
+  transition: transform 0.28s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.chev[data-open="true"] { transform: rotate(-90deg); }
+
+/* ─── Полоса записи: липнет к низу ─── */
+.screen .bar {
+  top: auto;
+  bottom: 0.75rem;
+  margin-top: 1.25rem;
+  justify-content: space-between;
+}
+.barText { flex: 1 1 16rem; min-width: 0; font-size: 0.875rem; overflow-wrap: anywhere; }
+.barActions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-left: auto; }
+
+/* ─── Выбор словами ─── */
+.choice {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  column-gap: 0.875rem;
+  row-gap: 0.125rem;
+  max-width: 100%;
+}
+.choice[data-stacked="true"] { display: flex; flex-direction: column; align-items: flex-start; }
+.choiceItem {
+  background: none;
+  border: none;
+  padding: 0.3rem 0 0.35rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--fin-text-soft);
+  text-align: left;
+  cursor: pointer;
+  max-width: 100%;
+}
+.choiceItem:hover { color: var(--fin-text); }
+.choiceItem[aria-checked="true"] { color: var(--fin-text); }
+.choiceItem:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 2px; }
+.choiceItem:disabled { cursor: default; opacity: 0.45; }
+.choiceLine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1.5px;
+  background: var(--fin-text);
+  transform-origin: 0 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ─── Поля ввода ─── */
+.screen .select {
+  height: 1.875rem;
+  max-width: 100%;
+  padding: 0 1.75rem 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--fin-line);
+  /* Непрозрачный фон у списка и опций: полупрозрачный --input-bg система
+     кладёт на белое, и в тёмной теме список выглядит пустым. */
+  background-color: var(--bg-raised);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.screen .select option { background-color: var(--bg-raised); color: var(--text-primary); }
+.screen .input {
+  height: 1.875rem;
+  width: 14rem;
+  max-width: 100%;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--fin-line);
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+.screen .input:focus { outline: none; border-color: var(--fin-text); }
+
+/* ─── Карта колонок ─── */
+.mapWrap { container-type: inline-size; display: grid; gap: 0.75rem; min-width: 0; }
+.mapRoles { margin: 0; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.map { position: relative; min-width: 0; }
+.mapLeft { display: grid; min-width: 0; }
+.mapMid, .mapRight, .wideOnly { display: none; }
+.mapRow { min-width: 0; border-bottom: 1px solid var(--fin-line); transition: opacity 0.2s ease-out; }
+.mapRow[data-hot="off"] { opacity: 0.35; }
+.mapCol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5rem;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.35rem 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--fin-text);
+  text-align: left;
+  cursor: pointer;
+}
+.mapCol:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 2px; }
+.letter { flex: 0 0 1.75rem; color: var(--text-muted); }
+.header { flex: 1 1 8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inlineTarget { flex: 1 0 100%; padding-left: 2.25rem; color: var(--fin-text-soft); overflow-wrap: anywhere; }
+.inlineTarget:empty { display: none; }
+.question, .samples { margin: 0 0 0.25rem 2.25rem; font-size: 0.8125rem; overflow-wrap: anywhere; }
+.samples { color: var(--fin-text-soft); }
+.chooser {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 1rem;
+  padding: 0.125rem 0 0.625rem 2.25rem;
+}
+.custom { display: inline-flex; flex-wrap: wrap; gap: 0.5rem; }
+.mapMid { position: relative; }
+.mapMid > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.edge {
+  fill: none;
+  stroke: var(--fin-text-soft);
+  stroke-width: 1;
+  transition: stroke-opacity 0.2s ease-out, stroke-width 0.2s ease-out;
+}
+.edge[data-kind="loose"] { stroke-dasharray: 3 3; }
+.edge[data-kind="ask"] { stroke: var(--fin-fail); stroke-dasharray: 3 3; }
+.edge[data-hot="on"] { stroke: var(--fin-text); stroke-width: 1.5; }
+.edge[data-kind="ask"][data-hot="on"] { stroke: var(--fin-fail); }
+.edge[data-hot="off"] { stroke-opacity: 0.35; }
+.mapNode {
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.3rem 0 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+  transition: opacity 0.2s ease-out;
+}
+.mapNode[data-hot="off"] { opacity: 0.35; }
+
+/* Карта линиями — только там, где ей есть место; уже — список «колонка → поле». */
+@container (min-width: 720px) {
+  .map { display: grid; grid-template-columns: minmax(0, 1fr) 16% minmax(0, 0.72fr); align-items: stretch; }
+  .mapMid { display: block; }
+  .mapRight { display: grid; align-content: start; }
+  .inlineTarget { display: none; }
+  .wideOnly { display: inline; }
+  .mapCol { flex-wrap: nowrap; }
+}
+
+/* ─── Списки и строки пунктов ─── */
+.stack { display: grid; gap: 1.25rem; min-width: 0; }
+.subhead { margin: 0 0 0.35rem; font-size: 0.875rem; font-weight: 500; color: var(--fin-text); }
+.rows { list-style: none; margin: 0; padding: 0; }
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  min-width: 0;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.8125rem;
+}
+.check { display: flex; align-items: baseline; gap: 0.5rem; flex: 1 1 16rem; min-width: 0; cursor: pointer; }
+.check input, .screen td input[type="checkbox"] { accent-color: var(--fin-text); }
+.grow { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.nums { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.small { font-size: 0.75rem; }
+.inline { display: inline-flex; flex-wrap: wrap; gap: 0.5rem; }
+.line { margin: 0; font-size: 0.8125rem; line-height: 1.5; overflow-wrap: anywhere; }
+.refs { flex-basis: 100%; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; margin-top: 0.75rem; }
+.diffGroup { padding: 0.5rem 0; border-bottom: 1px solid var(--fin-line); }
+.diffHead { margin: 0 0 0.25rem; font-size: 0.8125rem; font-weight: 500; overflow-wrap: anywhere; }
+.diffRow { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 0.125rem 1rem; padding: 0.25rem 0; font-size: 0.8125rem; }
+.diffSource { display: block; font-size: 0.6875rem; color: var(--text-muted); }
+.diffValue { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rule9 { display: grid; gap: 0.35rem; padding-bottom: 1rem; border-bottom: 1px solid var(--fin-line); min-width: 0; }
+
+/* ─── Выбор файла ─── */
+.pick { position: relative; min-height: 50vh; padding-top: 0.5rem; }
+.pickError { margin: 0.75rem 0 0; font-size: 0.875rem; }
+.drop {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fin-plate);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s ease-out, visibility 0s linear 0.2s;
+  pointer-events: none;
+}
+.drop[data-on="true"] { visibility: visible; opacity: 1; transition: opacity 0.2s ease-out; }
+.dropSvg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; fill: none; stroke: var(--fin-text); stroke-width: 1; }
+.dropSvg rect { width: calc(100% - 1px); height: calc(100% - 1px); }
+.dropText { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
+
+/* ─── Подпись фазы: проявляется через 400 мс ─── */
+.phase { padding: 3rem 0; animation: phase-in 0.28s ease-out 400ms both; }
+.phaseText { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; color: var(--fin-text); }
+.phaseNote { margin: 0.35rem 0 0; overflow-wrap: anywhere; }
+@keyframes phase-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ─── Финал ─── */
+.finale { display: grid; justify-items: start; gap: 0.5rem; padding: 2rem 0 1rem; min-width: 0; }
+.finaleNumber { margin: 0; }
+.finaleCaption { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
+.finaleFacts { margin: 0 0 0.5rem; font-size: 0.875rem; }
+.finaleFailed { width: 100%; }
+
+@media (max-width: 639px) {
+  /* Касание — не меньше 44px; и 16px в полях, иначе iOS увеличивает страницу. */
+  .choiceItem { min-height: 2.75rem; }
+  .screen .select, .screen .input { height: 2.75rem; font-size: 16px; }
+  .diffRow { grid-template-columns: minmax(0, 1fr); }
+  .fileAction { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chev, .mapRow, .mapNode, .edge { transition: none; }
+  .phase { animation-delay: 0s; animation-duration: 0s; }
+}
+
+/* ─── Полоса записи: почему «Завести» ждёт ─── */
+.barReason { display: block; margin-top: 0.2rem; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.barReason:global(.fin-fail) { color: var(--fin-fail); margin: 0 0 0.2rem; }
+
+/* ─── Правило блока: правка фразой ─── */
+.ruleEditor { display: grid; gap: 0.75rem; padding: 0.75rem 0 0.25rem; border-top: 1px solid var(--fin-line); min-width: 0; }
+.ruleGroup { display: grid; gap: 0.5rem; min-width: 0; }
+.ruleLead { margin: 0; font-size: 0.875rem; }
+.ruleCond { display: grid; gap: 0.375rem; padding-left: 1rem; min-width: 0; }
+.ruleValues { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; min-width: 0; }
+.ruleValue { display: inline-flex; align-items: baseline; gap: 0.35rem; font-size: 0.8125rem; cursor: pointer; overflow-wrap: anywhere; }
+.ruleValue input { accent-color: var(--fin-text); }
+@media (max-width: 639px) {
+  .ruleCond { padding-left: 0; }
+  .ruleValue { min-height: 2.75rem; align-items: center; }
+}

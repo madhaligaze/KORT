@@ -1,0 +1,34 @@
+# ── Секреты ───────────────────────────────────
+.env
+.env.*
+!.env.example
+# Сервисный аккаунт Google (живой приватный ключ)
+service-account*.json
+*.iam.gserviceaccount.com.json
+
+# ── ОС / редактор ─────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ── Python ────────────────────────────────────
+backend/.venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+**/__pycache__/
+*.py[cod]
+
+# ── Данные локального запуска (SQLite и загрузки) ─
+backend/data/
+
+# ── Node ──────────────────────────────────────
+node_modules/
+.next/
+out/
+package-lock.json
+coverage/
+*.tsbuildinfo
+next-env.d.ts

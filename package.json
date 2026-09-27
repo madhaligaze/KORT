@@ -1,0 +1,43 @@
+{
+  "name": "kort",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.13.1",
+  "scripts": {
+    "preinstall": "npx --yes only-allow pnpm",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@univerjs/core": "0.25.0",
+    "@univerjs/preset-sheets-conditional-formatting": "0.25.0",
+    "@univerjs/preset-sheets-core": "^0.25.0",
+    "@univerjs/preset-sheets-data-validation": "0.25.0",
+    "@univerjs/preset-sheets-filter": "0.25.0",
+    "@univerjs/preset-sheets-find-replace": "0.25.0",
+    "@univerjs/preset-sheets-hyper-link": "0.25.0",
+    "@univerjs/preset-sheets-note": "0.25.0",
+    "@univerjs/preset-sheets-sort": "0.25.0",
+    "@univerjs/preset-sheets-table": "0.25.0",
+    "@univerjs/preset-sheets-thread-comment": "0.25.0",
+    "@univerjs/presets": "^0.25.0",
+    "gsap": "^3.15.0",
+    "next": "16.2.2",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

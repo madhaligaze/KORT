@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Значок вкладки: буква K знака KORT (контуры с макета), крем на сцене. -->
+  <rect width="100" height="100" rx="22" fill="#0e100f"/>
+  <path fill="#feefd8" transform="translate(50 50) scale(0.42) translate(-60.95 -75.25)" d="M0 0H20.1V150.5H0ZM91.95 0H117.85L9.9 120.34V91.47ZM30.13 68.9L55.96 69L121.89 150.5H96.39Z"/>
+</svg>

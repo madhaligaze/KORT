@@ -1,0 +1,3380 @@
+@import "tailwindcss";
+
+/* ─── Тёмная тема (по умолчанию) — сцена ─────────────────────── */
+:root {
+  color-scheme: dark;
+
+  --bg-base:       #0e100f;
+  --bg-surface:    #141614;
+  --bg-raised:     #1a1c19;
+  --bg-hover:      #232521;
+  --bg-active:     #2c2e29;
+
+  --border-subtle: rgba(255, 252, 225, 0.07);
+  --border-base:   rgba(255, 252, 225, 0.12);
+  --border-strong: rgba(255, 252, 225, 0.22);
+
+  --text-primary:  #fffce1;
+  --text-secondary:#c9c6ae;
+  /* 4.8:1 на самом светлом фоне, где этот токен стоит (--bg-active), и 5.4:1
+     на --bg-hover. Порог AA держится везде, где он встречается.             */
+  --text-muted:    #9a9988;
+  --text-accent:   #fffce1;
+
+  /* «Акцент» — мел. Главное действие — кремовая пилюля с тёмным текстом:
+     самый контрастный предмет на экране без единого нового цвета.         */
+  --accent:        #fffce1;
+  --accent-hover:  #f1edcf;
+  --accent-press:  #e0dbba;
+  --accent-fg:     #0e100f;
+  --accent-soft:   rgba(255, 252, 225, 0.08);
+  --accent-line:   rgba(255, 252, 225, 0.38);
+
+  /* Смысл денег и отказ. Тёплые, в тон мелу: холодный изумруд и розовый из
+     прежней палитры на тёплом чёрном выглядели чужими.                     */
+  --accent-emerald:#8fdca0;
+  --accent-amber:  #ffb547;
+  --accent-rose:   #ff6f5e;
+
+  --inflow-bg:     rgba(143, 220, 160, 0.07);
+  --inflow-border: rgba(143, 220, 160, 0.20);
+  --outflow-bg:    rgba(255, 111, 94, 0.07);
+  --outflow-border:rgba(255, 111, 94, 0.22);
+
+  /* Жидкая сцена — единственный хроматический жест, и только фоном. */
+  --iris-sage:     #a0e0ab;
+  --iris-amber:    #ffac2e;
+  --iris-blood:    #a52d25;
+  --iris:          linear-gradient(100deg, var(--iris-sage) 0%, var(--iris-amber) 52%, var(--iris-blood) 100%);
+
+  /* Карточки почти острые (8px у GSAP), кнопки — пилюли. Середины нет:
+     скругление в 16px на всём подряд — примета шаблона.                    */
+  --radius-card:   8px;
+  --radius-inner:  6px;
+  --radius-btn:    6px;
+  --radius-pill:   9999px;
+
+  --shadow-card:   none;
+  --shadow-raised: none;
+  --shadow-float:  0 30px 80px -30px rgba(0, 0, 0, 0.9);
+
+  --page-bg:       #0e100f;
+  --header-bg:     rgba(14, 16, 15, 0.78);
+  --input-bg:      rgba(255, 252, 225, 0.03);
+  --scrollbar-bg:  rgba(255, 252, 225, 0.12);
+  --scrollbar-hover: rgba(255, 252, 225, 0.26);
+  --selection-bg:  rgba(255, 252, 225, 0.24);
+
+  /* ── Движение ────────────────────────────────────────────────────────────
+     Кривая monopo — скольжение с долгим дотягиванием. Длительности короче,
+     чем у них (у агентства 1.25s, у рабочего экрана столько нет), характер
+     тот же: вход медленнее выхода, анимируются transform и opacity. Под
+     prefers-reduced-motion всё обнуляется внизу файла.                      */
+  --ease-out:      cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-in-out:   cubic-bezier(0.7, 0, 0.2, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --dur-instant:   80ms;
+  --dur-fast:      160ms;   /* выходы, наведение */
+  --dur-base:      280ms;   /* входы */
+  --dur-slow:      520ms;
+  --dur-tell:      900ms;   /* то, что рассказывает, — смена вида */
+  --dur-stagger:   40ms;
+
+  /* ── Mobile scale ──────────────────────────────────────────────────────────
+     На десктопе эти значения — тождество: отступов не добавляют, размеров не
+     меняют. Всё, что делает мобильный облик мобильным, живёт в одном
+     медиа-запросе ниже по файлу. Компоненты читают токен и никогда не
+     упоминают брейкпоинт.                                                     */
+  --ios-gutter:        1rem;
+  --ios-inset:         0;
+  --ios-divider-inset: 0;
+  --ios-row-min:       0;
+  --ios-tap:           44px;
+  --ios-label:         0.72rem;
+  --ios-value:         0.8125rem;
+  --ios-section:       0.8125rem;
+  --ios-title:         0.875rem;
+  --ios-sheet-radius:  14px;
+  --ios-bar-h:         56px;
+
+  /* Сайдбар. Свёрнутая ширина — она же ширина подложки в раскладке, поэтому
+     значение одно и на двоих: разъехавшись, они дали бы либо щель, либо
+     сдвиг контента при наведении.                                            */
+
+  /* Безопасные зоны объявлены здесь намеренно: неизвестная переменная внутри
+     calc() рушит всё объявление целиком, поэтому запасной ноль обязателен.
+     Работают они только вместе с viewportFit: "cover" в layout.tsx.           */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+
+/* ─── Светлая тема — бумага и тушь ────────────────────────────── */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-base:       #f2f0e6;
+  --bg-surface:    #fbfaf4;
+  --bg-raised:     #f6f4eb;
+  --bg-hover:      #eceade;
+  --bg-active:     #e3e0d2;
+
+  --border-subtle: rgba(14, 16, 15, 0.07);
+  --border-base:   rgba(14, 16, 15, 0.13);
+  --border-strong: rgba(14, 16, 15, 0.24);
+
+  --text-primary:  #0e100f;
+  --text-secondary:#45463f;
+  /* 4.9:1 на самом тёмном из фонов, где стоит (--bg-active). */
+  --text-muted:    #5f5f55;
+  --text-accent:   #0e100f;
+
+  --accent:        #0e100f;
+  --accent-hover:  #2a2c28;
+  --accent-press:  #050605;
+  --accent-fg:     #fffce1;
+  --accent-soft:   rgba(14, 16, 15, 0.06);
+  --accent-line:   rgba(14, 16, 15, 0.32);
+
+  /* Каждый проходит 5:1 на бумаге: оттенок тот же, что в тёмной теме,
+     опущена только светлота.                                              */
+  --accent-emerald:#1f7a4a;
+  --accent-amber:  #97570a;
+  --accent-rose:   #c2331f;
+
+  --inflow-bg:     rgba(31, 122, 74, 0.06);
+  --inflow-border: rgba(31, 122, 74, 0.18);
+  --outflow-bg:    rgba(194, 51, 31, 0.05);
+  --outflow-border:rgba(194, 51, 31, 0.18);
+
+  --shadow-card:   none;
+  --shadow-raised: none;
+  --shadow-float:  0 30px 70px -32px rgba(14, 16, 15, 0.35);
+
+  --page-bg:       #f2f0e6;
+  --header-bg:     rgba(242, 240, 230, 0.82);
+  --input-bg:      #fbfaf4;
+  --scrollbar-bg:  rgba(14, 16, 15, 0.14);
+  --scrollbar-hover: rgba(14, 16, 15, 0.28);
+  --selection-bg:  rgba(14, 16, 15, 0.14);
+}
+
+/* Псевдонимы для компонентов, которые ссылались на несуществующие токены.
+   Неизвестная переменная убивает объявление целиком: у модалок анализатора
+   из-за `var(--surface)` фон был прозрачным, а активная вкладка на телефоне
+   (`var(--accent-blue)`) не красилась вовсе.
+
+   Значение с var() вычисляется там, где объявлено, поэтому псевдонимы
+   объявлены заново на каждой сцене, которая переопределяет палитру у себя
+   (стартовый экран и афиша входа — всегда тёмные): объявленные только на
+   :root, они несли бы внутрь сцены цвета корня, то есть чужую тему.       */
+:root,
+.auth-poster,
+.stage-curtain,
+.cab-portrait,
+.auth-wait {
+  --surface:       var(--bg-surface);
+  --accent-blue:   var(--accent);
+  --accent-border: var(--accent-line);
+  --green-500:     var(--accent-emerald);
+  --amber-500:     var(--accent-amber);
+  --rose-500:      var(--accent-rose);
+  --red-600:       var(--accent-rose);
+  --red-50:        var(--outflow-bg);
+  --blue-400:      var(--text-secondary);
+}
+
+/* ─── Tailwind theme tokens ───────────────────────────────────── */
+@theme inline {
+  --color-background:  var(--bg-base);
+  --color-surface:     var(--bg-surface);
+  --color-foreground:  var(--text-primary);
+  --color-muted:       var(--text-muted);
+  --color-accent:      var(--accent);
+  --font-sans: var(--font-geologica);
+  --font-mono: var(--font-martian);
+
+  /* Тело интерфейса было 12px: класс text-xs стоит больше трёхсот раз, две
+     трети продукта набраны им. Переопределение здесь двигает все места
+     разом. 13px — минимальный шаг, который решает читаемость и не ломает
+     плотность таблиц. Междустрочный задан явно, иначе подъём кегля утащил
+     бы за собой высоту каждой строки реестра.                             */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: calc(1 / 0.8125);
+}
+
+/* ─── Base styles ─────────────────────────────────────────────── */
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.008em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; min-width: 0; }
+
+::selection { background: var(--selection-bg); }
+
+:focus-visible { outline-color: var(--text-primary); }
+
+/* ─── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--scrollbar-bg); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+
+/* ─── Типографика ─────────────────────────────────────────────────
+   Три голоса. Крупный — Geologica тонким весом с тугим трекингом: у monopo
+   заголовок «шепчет» весом 300–400, у GSAP — сжат трекингом до -0.02em и
+   ниже. Рабочий — та же Geologica, обычный вес. Пометка — Martian Mono в
+   фигурных скобках, подпись GSAP.                                          */
+.headline {
+  font-size: clamp(1.75rem, 3.4vw, 2.75rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  color: var(--text-primary);
+}
+
+/* Пометка в фигурных скобках. Скобки — псевдоэлементы, в тексте их нет:
+   скринридер читает «Разделы», а не «фигурная скобка, Разделы».           */
+.annot {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55em;
+  margin: 0;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+.annot::before { content: "{"; color: var(--text-muted); }
+.annot::after  { content: "}"; color: var(--text-muted); }
+
+/* Подпись поля и колонки. Была моноширинным капслоком с разрядкой — самая
+   узнаваемая примета сгенерированного интерфейса. Теперь это обычная
+   приглушённая подпись: она подписывает, а не украшает.                   */
+.eyebrow {
+  font-family: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+}
+.mono-meta {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+
+/* ─── Движение: что прячется до входа ─────────────────────────────
+   Класс `motion` ставит скрипт в <head> (см. layout.tsx) и сам снимает
+   через четыре секунды. Прячется только то, что потом выедет анимацией; без
+   JS всё это просто видно.                                                  */
+.motion [data-split]:not([data-split-ready]) { visibility: hidden; }
+.motion .ix-rule { transform: scaleX(0); }
+.motion .ix-num,
+.motion .ix-meta { opacity: 0; }
+
+/* Окно строки при разрезке. Запас сверху и снизу — под «Й», «Ё» и хвосты
+   «у», «д», «р»: при межстрочном 0.92 окно ровно по строке обрезало бы их. */
+.sr-line-mask {
+  padding-block: 0.14em;
+  margin-block: -0.14em;
+}
+
+/* ─── Card ────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.card-inner {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-inner);
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────── */
+/* Главное действие — кремовая пилюля (в светлой теме — тушь). По наведению
+   по ней проходит отблеск жидкой сцены: единственный раз, когда её цвета
+   касаются элемента интерфейса, и то на полсекунды.
+
+   Отблеск — псевдоэлемент под текстом: isolation держит слой внутри кнопки,
+   и z-index: -1 кладёт его поверх заливки, но под подпись.                 */
+.btn-primary {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: var(--radius-pill);
+  font-weight: 500;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+  padding: 0.6rem 1.4rem;
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-out);
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(100deg,
+    transparent 15%,
+    color-mix(in srgb, var(--iris-sage) 70%, transparent) 38%,
+    color-mix(in srgb, var(--iris-amber) 70%, transparent) 55%,
+    color-mix(in srgb, var(--iris-blood) 45%, transparent) 70%,
+    transparent 88%);
+  transform: translateX(-105%);
+  transition: transform 0s;
+  pointer-events: none;
+}
+.btn-primary:hover:not(:disabled)::before {
+  transform: translateX(105%);
+  transition: transform 1s var(--ease-out);
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:active:not(:disabled) { transform: scale(0.97); background: var(--accent-press); }
+/* Выключенная — поверхность и приглушённая подпись, а не крем на 38%:
+   полупрозрачный крем на чёрном давал мутный оливковый, который читался как
+   «какая-то кнопка», а не как «пока нельзя». */
+.btn-primary:disabled {
+  background: var(--bg-active);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.btn-primary:disabled::before { display: none; }
+.btn-primary:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+
+/* Всё остальное — пилюля с волосяной обводкой. По наведению обводка
+   набирает цвет текста, как у GSAP: заливки нет.                          */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  font-weight: 450;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+  padding: 0.6rem 1.3rem;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-instant) var(--ease-out);
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--text-primary); background: var(--accent-soft); }
+.btn-ghost:active:not(:disabled) { transform: scale(0.97); }
+.btn-ghost:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn-ghost:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+
+/* Маленькая пилюля для шапок. Утилиты Tailwind `px-2.5 py-1.5` на .btn-ghost
+   не работали бы: правила этого файла не в слое и бьют утилиты по каскаду. */
+.btn-sm {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8125rem;
+  min-height: 36px;
+}
+
+/* ─── Input ───────────────────────────────────────────────────── */
+.input-field {
+  background: var(--input-bg);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-inner);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  padding: 0.6rem 0.85rem;
+  width: 100%;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  outline: none;
+}
+.input-field:hover { border-color: var(--border-strong); }
+.input-field:focus {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.input-field::placeholder { color: var(--text-muted); }
+
+/* Выпадающий список.
+   `--input-bg` в тёмной теме почти прозрачный: на странице он ложится на
+   тёмный фон и выглядит правильно. Но список опций рисует не страница, а
+   система, и там тот же цвет накладывается на БЕЛОЕ — получался белый
+   список с почти белым текстом. Поэтому у select и его опций фон
+   непрозрачный, заданный явно.                                            */
+select.input-field {
+  background-color: var(--bg-raised);
+  /* Нативная стрелка живёт по краю и в тесных фильтрах налезает на текст. */
+  padding-right: 2rem;
+  cursor: pointer;
+}
+select.input-field option,
+select.input-field optgroup {
+  background-color: var(--bg-raised);
+  color: var(--text-primary);
+}
+/* Пустое значение списка («Выберите счёт», «Без категории», «Все счета» —
+   `PlaceholderOption`, `ChoiceSelect`) — не значение: в закрытом поле
+   приглушено, иначе читалось бы выбранным счётом или статьёй. Пункты
+   раскрытого списка приглушение не наследуют. */
+select:has(> option[data-placeholder]:checked) { color: var(--text-muted); }
+select:has(> option[data-placeholder]:checked) > option:not([data-placeholder]) { color: var(--text-primary); }
+
+/* Поле выбора — src/components/choice-select.tsx: у необязательного поля с
+   выбранным значением крестик «очистить» между текстом и стрелкой. */
+.choice { position: relative; display: block; min-width: 0; }
+.choice[data-clear] > select { padding-right: 3.5rem; }
+.choice-clear {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 1.75rem;
+  margin: auto 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.choice-clear:hover { color: var(--text-primary); background: var(--bg-hover); }
+.choice-clear:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+/* Своя кнопка-список текстом (`ChoicePop`): крестик — рядом в строке. */
+.choice-clear.choice-clear-inline {
+  position: static;
+  display: inline-grid;
+  vertical-align: middle;
+  margin: 0 0 0 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+/* Пустое у кнопки-списка — приглушено; «не назначен» остаётся цветом отказа. */
+.fin-link-btn[data-empty="true"] { color: var(--text-muted); }
+/* Под палец — не меньше 28px. */
+@media (pointer: coarse) {
+  .choice-clear { width: 1.75rem; height: 1.75rem; right: 1.625rem; }
+  .choice-clear.choice-clear-inline { width: 1.75rem; height: 1.75rem; }
+  .choice[data-clear] > select { padding-right: 3.75rem; }
+}
+
+/* ─── Badges ──────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.18rem 0.6rem;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+/* Синего больше нет: «синяя» и «индиго» плашки — нейтральная обводка. */
+.badge-slate   { background: var(--accent-soft); color: var(--text-secondary); }
+
+/* ─── Tab active indicator ────────────────────────────────────── */
+.tab-active   { color: var(--text-primary); border-bottom-color: var(--text-primary); }
+.tab-inactive { color: var(--text-muted); border-bottom-color: transparent; }
+.tab-inactive:hover { color: var(--text-secondary); }
+
+/* ─── Animations ──────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Mobile optimisations ──────────────────────────────────────
+   Брейкпоинт здесь — 639.98px, а не 640px, и это не придирка: у Tailwind
+   `sm:` начинается с min-width 640px, поэтому ровно на 640 старый запрос и
+   утилиты `sm:` применялись одновременно и красили одно и то же дважды.     */
+
+/* Prevent iOS auto-zoom on focus */
+.input-field,
+select.input-field,
+textarea.input-field {
+  font-size: max(16px, 0.875rem);
+}
+
+/* Минимальная цель — 44px под палец и 40px под мышь. Раньше 44px стояли
+   везде, и шапки на десктопе состояли из пилюль в рост пальца.            */
+.btn-primary,
+.btn-ghost {
+  min-height: 40px;
+}
+@media (pointer: coarse) {
+  .btn-primary,
+  .btn-ghost {
+    min-height: 44px;
+  }
+}
+
+/* Страница не должна ездить вбок. Именно `clip`, а не `hidden`: `hidden` на
+   html/body заводит скролл-контейнер и отключает position:sticky у всех
+   потомков — то есть погасил бы разом все четыре залипающие шапки.          */
+html, body { overflow-x: clip; }
+
+@media (max-width: 639.98px) {
+  :root {
+    --ios-inset:         1rem;
+    --ios-divider-inset: 1rem;
+    --ios-row-min:       44px;
+    --ios-label:         0.8125rem;
+    --ios-value:         0.9375rem;
+    --ios-section:       0.8125rem;
+    --ios-title:         1rem;
+  }
+
+  /* Эти два класса несут почти весь мелкий текст продукта — поднять их
+     полезнее, чем править арбитражные размеры по одному.                   */
+  .eyebrow   { font-size: 0.8125rem; }
+  .mono-meta { font-size: 0.78rem; }
+}
+
+/* Печать: отчёт на бумаге — обычный документ, а не скриншот интерфейса. */
+@media print {
+  :root { --page-bg: #ffffff; }
+
+  body { background: #fff; color: #000; }
+
+  /* Навигация, фильтры и кнопки на бумаге бесполезны. */
+  header, nav, button, input { display: none !important; }
+
+  .card, .card-inner {
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Таблицы не должны обрезаться по ширине контейнера. */
+  .overflow-x-auto { overflow: visible !important; }
+
+  table { font-size: 10pt; }
+  thead { display: table-header-group; }  /* шапка повторяется на каждой странице */
+
+  a[href]::after { content: ""; }
+}
+
+/* ─── Видимость по брейкпоинту ────────────────────────────────────
+   Свои классы вместо hidden / sm:hidden от Tailwind.
+
+   Не блажь, а обход ловушки каскада. Tailwind 4 кладёт утилиты в
+   `@layer utilities`, а правила этого файла не в слое вовсе — а неслоёный
+   стиль по каскаду бьёт любой слой, независимо от специфичности и порядка.
+   Поэтому у элемента с компонентным классом `display` всегда берётся из
+   компонента, а `hidden`/`sm:hidden` рядом молча не работает.
+
+   Стоило это трёх дефектов на проде PDF-CONVERTER: нижний таб-бар висел на
+   всех ширинах и дублировал верхнюю ленту вкладок; значок логотипа занимал
+   место в однострочной шапке телефона, из-за чего заголовок обрезался; кнопки
+   «Назад» и «Действия» (.btn-ghost) показывались на чужих экранах.
+
+   !important здесь по делу: эти два класса делают ровно одно — прячут, — и
+   должны выигрывать у любого компонентного display, не считаясь ни с чем.
+   Ставить их можно только рядом с классом, который сам задаёт display.       */
+@media (min-width: 640px) {
+  .only-mobile { display: none !important; }
+}
+@media (max-width: 639.98px) {
+  .only-desktop { display: none !important; }
+}
+
+/* ─── Reduced motion ──────────────────────────────────────────────
+   Accessibility requirement, not an option: when the OS asks for less
+   motion, animation stops entirely while every state stays correct.
+   Durations are zeroed at the token level so components need no branches. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast:    0ms;
+    --dur-base:    0ms;
+    --dur-slow:    0ms;
+    --dur-tell:    0ms;
+    --dur-stagger: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Сцена ─────────────────────────────────────────────────────────
+   Афиша входа, портрет кабинета, ожидание входа и занавес перехода — места,
+   где играет дымовая сцена (motion/liquid-stage.tsx).
+
+   В тёмной теме сцена почти чёрная, в светлой — серая, и надписи на ней
+   тушью. Раньше она была тёмной всегда: в светлой теме посреди бумаги стояла
+   чёрная плита (портрет кабинета, 28.09.2026).
+
+   Смену темы сцена проходит плавно. Держат это зарегистрированные свойства
+   `--stage-bg`, `--stage-fg`, `--stage-mark`: объявленные как <color>, они
+   интерполируются, и `transition` на :root ведёт их за `--stage-shift`. Всё,
+   что на них построено — фон, вуали через color-mix, надписи, знак, —
+   перетекает вместе. Шейдер цвет из CSS не получает: он читает цель
+   `--stage-bg-to` и проходит тот же путь твином GSAP той же длины.
+
+   Токены интерфейса переопределяются на самой сцене, а не на :root: кнопки и
+   подписи внутри берут значения отсюда.                                   */
+@property --stage-bg { syntax: "<color>"; inherits: true; initial-value: #0e100f; }
+@property --stage-fg { syntax: "<color>"; inherits: true; initial-value: #fffce1; }
+@property --stage-mark { syntax: "<color>"; inherits: true; initial-value: #feefd8; }
+
+:root {
+  --stage-bg-to:   #0e100f;
+  --stage-fg-to:   #fffce1;
+  /* Знак KORT — крем с утверждённого макета, а не мел интерфейса. */
+  --stage-mark-to: #feefd8;
+  --stage-shift:   900ms;
+
+  --stage-bg:   var(--stage-bg-to);
+  --stage-fg:   var(--stage-fg-to);
+  --stage-mark: var(--stage-mark-to);
+  transition:
+    --stage-bg var(--stage-shift) ease-in-out,
+    --stage-fg var(--stage-shift) ease-in-out,
+    --stage-mark var(--stage-shift) ease-in-out;
+}
+:root[data-theme="light"] {
+  --stage-bg-to:   #cfccc2;
+  --stage-fg-to:   #0e100f;
+  --stage-mark-to: #0e100f;
+}
+
+.auth-poster,
+.stage-curtain,
+.cab-portrait,
+.auth-wait {
+  color-scheme: dark;
+
+  --bg-base:       var(--stage-bg);
+  --bg-surface:    #141614;
+  --bg-raised:     #1a1c19;
+  --bg-hover:      #232521;
+  --bg-active:     #2c2e29;
+
+  --border-subtle: rgba(255, 252, 225, 0.07);
+  --border-base:   rgba(255, 252, 225, 0.12);
+  --border-strong: rgba(255, 252, 225, 0.22);
+
+  --text-primary:  var(--stage-fg);
+  --text-secondary:#c9c6ae;
+  --text-muted:    #9a9988;
+  --text-accent:   var(--stage-fg);
+
+  --accent:        #fffce1;
+  --accent-hover:  #f1edcf;
+  --accent-press:  #e0dbba;
+  --accent-fg:     #0e100f;
+  --accent-soft:   rgba(255, 252, 225, 0.08);
+  --accent-line:   rgba(255, 252, 225, 0.38);
+
+  --page-bg:       var(--stage-bg);
+  --input-bg:      rgba(255, 252, 225, 0.03);
+}
+
+/* Светлая сцена: серый камень и тушь. Поверхности — полупрозрачная тушь, а
+   не свои серые: кнопки лежат прямо на дыме и должны его пропускать.
+   Приглушённая подпись — 5.4:1 на #cfccc2. */
+:root[data-theme="light"] :is(.auth-poster, .stage-curtain, .cab-portrait, .auth-wait) {
+  color-scheme: light;
+
+  --bg-surface:    rgba(14, 16, 15, 0.04);
+  --bg-raised:     rgba(14, 16, 15, 0.05);
+  --bg-hover:      rgba(14, 16, 15, 0.07);
+  --bg-active:     rgba(14, 16, 15, 0.11);
+
+  --border-subtle: rgba(14, 16, 15, 0.08);
+  --border-base:   rgba(14, 16, 15, 0.16);
+  --border-strong: rgba(14, 16, 15, 0.28);
+
+  --text-secondary:#33342e;
+  --text-muted:    #4a4b44;
+
+  --accent:        #0e100f;
+  --accent-hover:  #2a2c28;
+  --accent-press:  #050605;
+  --accent-fg:     #fffce1;
+  --accent-soft:   rgba(14, 16, 15, 0.07);
+  --accent-line:   rgba(14, 16, 15, 0.32);
+
+  --input-bg:      rgba(255, 255, 255, 0.4);
+}
+
+/* ─── Жидкая сцена ─── */
+.liquid-stage { display: block; }
+/* Без WebGL — те же три цвета неподвижными пятнами. */
+.liquid-fallback {
+  background:
+    radial-gradient(55% 65% at 82% 72%, rgba(255, 172, 46, 0.42), transparent 62%),
+    radial-gradient(45% 55% at 96% 28%, rgba(160, 224, 171, 0.32), transparent 60%),
+    radial-gradient(60% 55% at 62% 104%, rgba(165, 45, 37, 0.55), transparent 66%),
+    var(--stage-bg);
+}
+
+/* ─── Указатель разделов ───────────────────────────────────────────
+   Номер слева, название во всю ширину, пометка в правом верхнем углу
+   строки, стрелка справа. Пометка стоит над названием, а не своей колонкой:
+   колонкой она отнимала у названия двести пикселей и на окне 1000px
+   выдавливала «Анализатор выписок» за край.                                */
+.ix {
+  display: flex;
+  flex-direction: column;
+}
+
+.ix-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 3.5rem;
+  align-items: center;
+  column-gap: 1.25rem;
+  width: 100%;
+  padding: clamp(0.55rem, 1.6vh, 1.1rem) 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 600ms var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Остальные строки гаснут, пока одна под курсором или в фокусе. */
+.ix:has(.ix-row:hover) .ix-row:not(:hover),
+.ix:has(.ix-row:focus-visible) .ix-row:not(:focus-visible) { opacity: 0.3; }
+
+.ix-row:focus-visible {
+  outline: 1px solid var(--text-primary);
+  outline-offset: 6px;
+  border-radius: 4px;
+}
+
+.ix-num {
+  align-self: start;
+  padding-top: 0.6em;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ix-title {
+  display: block;
+  grid-column: 2;
+  grid-row: 1;
+  font-weight: 400;
+  line-height: 0.98;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+.ix[data-size="hero"] .ix-title { font-size: clamp(2.4rem, min(6.6vw, 11vh), 7.25rem); }
+.ix[data-size="section"] .ix-title {
+  font-size: clamp(1.9rem, min(4.6vw, 8.5vh), 4.5rem);
+  font-weight: 450;
+  letter-spacing: -0.04em;
+}
+
+.ix-meta {
+  grid-column: 2 / 4;
+  grid-row: 1;
+  align-self: start;
+  justify-self: end;
+  padding-top: 0.6em;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ix-arrow {
+  grid-column: 3;
+  grid-row: 1;
+  display: inline-flex;
+  justify-content: flex-end;
+  align-self: end;
+  padding-bottom: 0.35em;
+  color: var(--text-primary);
+  opacity: 0;
+}
+
+.ix-rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border-base);
+  transform-origin: 0% 50%;
+  pointer-events: none;
+}
+.ix-rule-top {
+  position: relative;
+  display: block;
+}
+
+/* На стартовом экране пометка стоит над названием слева, в одну строку с
+   номером, — как метка категории у GSAP. Справа, как в разделах, она легла бы
+   на жидкую сцену: мелкий моноширинный текст на янтаре не читается.         */
+.ix[data-size="hero"] .ix-row {
+  grid-template-rows: auto auto;
+  row-gap: 0.4rem;
+}
+.ix[data-size="hero"] .ix-num { grid-row: 1; padding-top: 0; align-self: center; }
+.ix[data-size="hero"] .ix-meta {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+  align-self: center;
+  padding-top: 0;
+}
+.ix[data-size="hero"] .ix-title { grid-row: 2; }
+.ix[data-size="hero"] .ix-arrow { grid-row: 2; }
+
+/* На сенсорном экране наведения нет: стрелка видна всегда, иначе строка не
+   говорит, что она ведёт куда-то. */
+@media (hover: none) {
+  .ix-arrow { opacity: 0.55; }
+}
+
+@media (max-width: 639.98px) {
+  .ix-row {
+    grid-template-columns: 1.75rem minmax(0, 1fr) 1.5rem;
+    column-gap: 0.75rem;
+  }
+  .ix-meta { display: none; }
+  /* На стартовом пометка над названием — ей место есть и на телефоне. */
+  .ix[data-size="hero"] .ix-meta { display: block; font-size: 0.66rem; }
+  .ix-title { white-space: normal; }
+  .ix[data-size="hero"] .ix-title { font-size: clamp(2.1rem, 10.5vw, 3rem); }
+  .ix[data-size="section"] .ix-title { font-size: clamp(1.75rem, 8.5vw, 2.4rem); }
+  .ix-num { font-size: 0.66rem; }
+}
+
+/* ─── Занавес перехода ─────────────────────────────────────────────
+   Полотно всегда тёмное, в обеих темах: переход — это сцена, а не страница.
+   По краям — тонкая полоса жидкой сцены: у поднимающегося занавеса она
+   ведёт верхний край, у уходящего — замыкает нижний.                       */
+.stage-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  padding: clamp(1.5rem, 5vw, 4rem);
+  padding-bottom: max(clamp(1.5rem, 5vw, 4rem), var(--safe-b));
+  background: var(--bg-base);
+  color: var(--text-primary);
+  /* Только невидимость, без transform: сдвиг ведёт GSAP. Заданный здесь
+     translateY(100%) GSAP читает из вычисленной матрицы как y: 900px и
+     складывает со своим yPercent — занавес приезжал на экран со смещением
+     ровно на высоту окна и оставался за его нижним краем. */
+  visibility: hidden;
+}
+.stage-curtain::before,
+.stage-curtain::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--iris);
+}
+.stage-curtain::before { top: 0; }
+.stage-curtain::after { bottom: 0; }
+
+.stage-curtain-label {
+  max-width: 100%;
+  font-size: clamp(2.5rem, 7vw, 8rem);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+/* ─── Экран входа: афиша и форма ─────────────────────────────────
+   Вход собирается в три шага (components/stage/auth-stage.tsx): в темноте
+   проявляется дым, потом буква за буквой знак KORT, потом форма раздвигает
+   сцену справа. Раздвигает по-настоящему, раскладкой: `--auth-open` (0..1)
+   ведёт ширину колонки формы, сцена сжимается, и дым, прижатый шейдером к
+   правому краю полотна, уезжает вместе с краем влево. Сдвиг трансформом
+   оставил бы дым под формой.
+
+   На телефоне то же самое по высоте: сцена во весь экран сжимается в полосу
+   сверху, форма поднимается под ней.                                      */
+.auth-stage {
+  --auth-open: 1;
+  min-height: 100svh;
+  display: grid;
+  /* 46.5% — прежние 1.15fr / 1fr: при открытой форме раскладка та же. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, calc(46.5116% * var(--auth-open)));
+  background: var(--stage-bg);
+}
+/* Пока идёт вход, страница не прокручивается и форма не выглядывает из-за края. */
+.auth-stage[data-intro] { height: 100svh; overflow: hidden; }
+.auth-stage[data-intro] .auth-panel { overflow: hidden; }
+
+.auth-poster {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  min-height: 100svh;
+  padding: max(clamp(1.25rem, 3vw, 2.5rem), var(--safe-t)) clamp(1.25rem, 3.4vw, 3.5rem) clamp(1.75rem, 5vw, 4rem);
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+.auth-liquid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+}
+/* Вуаль держит контраст знака: от нижнего левого угла, где он стоит. Цвет —
+   сама сцена, поэтому в светлой теме вуаль серая, а не чёрная. */
+.auth-poster-veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(0deg, color-mix(in srgb, var(--stage-bg) 78%, transparent) 0%, color-mix(in srgb, var(--stage-bg) 12%, transparent) 58%),
+    linear-gradient(90deg, color-mix(in srgb, var(--stage-bg) 40%, transparent) 0%, transparent 60%);
+}
+.auth-poster-foot {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  margin-bottom: 0;
+}
+/* Знак — во всю ширину, как на утверждённом макете: примерно половина афиши.
+   Нижний край полотна знака режет буквы, пока они поднимаются на место. */
+.auth-mark-title { margin: 0; line-height: 0; }
+.auth-mark {
+  display: block;
+  width: clamp(11rem, 27vw, 34rem);
+  height: auto;
+  color: var(--stage-mark);
+  overflow: hidden;
+}
+
+.auth-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.5rem, 5vw, 4rem);
+  padding-bottom: max(clamp(1.5rem, 5vw, 4rem), var(--safe-b));
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.auth-form {
+  width: min(26rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.auth-heading {
+  font-size: 1.875rem;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: var(--text-primary);
+}
+.auth-fields { display: flex; flex-direction: column; gap: 0.9rem; }
+.auth-field { display: flex; flex-direction: column; gap: 0.4rem; }
+.auth-hint { font-size: 0.75rem; color: var(--text-muted); }
+.auth-error {
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-inner);
+  font-size: 0.8125rem;
+  color: var(--accent-rose);
+  background: var(--outflow-bg);
+  border: 1px solid var(--outflow-border);
+}
+.auth-note {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.auth-note code { font-family: var(--font-martian), ui-monospace, monospace; font-size: 0.8em; color: var(--text-primary); }
+.auth-switch { align-self: flex-start; }
+
+/* Вход сотрудника по номеру (фронт-план ERP, 6.8). Ссылки под формой —
+   одной строкой с переносом: «Войти как сотрудник» кнопкой, остальное —
+   ссылками, чтобы главное действие экрана оставалось одно. */
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  margin-top: 1.25rem;
+}
+.auth-link { font-size: 0.8125rem; color: var(--text-secondary); }
+.auth-link:hover { color: var(--text-primary); }
+/* Номер между шагами не вводится заново — он стоит текстом с «Изменить». */
+.auth-number {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.auth-number .fin-mono { font-size: 0.9375rem; color: var(--text-primary); }
+
+/* Телефон с маской-призраком. Призрак лежит НАД полем (фон поля иначе его
+   закрыл бы) и не ловит мышь; набранная часть в нём невидима, поэтому видна
+   только ещё не набранная маска. Шрифт у поля и призрака один и тот же
+   моноширинный — только так они совпадают символ в символ. */
+.phone-input { position: relative; display: block; }
+.phone-input .phone-field,
+.phone-ghost {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 1rem;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.phone-ghost {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  white-space: pre;
+  overflow: hidden;
+  pointer-events: none;
+}
+.phone-ghost-typed { visibility: hidden; }
+.phone-input[data-invalid="true"] .phone-field { border-color: var(--fin-fail); }
+
+/* ─── Смена темы ─────────────────────────────────────────────────────
+   Пока тема меняется, цвета всей страницы перетекают за `--stage-shift` —
+   вместе с дымовой сценой (theme-store.ts вешает класс на время перехода).
+   Сам тумблер исключён: у его ползунка своё движение. Цвета сцены — в списке
+   явно: правило на <html> иначе затёрло бы их переход с :root. */
+.theme-shift,
+.theme-shift :not(.theme-switch, .theme-switch *),
+.theme-shift :not(.theme-switch, .theme-switch *)::before,
+.theme-shift :not(.theme-switch, .theme-switch *)::after {
+  transition-property: background-color, color, border-color, outline-color, fill, stroke, --stage-bg, --stage-fg, --stage-mark !important;
+  transition-duration: var(--stage-shift) !important;
+  transition-timing-function: ease-in-out !important;
+  transition-delay: 0s !important;
+}
+
+/* ─── Тумблер темы ───────────────────────────────────────────────────
+   Солнце слева, луна справа, ползунок — под выбранной. Ползунок переезжает
+   «каплей»: левый и правый край — отдельные переходы, и тот, что впереди по
+   ходу, уходит первым. Переход берётся из конечного состояния, поэтому
+   порядок краёв задан на каждом из двух. */
+.theme-switch {
+  --sw-w: 4.75rem;
+  --sw-h: 2.5rem;
+  --sw-icon: 1.125rem;
+  --sw-pad: 0.25rem;
+  /* Круг внутри рамки 1px: высота минус рамка и два отступа. */
+  --sw-knob: calc(var(--sw-h) - 2px - 2 * var(--sw-pad));
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: var(--sw-w);
+  height: var(--sw-h);
+  padding: 0 calc(var(--sw-pad) + (var(--sw-knob) - var(--sw-icon)) / 2);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-pill);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--stage-shift) ease-in-out;
+}
+.theme-switch:hover { border-color: var(--border-strong); }
+.theme-switch:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+
+.theme-switch-knob {
+  position: absolute;
+  top: var(--sw-pad);
+  bottom: var(--sw-pad);
+  left: var(--sw-pad);
+  right: calc(var(--sw-w) - 2px - var(--sw-pad) - var(--sw-knob));
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
+  /* К солнцу: первым уходит левый край, правый догоняет. Задний край
+     трогается позже и идёт дольше — на полпути ползунок накрывает обе иконки. */
+  transition:
+    left 340ms var(--ease-out),
+    right 520ms cubic-bezier(0.65, 0, 0.35, 1) 110ms,
+    background-color var(--stage-shift) ease-in-out;
+}
+.theme-switch[data-on="dark"] .theme-switch-knob {
+  left: calc(var(--sw-w) - 2px - var(--sw-pad) - var(--sw-knob));
+  right: var(--sw-pad);
+  /* К луне: первым уходит правый край. */
+  transition:
+    right 340ms var(--ease-out),
+    left 520ms cubic-bezier(0.65, 0, 0.35, 1) 110ms,
+    background-color var(--stage-shift) ease-in-out;
+}
+
+.theme-switch-icon {
+  position: relative;
+  z-index: 1;
+  width: var(--sw-icon);
+  height: var(--sw-icon);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: color 300ms var(--ease-out), transform 520ms var(--ease-out);
+}
+.theme-switch-sun circle { fill: currentColor; stroke: none; }
+.theme-switch-moon path { fill: currentColor; stroke: none; }
+.theme-switch-rays { transform-origin: 12px 12px; transition: transform 520ms var(--ease-out); }
+
+/* Выбранная иконка — на ползунке, цветом фона; другая приглушена и отвёрнута. */
+.theme-switch[data-on="light"] .theme-switch-sun { color: var(--bg-base); }
+.theme-switch[data-on="dark"] .theme-switch-moon { color: var(--bg-base); }
+.theme-switch[data-on="dark"] .theme-switch-rays { transform: rotate(-45deg) scale(0.8); }
+.theme-switch[data-on="light"] .theme-switch-moon { transform: rotate(-30deg); }
+
+/* На входе тумблер стоит в правом верхнем углу панели формы. */
+.auth-panel { position: relative; }
+.auth-theme {
+  position: absolute;
+  top: max(1.25rem, var(--safe-t));
+  right: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+/* Ожидание — та же сцена без дыма: вход проявляется из этого же цвета. */
+.auth-wait {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--stage-bg);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.auth-wait > span { animation: fade-in var(--dur-base) var(--ease-out) 400ms both; }
+
+@media (max-width: 899.98px) {
+  .auth-stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  /* Сцена во весь экран сжимается в полосу: 100svh → 34svh вместе с входом. */
+  .auth-poster { min-height: calc(34svh + 66svh * (1 - var(--auth-open))); gap: 1.25rem; }
+  .auth-mark { width: clamp(9rem, 44vw, 15rem); }
+  .auth-panel { align-items: flex-start; }
+}
+
+/* Пилюля в шапке на десктопе ниже общего минимума в 44px: он для пальца, а
+   мышью в шапке 36px хватает. Селектор из двух классов — чтобы выиграть у
+   общего правила `.btn-ghost { min-height: 44px }` при любом порядке. */
+@media (min-width: 640px) {
+  .btn-ghost.btn-sm,
+  .btn-primary.btn-sm { min-height: 36px; }
+}
+
+/* Выбранная сторона — фоном и весом подписи. Не точкой и не цветом: цвет в
+ * этом продукте означает отказ, а выбранный вид — это не отказ. */
+.btn-ghost[aria-pressed="true"] {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Учёт KORT
+   ═══════════════════════════════════════════════════════════════
+
+   Оформление снято с живого Finmap 18 сентября 2026 (`pw-finmap/design-probe*.mjs`),
+   потому что у них оно выстрадано, а не придумано: тёмная рама вокруг светлой
+   «плиты» с содержимым, три действия сверху с заливкой по смыслу, активная
+   вкладка чёрной пилюлей, слева счета с остатками.
+
+   Что взято числами, а не на глаз:
+
+   | что                  | у них                          |
+   |----------------------|--------------------------------|
+   | рама                 | #181D1F                        |
+   | кнопка «Доход»       | rgba(138,255,185,.16), r=12px, h=40 |
+   | кнопка «Расход»      | rgba(255,141,112,.16)          |
+   | кнопка «Перевод»     | rgba(255,255,255,.16)          |
+   | вкладка (активная)   | чёрная пилюля r=20px, 18px/700 |
+   | списание в журнале   | #FF6333, 13px                  |
+   | подпись в панели     | 12px, обычный вес              |
+
+   Два отступления от оригинала, оба по делу
+   ─────────────────────────────────────────
+   **Обе темы.** Finmap только светлый. У нас переключатель темы есть, и
+   проверка гоняет оба вида, поэтому «плита» берёт цвет из наших токенов
+   поверхности, а рама остаётся тёмной в обеих темах — это их узнаваемая часть.
+
+   **Один акцент остаётся сапфировым.** Мятный и коралловый здесь не бренд, а
+   смысл: приход и расход. Кнопка «Записать» и выделение остаются сапфировыми,
+   как во всём продукте, — второй бренд-цвет мы не заводим.
+
+   ВНИМАНИЕ про каскад: классы ниже задают `display`, а утилиты Tailwind лежат
+   в слое и неслоёному правилу проигрывают. Прятать эти элементы только через
+   .only-mobile / .only-desktop — `hidden` и `sm:flex` на них не сработают. */
+
+:root {
+  /* Рама и плита. Рама — та же тёплая сцена, что у всего продукта, а не
+     холодный графит Finmap: раздел живёт внутри нашего продукта, и рама в
+     чужой гамме читалась бы как встроенный сторонний сервис.               */
+  --fin-chrome:        #0e100f;
+  --fin-chrome-text:   #fffce1;
+  --fin-chrome-muted:  rgba(255, 252, 225, 0.62);
+  --fin-plate:         #fbfaf4;
+  --fin-plate-radius:  14px;
+  --fin-plate-border:  rgba(14, 16, 15, 0.07);
+
+  /* Деньги: приход и расход — смысл, а не бренд */
+  --fin-income:        #1f7a4a;
+  --fin-income-soft:   rgba(143, 220, 160, 0.16);
+  --fin-income-line:   rgba(31, 122, 74, 0.28);
+  --fin-expense:       #c2331f;
+  --fin-expense-soft:  rgba(255, 111, 94, 0.16);
+  --fin-expense-line:  rgba(194, 51, 31, 0.28);
+  --fin-neutral-soft:  rgba(255, 252, 225, 0.12);
+
+  /* Текст на плите */
+  --fin-text:          #0e100f;
+  --fin-text-soft:     #55564c;
+  --fin-line:          rgba(14, 16, 15, 0.08);
+
+  --fin-rail-w:        72px;
+  --fin-rail-bg:       rgba(14, 16, 15, 0.045);
+  --fin-rail-mark-bg:  rgba(14, 16, 15, 0.05);
+  --fin-rail-open:     288px;
+}
+
+:root[data-theme="dark"] {
+  --fin-rail-bg:       rgba(255, 252, 225, 0.04);
+  --fin-rail-mark-bg:  rgba(255, 252, 225, 0.06);
+  --fin-plate:         var(--bg-surface);
+  --fin-plate-border:  var(--border-base);
+  --fin-text:          var(--text-primary);
+  --fin-text-soft:     var(--text-secondary);
+  --fin-line:          var(--border-subtle);
+  /* На тёмной плите светлые тона читаются лучше тёмных. */
+  --fin-income:        #8fdca0;
+  --fin-expense:       #ff8a70;
+}
+
+/* ─── Рама и плита ─── */
+.fin-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--fin-chrome);
+  display: flex;
+  flex-direction: column;
+}
+.fin-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--fin-chrome);
+  color: var(--fin-chrome-text);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.fin-head-title { color: var(--fin-chrome-text); }
+.fin-head-sub { color: var(--fin-chrome-muted); }
+
+/* Плита — то, из-за чего интерфейс выглядит собранным: содержимое живёт на
+   одном скруглённом листе, а не растекается по всему окну. */
+.fin-plate {
+  flex: 1;
+  margin: 0 0.75rem 0.75rem;
+  background: var(--fin-plate);
+  border-radius: var(--fin-plate-radius);
+  border: 1px solid var(--fin-plate-border);
+  /* `clip`, а не `hidden`: скругление обрезается так же, но плита не
+     становится контейнером прокрутки. С `hidden` прилипание колонки разделов
+     считалось бы относительно плиты, которая сама не прокручивается, — то
+     есть не работало бы вовсе. Старые браузеры берут строку выше. */
+  overflow: hidden;
+  overflow: clip;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 768px) {
+  /* Колонка тянется на всю высоту ряда — подложка и линия до низа плиты. */
+  .fin-plate { grid-template-columns: auto minmax(0, 1fr); align-items: stretch; }
+}
+
+/* ─── Внутренний слой колонки ─── */
+.fin-aside-inner { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+@media (min-width: 768px) {
+  /* Прилипает к экрану: до «Интеграций» и «Правил» внизу колонки не нужно
+     прокручивать всю страницу, а длинный журнал не уносит навигацию вверх.
+     Если колонка выше экрана — прокручивается она сама. */
+  .fin-aside-inner {
+    position: sticky;
+    /* Под липкой шапкой, а не у края окна: с `top: 0.75rem` после прокрутки
+       шапка закрывала верх колонки — «Договоры» и «Реестр» уезжали под неё.
+       `--fin-head-h` меряет `finance-client.tsx`. */
+    top: calc(var(--fin-head-h, 4rem) + 0.75rem);
+    /* Высота — окно без шапки и отступов: иначе низ колонки уходил за экран,
+       а в самом конце страницы колонка упиралась в низ плиты. */
+    max-height: calc(100dvh - var(--fin-head-h, 4rem) - 2rem);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ─── Боковая панель со счетами: раскрывается наведением ─── */
+.fin-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 100%;
+  padding: 1.25rem 1.25rem 1.5rem;
+  border-right: 1px solid var(--fin-line);
+  color: var(--fin-text);
+  width: 100%;
+}
+@media (max-width: 767.98px) {
+  /* Узкое окно: счета — под содержимым, а не над ним. Сначала раздел, ради
+     которого пришли, потом справка по остаткам. */
+  .fin-aside {
+    order: 2;
+    border-right: 0;
+    border-top: 1px solid var(--fin-line);
+  }
+}
+@media (min-width: 768px) {
+  /* Порог колонки — 768, а не 1024 (26.09): на окне ~1000px (ThinkPad при
+     150%, браузер не на весь экран) вместо колонки шла лента из двадцати
+     вкладок с прокруткой вбок, и до «Справочников» листали. Свёрнутая
+     колонка — 60px, место под раздел остаётся и на 768.
+     Узкая полоса, которая расширяется под курсором. Ровно тот приём, что в
+     сайдбаре дашборда: место под таблицу остаётся, а счета в одном движении.
+     `:has(:focus-visible)`, а не `:focus-within`: второй срабатывает на клик
+     мышью и оставляет панель залипшей раскрытой — этот дефект в проекте уже
+     ловили. */
+  .fin-aside {
+    width: var(--fin-rail-w);
+    padding: 1.1rem 0.5rem 1.25rem;
+    /* `clip` по той же причине, что у плиты: иначе внутренний слой прилипал
+       бы к колонке, а не к экрану. */
+    overflow: hidden;
+    overflow: clip;
+    /* Своя подложка — чтобы колонка читалась колонкой, а не краем плиты. */
+    background: var(--fin-rail-bg);
+    transition:
+      width var(--dur-base) var(--ease-out),
+      padding var(--dur-base) var(--ease-out),
+      background var(--dur-base) var(--ease-out);
+  }
+  .fin-aside:hover,
+  .fin-aside:has(:focus-visible),
+  .fin-aside[data-open="true"] {
+    width: var(--fin-rail-open);
+    padding: 1.25rem 1.25rem 1.5rem;
+    background: transparent;
+  }
+  /* В свёрнутом виде видна только сумма на счетах — то единственное, ради чего
+     на панель смотрят, не раскрывая её. */
+  .fin-aside:not(:hover):not([data-open="true"]):not(:has(:focus-visible)) .fin-aside-full {
+    opacity: 0;
+    pointer-events: none;
+    height: 0;
+    overflow: hidden;
+  }
+  .fin-aside-full { transition: opacity var(--dur-fast) var(--ease-out); }
+  /* Свёрнутая колонка: значки по центру, подписи обрезаны шириной. */
+  .fin-aside:not(:hover):not([data-open="true"]):not(:has(:focus-visible)) .fin-nav-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .fin-aside:not(:hover):not([data-open="true"]):not(:has(:focus-visible)) .fin-nav-text {
+    width: 0;
+    opacity: 0;
+  }
+  .fin-aside:not(:hover):not([data-open="true"]):not(:has(:focus-visible)) .fin-rail-foot {
+    display: flex;
+  }
+  .fin-aside:not(:hover):not([data-open="true"]):not(:has(:focus-visible)) .fin-rail-toggle {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  /* Колонка отделена от содержимого не только рамкой: своя подложка нужна,
+     чтобы её видели как панель, а не как поле страницы. */
+  .fin-aside[data-open="true"] { background: var(--fin-rail-bg); }
+  .fin-nav-text { transition: opacity var(--dur-fast) var(--ease-out); }
+}
+/* ─── Группы разделов в колонке ─── */
+.fin-nav-group { display: flex; flex-direction: column; gap: 0.1rem; }
+.fin-nav-group + .fin-nav-group { margin-top: 0.6rem; }
+.fin-nav-head {
+  padding: 0 0.5rem 0.2rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fin-text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+}
+@media (min-width: 768px) {
+  /* В свёрнутой колонке заголовок группы превращается в тонкую черту: слово
+     в ширину пальца не помещается, а граница между группами нужна и там. */
+  .fin-aside:not(:hover):not([data-open="true"]):not(:has(:focus-visible)) .fin-nav-head {
+    height: 1px;
+    padding: 0;
+    margin: 0.25rem 0.6rem 0.35rem;
+    background: var(--fin-line);
+    color: transparent;
+  }
+}
+
+/* ─── Выбранный фильтр-чип ─── */
+.fin-chip[data-on] { color: var(--fin-plate); background: var(--fin-chrome); border-color: var(--fin-chrome); }
+:root[data-theme="dark"] .fin-chip[data-on] { color: var(--fin-chrome); background: var(--text-primary); border-color: var(--text-primary); }
+
+/* ─── Банки ─── */
+.fin-banks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  gap: 0.6rem;
+}
+.fin-bank {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.65rem;
+  row-gap: 0.1rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid var(--fin-line);
+  background: var(--fin-plate);
+  color: var(--fin-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.fin-bank:hover { border-color: var(--fin-text-soft); }
+.fin-bank[data-on="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.fin-bank-logo {
+  grid-row: 1 / span 2;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--fin-line);
+}
+.fin-bank-logo img { width: 100%; height: 100%; object-fit: contain; }
+.fin-bank-mono { font-weight: 700; color: #131313; }
+.fin-bank-name { font-size: 0.875rem; font-weight: 600; line-height: 1.2; }
+.fin-bank-ways { font-size: 0.6875rem; color: var(--fin-text-soft); line-height: 1.25; }
+
+/* ─── Токен и пример запроса ─── */
+.fin-code {
+  display: block;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--fin-line);
+  background: var(--fin-rail-bg);
+  color: var(--fin-text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ─── Навигация в колонке ─── */
+.fin-nav { display: flex; flex-direction: column; gap: 0.15rem; }
+@media (max-width: 767.98px) {
+  /* На узком окне навигация — лента вкладок над содержимым. Список разделов в
+     колонке здесь был второй навигацией, и не безобидной: колонка ложилась
+     блоком над содержимым, двадцать пунктов и счета — 1183px, и раздел
+     начинался на втором экране. Нажал «Интеграции» внизу списка — раздел
+     сменился где-то ниже, а экран остался на списке. Ровно тот класс
+     дефекта («навигация продублирована»), что уже стоил трёх правок в
+     дашборде. Правило стоит сразу после объявления — выше по файлу оно бы
+     проиграло. */
+  .fin-nav { display: none; }
+  /* Без сводки (юрист с одними договорами, кассир с журналом) в колонке на
+     узком окне не остаётся ничего — пустая полоса с рамкой над содержимым. */
+  .fin-aside[data-summary="false"] { display: none; }
+}
+.fin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fin-text-soft);
+  font-size: 0.875rem;
+  font-weight: 450;
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.fin-nav-item:hover { color: var(--fin-text); background: var(--fin-rail-mark-bg); }
+/* Текущий раздел — чёрная плашка, как у Finmap: единственная заливка в
+   колонке, поэтому она и читается как «вы здесь». */
+.fin-nav-item[data-on="true"] {
+  background: var(--fin-chrome);
+  color: var(--fin-plate);
+}
+/* На тёмной плите тёмная заливка не читается: текущий раздел был почти не
+   виден, а наведённый выглядел ярче него. Инверсия — та же, что у ленты
+   вкладок, и по той же причине. */
+:root[data-theme="dark"] .fin-nav-item[data-on="true"] {
+  background: var(--text-primary);
+  color: var(--fin-chrome);
+}
+:root[data-theme="dark"] .fin-nav-item[data-on="true"]:hover {
+  background: var(--text-primary);
+  color: var(--fin-chrome);
+}
+.fin-nav-ico { display: inline-flex; flex: 0 0 auto; width: 18px; justify-content: center; color: var(--fin-text); opacity: 0.8; }
+.fin-nav-item[data-on="true"] .fin-nav-ico { color: inherit; opacity: 1; }
+.fin-rail-toggle {
+  /* Видима по умолчанию, прячется на узких экранах ниже. Наоборот не работает:
+     включение из медиа-блока, стоящего ВЫШЕ этого объявления, проигрывает ему
+     по порядку — кнопки просто не было. Второй раз за вечер тот же каскад. */
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--fin-line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fin-text-soft);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fin-rail-toggle:hover { color: var(--fin-text); }
+.fin-rail-toggle-ico { display: inline-flex; width: 18px; justify-content: center; transition: transform var(--dur-base) var(--ease-out); }
+.fin-aside[data-open="true"] .fin-rail-toggle-ico { transform: rotate(180deg); }
+@media (max-width: 767.98px) {
+  /* На телефоне и планшете панель занимает всю ширину — сворачивать нечего. */
+  .fin-rail-toggle { display: none; }
+}
+.fin-nav-text { overflow: hidden; }
+.fin-rail-foot {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+.fin-rail-sum {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--fin-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  text-align: center;
+}
+.fin-rail-cur { font-size: 0.6875rem; color: var(--fin-text-soft); }
+
+.fin-total { display: flex; flex-direction: column; gap: 0.125rem; }
+.fin-total-label { font-size: 0.75rem; color: var(--fin-text-soft); }
+/* Подпись поля: обычный мелкий текст, как у Finmap, а не наш капслок
+   моноширинным. Капслок — голос аналитики BBC, здесь он звучал бы чужим. */
+.fin-label { font-size: 0.75rem; color: var(--fin-text-soft); display: block; }
+.fin-total-value {
+  font-size: 1.75rem;
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  color: var(--fin-text);
+  font-variant-numeric: tabular-nums;
+}
+.fin-acc-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.8125rem;
+  color: var(--fin-text);
+}
+.fin-acc-row:last-child { border-bottom: none; }
+.fin-acc-name {
+  color: var(--fin-text-soft);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Лента вкладок: активная — пилюля ─── */
+.fin-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding: 1rem 1rem 0.5rem;
+  scrollbar-width: none;
+}
+.fin-tabs::-webkit-scrollbar { display: none; }
+
+@media (max-width: 767.98px) {
+  /* Лента на узком окне прилипает к верху — ровно как колонка на широком:
+     в длинном журнале до вкладок не нужно листать обратно. Подложка плиты
+     под лентой, чтобы строки не просвечивали сквозь неё. */
+  .fin-tabs {
+    position: sticky;
+    top: var(--fin-head-h, 0px);
+    z-index: 20;
+    background: var(--fin-plate);
+  }
+}
+@media (min-width: 768px) {
+  /* Разделы живут в колонке слева, лента остаётся телефону. Правило стоит
+     ПОСЛЕ объявления `.fin-tabs`: то же правило выше по файлу проигрывало по
+     порядку, и на десктопе показывались обе навигации сразу — ровно тот
+     дефект, что уже стоил трёх правок в дашборде. */
+  .fin-tabs { display: none; }
+}
+.fin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: 0 0 auto;
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--fin-text-soft);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 2.25rem;
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.fin-tab:hover { color: var(--fin-text); }
+.fin-tab[data-on="true"] {
+  color: var(--fin-plate);
+  background: var(--fin-chrome);
+}
+:root[data-theme="dark"] .fin-tab[data-on="true"] {
+  color: var(--fin-chrome);
+  background: var(--text-primary);
+}
+
+/* ─── Три действия ─── */
+.fin-actions { display: flex; gap: 0.5rem; }
+.fin-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 40px;
+  padding: 0 1.25rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  border: none;
+  background: var(--fin-neutral-soft);
+  color: var(--fin-chrome-text);
+  white-space: nowrap;
+  transition: filter var(--dur-fast) var(--ease-out);
+}
+.fin-act:hover { filter: brightness(1.25); }
+.fin-act:focus-visible { outline: 2px solid var(--fin-chrome-text); outline-offset: 2px; }
+.fin-act[data-kind="income"] { background: var(--fin-income-soft); }
+.fin-act[data-kind="expense"] { background: var(--fin-expense-soft); }
+
+/* ─── Таблица журнала ─── */
+.fin-body { padding: 0 1rem 1.5rem; min-width: 0; color: var(--fin-text); }
+
+/* ─── Мера раздела ───
+   Раздел не растекается по окну шире, чем его можно прочесть. Без меры на
+   мониторе 2560 колонка «Контрагент» реестра была 1394px, подпись и значение
+   в «Долгах» и «Справочниках» стояли в 1900px друг от друга, а на ThinkPad
+   (1280 при 150%) тот же экран выглядел плотным — разница была только в
+   ширине окна. Дальше меры раздел встаёт по центру плиты.
+   Меры две: таблицам и отчётам нужна ширина под колонки, настройкам и
+   загрузкам — строка, которую глаз проходит, не теряя начала. Листы Univer
+   меры не имеют: им, как любой таблице-листу, нужна вся ширина. */
+:root {
+  --fin-measure-data: 1600px;
+  --fin-measure-form: 1200px;
+}
+.fin-body {
+  width: 100%;
+  max-width: calc(var(--fin-measure-data) + 2rem);
+  margin-inline: auto;
+}
+.fin-body[data-measure="form"] { max-width: calc(var(--fin-measure-form) + 2rem); }
+.fin-body[data-measure="full"] { max-width: none; }
+/* «Разовые» по сотрудникам — обычные таблицы, а не лист: переключатель живёт
+   внутри экрана, поэтому мера берётся по содержимому. */
+.fin-body[data-measure="full"]:has(.creg-staff) { max-width: calc(var(--fin-measure-data) + 2rem); }
+.fin-section-title {
+  margin: 0;
+  padding: 1.35rem 0 0.95rem;
+  font-size: 2rem;
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  color: var(--fin-text);
+}
+@media (max-width: 767.98px) {
+  /* На узком экране верх страницы — лента вкладок, и в ней уже видно, где ты.
+     Правило стоит сразу после объявления: выше по файлу оно проиграло бы. */
+  .fin-section-title { display: none; }
+}
+
+/* ─── Виды реестра у заголовка: «Реестр · Таблица · Разовые» ───
+   Выбранный вид — заголовок раздела, соседние — рядом, мельче и плотнее.
+   Состояние — размер и вес, не цвет и не плашка (правило индикаторов).
+   Порядок постоянный: переключение не переставляет слова местами. */
+.fin-title-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 1.25rem; row-gap: 0.25rem; }
+.fin-title-alt {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--fin-text-soft);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.25em;
+  transition: color var(--dur-fast) var(--ease-out), text-decoration-color var(--dur-fast) var(--ease-out);
+}
+.fin-title-alt:hover { color: var(--fin-text); text-decoration-color: currentColor; }
+.fin-title-alt:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 3px; border-radius: 4px; }
+/* Узкое окно: заголовков нет — виды встают своим рядом под лентой разделов. */
+.fin-modes { display: none; }
+@media (max-width: 767.98px) {
+  .fin-title-row { display: none; }
+  .fin-modes { display: flex; gap: 1rem; padding: 0.5rem 0 0.75rem; }
+  .fin-mode {
+    padding: 0.25rem 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 0.9375rem;
+    font-weight: 450;
+    color: var(--fin-text-soft);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .fin-mode[aria-current="page"] { font-weight: 650; color: var(--fin-text); border-bottom-color: currentColor; }
+}
+
+/* ─── «Разовые»: откуда оплата и сводка по сотрудникам ─── */
+.creg-oneoff-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 0 0 0.5rem;
+}
+.creg-oneoff-line { margin: 0; font-size: 0.8125rem; color: var(--fin-text-soft); display: flex; flex-wrap: wrap; gap: 0 0.5rem; align-items: baseline; }
+.creg-staff { display: grid; gap: 0.75rem; padding-bottom: 1rem; }
+.creg-staff-title { margin: 0.5rem 0 0; font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; color: var(--fin-text); }
+.creg-staff-scroll { overflow-x: auto; }
+.creg-staff-table { min-width: 36rem; }
+.creg-staff-table tfoot td { font-weight: 600; border-top: 1px solid var(--fin-line); }
+.creg-staff-table th.fin-num, .creg-staff-table td.fin-num { text-align: right; }
+
+/* Значок раздела в тёмной шапке: своя плашка, без синей заливки. */
+/* Знак KORT в раме: высота строчной, цвет подписи рамы. Отбит от названия
+   компании волосяной чертой — это два разных «кто»: продукт и компания. */
+.fin-brand {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 34px;
+  padding-right: 0.9rem;
+  margin-right: 0.15rem;
+  border-right: 1px solid rgba(255, 252, 225, 0.16);
+  color: var(--fin-chrome-text);
+}
+.fin-brand-mark { display: block; height: 15px; width: auto; }
+.fin-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; color: var(--fin-text); }
+.fin-table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--fin-text-soft);
+  padding: 0.55rem 0.625rem;
+  border-bottom: 1px solid var(--fin-line);
+  white-space: nowrap;
+  background: var(--fin-plate);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.fin-table td {
+  padding: 0.6rem 0.625rem;
+  border-bottom: 1px solid var(--fin-line);
+  color: var(--fin-text-soft);
+  vertical-align: top;
+}
+.fin-table tbody tr:hover td { background: rgba(127, 127, 127, 0.06); }
+.fin-table td.fin-strong { color: var(--fin-text); }
+/* Суммы — тем же шрифтом, что и текст, с табличными цифрами. Моноширинный
+   для денег здесь был наследством Finmap; у Geologica цифры табличные сами,
+   а широкий моноширинный выдавливал колонки на узком экране. */
+.fin-num {
+  font-family: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+/* Цвет денег обязан выигрывать у цвета ячейки.
+ *
+ * `.fin-table td` — это класс плюс элемент, то есть специфичность выше, чем у
+ * одного `.fin-in`. Порядок правил тут ни при чём: одиночный класс проигрывает
+ * всегда. Суммы в журнале молча оказывались серыми — приход и расход
+ * переставали различаться взглядом, а именно это Finmap делает хорошо и именно
+ * за этим сюда смотрят. Поэтому селекторы перечислены явно. */
+.fin-in,
+.fin-table td.fin-in,
+.fin-report td.fin-in { color: var(--fin-income); }
+.fin-out,
+.fin-table td.fin-out,
+.fin-report td.fin-out { color: var(--fin-expense); }
+
+/* Строка ожидания: план отличается насыщенностью, а не цветом. Цвет здесь
+   означал бы «всё плохо», а запланированный платёж — это норма. */
+.fin-table tr[data-plan="true"] td { opacity: 0.66; }
+
+.fin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  border: 1px solid var(--fin-line);
+  color: var(--fin-text-soft);
+  background: transparent;
+  cursor: pointer;
+}
+.fin-chip:hover { color: var(--fin-text); border-color: var(--fin-text-soft); }
+/* Под палец — не меньше 28px: «Править» и «Убрать» в строке журнала были по
+   20px, и на телефоне промах по соседней кнопке удалял операцию. */
+@media (pointer: coarse), (max-width: 639.98px) {
+  .fin-chip { min-height: 28px; padding: 0.3rem 0.7rem; }
+}
+
+/* ─── Отчёты ─── */
+.fin-report { width: 100%; border-collapse: collapse; font-size: 0.8125rem; color: var(--fin-text); }
+.fin-report th, .fin-report td { padding: 0.45rem 0.65rem; white-space: nowrap; }
+.fin-report thead th {
+  font-size: 0.75rem;
+  color: var(--fin-text-soft);
+  font-weight: 500;
+  border-bottom: 1px solid var(--fin-line);
+  text-align: right;
+}
+.fin-report thead th:first-child { text-align: left; }
+.fin-report tbody td { border-bottom: 1px solid var(--fin-line); color: var(--fin-text-soft); }
+.fin-report tbody td:first-child { color: var(--fin-text); white-space: normal; }
+.fin-report tbody tr[data-total="true"] td {
+  border-top: 1px solid var(--fin-line);
+  color: var(--fin-text);
+  font-weight: 700;
+}
+.fin-report-scroll { overflow-x: auto; }
+
+/* ─── Календарь ─── */
+.fin-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.375rem; }
+.fin-cal-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-height: 4.75rem;
+  padding: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--fin-line);
+  background: transparent;
+  font-size: 0.6875rem;
+  color: var(--fin-text-soft);
+}
+.fin-cal-day[data-out="true"] { opacity: 0.4; }
+/* Кассовый разрыв — единственное место, где цвет служит сигналом: это отказ,
+   денег на платёж не хватит. */
+.fin-cal-day[data-gap="true"] {
+  border-color: var(--fin-expense-line);
+  background: var(--fin-expense-soft);
+}
+.fin-cal-num { color: var(--fin-text-soft); font-weight: 600; }
+.fin-cal-bal {
+  margin-top: auto;
+  font-family: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: var(--fin-text);
+}
+.fin-cal-day[data-gap="true"] .fin-cal-bal { color: var(--fin-expense); }
+
+/* ─── Импорт ─── */
+.fin-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.25rem 1rem;
+  border: 1px dashed var(--fin-text-soft);
+  border-radius: var(--radius-card);
+  background: transparent;
+  text-align: center;
+  cursor: pointer;
+  color: var(--fin-text);
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.fin-drop[data-over="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.fin-row-issue {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+  padding: 0.55rem 0.625rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.75rem;
+  align-items: start;
+}
+/* Поправленная строка остаётся на месте, но перестаёт кричать: она уже готова,
+   и её дело — подтвердить правку, а не требовать внимания. */
+.fin-row-issue[data-done="true"] { opacity: 0.72; }
+
+.fin-row-issue:last-child { border-bottom: none; }
+.fin-issue-line { font-family: var(--font-martian), ui-monospace, monospace; color: var(--fin-text-soft); }
+.fin-issue-text { color: var(--fin-expense); }
+.fin-issue-skip { color: var(--fin-text-soft); }
+
+/* ─── Сводные плитки ─── */
+/* Полоса записи: главное действие разбора видно без прокрутки. */
+.fin-apply-bar {
+  position: sticky;
+  top: calc(var(--fin-head-h, 0px) + 0.25rem);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--fin-line);
+  background: var(--fin-plate);
+}
+
+.fin-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+@media (min-width: 768px) { .fin-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.fin-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--fin-line);
+  background: transparent;
+}
+.fin-kpi-label { font-size: 0.75rem; color: var(--fin-text-soft); }
+.fin-kpi-value {
+  font-family: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.375rem;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fin-text);
+}
+
+/* Карточка внутри плиты: у Finmap это не «карточка в карточке», а участок с
+   тонкой рамкой — иначе на плите получается матрёшка из теней. */
+.fin-card {
+  border: 1px solid var(--fin-line);
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: var(--fin-text);
+}
+
+/* Окно операции. `.fin-card` прозрачная нарочно — это участок плиты, не слой.
+   На ней сумма и дата лежали поверх строк договора и читались вместе с ними.
+   Здесь слой свой: плотная поверхность, страница за ней темнее и чуть размыта.
+   Журнал остаётся на месте, но перестаёт спорить с формой. */
+.fin-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: rgba(6, 7, 6, 0.5);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  animation: fin-scrim-in var(--dur-fast) var(--ease-out);
+}
+/* Выключенные «эффекты прозрачности» Windows только поднимают
+   prefers-reduced-transparency. Композитор blur при этом рисует, и снимать
+   его нельзя: без размытия строки договора остаются резкими. */
+:root[data-theme="light"] .fin-dialog-scrim {
+  background: rgba(14, 16, 15, 0.32);
+}
+@media (min-width: 640px) {
+  .fin-dialog-scrim { align-items: center; padding: 1.5rem; }
+}
+.fin-dialog {
+  width: 100%;
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  padding-bottom: calc(1rem + var(--safe-b));
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-base);
+  border-radius: var(--ios-sheet-radius) var(--ios-sheet-radius) 0 0;
+  box-shadow: var(--shadow-float);
+  animation: fin-dialog-in var(--dur-base) var(--ease-out);
+}
+@media (min-width: 640px) {
+  .fin-dialog {
+    max-width: 32rem;
+    padding: 1.25rem;
+    border-radius: var(--radius-card);
+  }
+}
+/* Поля на поднятой плите. `--input-bg` в тёмной теме почти прозрачный:
+   на прозрачной карточке сквозь него читался журнал. Здесь у поля свой
+   тёмный колодец, на шаг ниже плиты окна. */
+.fin-dialog .input-field { background-color: var(--bg-base); }
+@media (max-width: 639.98px) {
+  .fin-dialog input,
+  .fin-dialog textarea,
+  .fin-dialog select { font-size: max(16px, 1rem); }
+}
+
+/* Лист Univer занимает всю оставшуюся высоту; замер — use-fill-height. */
+.fin-sheet { border-radius: var(--radius-card); overflow: hidden; border: 1px solid var(--fin-line); }
+
+/* ─── Лист Univer: общий корень всех таблиц (src/components/univer/sheet.tsx) ───
+   Во весь экран лист уходит сам, из корня: раздел, в котором он стоит, про
+   это ничего не знает. Кнопка «На весь экран» — вкладка ленты Univer с её же
+   классами, своих стилей у неё нет. */
+.usheet { position: relative; width: 100%; height: 100%; }
+/* Пока на странице лист, жест тачпада вбок не листает историю браузера:
+   докрутили таблицу до края — Chrome уводил на прошлую страницу. Колесо над
+   листом гасит `UniverSheet`; это правило — для остатка жеста, начатого у края. */
+html:has(.usheet) { overscroll-behavior-x: none; }
+.usheet-canvas { width: 100%; height: 100%; }
+.usheet[data-full="true"] {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--page-bg);
+}
+/* Пункт выпадающего списка Univer — «плашка» с тёмным текстом под светлую
+   заливку. У списков справочников заливки нет (цвет в листе — только отказ),
+   и в тёмной теме пункты были тёмным по чёрному. Бесцветная плашка берёт цвет
+   текста списка — светлый в тёмной теме, тёмный в светлой. */
+[data-u-comp="sheets-dropdown-list"] [style*="background: transparent"] { color: inherit !important; font-size: 0.8125rem; }
+/* Стрелка списка у выбранной ячейки (как в Excel), а не капсула или стрелка в
+   каждой ячейке колонки — src/components/univer/lists.ts. Над листом «На весь
+   экран» (80) — поэтому 81. */
+.usheet-list-arrow {
+  position: fixed;
+  z-index: 81;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.usheet-list-arrow:hover { color: var(--text-primary); background: var(--bg-hover); }
+.usheet-list-arrow:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+
+/* ─── Телефон ─── */
+@media (max-width: 639.98px) {
+  .fin-head { flex-wrap: wrap; }
+  /* Кнопки денег — своим рядом ПОСЛЕ названия и значка кабинета. Без
+     `order` значок стоял в DOM за ними и уезжал третьим рядом один. */
+  .fin-actions { flex: 1 0 100%; order: 1; }
+  /* Под плавающей кнопкой («+ Сотрудник», «+ Новый договор») — место, иначе
+     она закрывала последнюю строку списка, и до неё было не долистать. */
+  .cab-list, .creg-list { padding-bottom: 4.5rem; }
+  .fin-act { flex: 1; padding: 0 0.75rem; }
+  .fin-plate { margin: 0 0.5rem 0.5rem; border-radius: 12px; }
+  .fin-body { padding: 0 0.75rem 1.25rem; }
+
+  /* Отборы журнала — одна прокручиваемая строка, а не четыре ряда: стопкой
+     они занимали больше двухсот пикселей, и до первой цифры приходилось
+     листать. Тот же приём, что у отборов книг. */
+  .fin-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+  }
+  .fin-filters::-webkit-scrollbar { display: none; }
+  .fin-filters > * { flex: 0 0 10.5rem; }
+  .fin-filters select,
+  .fin-filters input { width: 100%; }
+
+  /* Календарь списком по дням: сетка из семи колонок на 390 пикселях не
+     сжимается — в клетке три числа моноширинным шрифтом. Обрезать суммы
+     нельзя: обрезанная сумма это не «компактно», а цифра, которой нельзя
+     верить. */
+  .fin-cal { grid-template-columns: minmax(0, 1fr); gap: 0.25rem; }
+  .fin-cal-pad { display: none; }
+  .fin-cal-day {
+    flex-direction: row;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.5rem 0.625rem;
+  }
+  .fin-cal-bal { margin-top: 0; margin-left: auto; }
+}
+
+/* ═══ Реестр договоров «Финансов» ════════════════════════════════════════════
+   План облика — ~/.claude/plans/erp-frontend-ui.md. Три правила, на которых
+   держится всё ниже:
+   * цвет — только у отказа (роза) и у «нет связи» (янтарь); «всё хорошо»
+     цветом не показывается никогда;
+   * глубина — шагом поверхности, тень только у плавающих слоёв (карточка,
+     списки, диалог);
+   * строки не прыгают: ни наведение, ни пришедшая правка не сдвигают соседей. */
+
+:root {
+  --fin-card-w:        760px;
+  --fin-card-bg:       #f6f4eb;
+  --fin-card-line:     rgba(14, 16, 15, 0.13);
+  --fin-scrim:         rgba(14, 16, 15, 0.36);
+  --fin-row-h:         44px;
+  --fin-hover:         rgba(14, 16, 15, 0.04);
+  --fin-selected:      rgba(14, 16, 15, 0.07);
+  --fin-fail:          var(--accent-rose);
+  --fin-wait:          #97570a;
+  --fin-trace:         var(--fin-text);
+  --fin-dotted:        rgba(14, 16, 15, 0.38);
+  --fin-flash-hex:     #eceade;
+  --fin-fail-hex:      #c2331f;
+  --fin-fail-bg-hex:   #f7e3dc;
+  --z-fin-card:        90;
+  --z-fin-pop:         100;
+  --z-fin-confirm:     110;
+}
+:root[data-theme="dark"] {
+  --fin-card-bg:       var(--bg-raised);
+  --fin-card-line:     var(--border-base);
+  --fin-scrim:         rgba(0, 0, 0, 0.5);
+  --fin-hover:         rgba(255, 252, 225, 0.04);
+  --fin-selected:      rgba(255, 252, 225, 0.08);
+  --fin-wait:          #ffb547;
+  --fin-dotted:        rgba(255, 252, 225, 0.38);
+  --fin-flash-hex:     #232521;
+  --fin-fail-hex:      #ff6f5e;
+  --fin-fail-bg-hex:   #2a1a17;
+}
+
+.fin-mono {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.fin-fail { color: var(--fin-fail); }
+.fin-wait { color: var(--fin-wait); }
+.fin-soft { color: var(--fin-text-soft); }
+.fin-muted { color: var(--text-muted); }
+.fin-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--fin-dotted);
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.fin-link-btn:hover { text-decoration-style: solid; text-decoration-color: currentColor; }
+.fin-link-btn:disabled { cursor: default; opacity: 0.45; text-decoration: none; }
+
+/* ─── Верхняя строка раздела ─── */
+.creg-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.5rem;
+  margin: -0.25rem 0 0.75rem;
+}
+.creg-top-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.creg-live {
+  display: block;
+  min-width: 0;
+  min-height: 1.1rem;
+  font-size: 0.8125rem;
+  color: var(--fin-text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.creg-live[data-state="wait"] { color: var(--fin-wait); }
+.creg-live[data-state="fail"] { color: var(--fin-fail); }
+
+/* ─── Вкладки отборов ─── */
+.creg-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  border-bottom: 1px solid var(--fin-line);
+  margin-bottom: 0.25rem;
+}
+.creg-tabs {
+  position: relative;
+  display: flex;
+  gap: 1.25rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.creg-tabs::-webkit-scrollbar { display: none; }
+.creg-tab {
+  /* Вкладка не сжимается: при нехватке места ряд прокручивается вбок, а не
+     наезжает названиями друг на друга (так было на 390). */
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0.5rem 0 0.625rem;
+  background: none;
+  border: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--fin-text-soft);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.creg-tab[aria-selected="true"] { color: var(--fin-text); }
+.creg-tab-count { font-size: 0.8125rem; font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.creg-underline {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 1.5px;
+  width: 1px;
+  background: var(--fin-text);
+  transform-origin: left center;
+  pointer-events: none;
+}
+.creg-search {
+  position: relative;
+  flex: 0 0 20rem;
+  margin: 0 0 0.375rem auto;
+}
+.creg-search input {
+  width: 100%;
+  height: 2.25rem;
+  padding: 0 0.75rem 0 2rem;
+  border-radius: 6px;
+  border: 1px solid var(--fin-line);
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font-size: 0.875rem;
+}
+.creg-search input:focus { outline: none; border-color: var(--fin-text); }
+.creg-search-ico { position: absolute; left: 0.625rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+@media (max-width: 1023px) {
+  .creg-bar { flex-wrap: wrap; }
+  .creg-tabs { flex: 1 1 100%; }
+  .creg-search { flex: 1 1 100%; margin: 0 0 0.5rem; order: 3; }
+}
+.creg-issues-btn {
+  display: inline-block;
+  margin: 0.375rem 0 0.25rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  color: var(--fin-fail);
+  cursor: pointer;
+}
+.creg-issues-btn[aria-pressed="true"] { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ─── Список договоров ─── */
+.creg-list { container-type: inline-size; }
+/* Колонки. Растут четыре текстовые — №, контрагент, «Наше», вид — каждая
+   своим весом; сумма, срок, статус, люди и замечания прибиты: их содержимое
+   одной длины на любом окне. Раньше росла одна «Контрагент» (1fr), и на
+   мониторе 2560 она была 1394px, а «Абонентское обс…» и «Omar Devel…» так и
+   оставались обрезаны. Веса подобраны по живым данным (461 договор): на мере
+   раздела (1600) «Вид» и «Omar Development & Consulting» (203px) помещаются
+   целиком, «Контрагент» — ~500px.
+   Прибитые — по самому длинному значению: сумма цифрами до 94px
+   («1 200 000 /мес»; 112 — с запасом на восьмизначные), срок 72, замечания
+   72, люди 77 (96 — чтобы влез заголовок «Ответственные», 93px).
+   Нижние пределы в сумме дают 1096px — ровно порог ниже. Прежние (1276px) на
+   ThinkPad при 150% (1150px) не помещались, и колонка замечаний во всех
+   строках уходила за край плиты. На 1150 номер и вид остаются прежними
+   (104 и 128), а «Контрагент» теряет ~4px. */
+.creg-head,
+.creg-row {
+  display: grid;
+  grid-template-columns:
+    minmax(104px, 1.2fr) minmax(200px, 4.8fr) minmax(80px, 2fr) minmax(128px, 1.8fr)
+    112px 76px 116px 96px 80px;
+  align-items: center;
+  column-gap: 10px;
+  padding: 0 12px;
+}
+.creg-head {
+  position: sticky;
+  /* Под липкой шапкой «Финансов» (--fin-head-h), иначе прячется под ней. */
+  top: var(--fin-head-h, 0px);
+  z-index: 3;
+  height: 2.25rem;
+  background: var(--fin-plate);
+  border-bottom: 1px solid var(--fin-line);
+}
+/* Шапка колонок — подпись, а не заголовок. Размер задан здесь явно: у кнопки
+   свой шрифт браузера, и `font: inherit` перебивал `.eyebrow` специфичностью. */
+.creg-head button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-geologica), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: inherit;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.creg-head button[aria-sort="ascending"], .creg-head button[aria-sort="descending"] { color: var(--fin-text); }
+.creg-head .creg-money { text-align: right; }
+.creg-head .eyebrow { white-space: nowrap; }
+.creg-row {
+  position: relative;
+  height: var(--fin-row-h);
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.8125rem;
+  color: var(--fin-text);
+  cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--fin-row-h);
+  outline: none;
+}
+.creg-row:hover, .creg-row:focus-visible { background: var(--fin-hover); }
+.creg-row[aria-selected="true"] { background: var(--fin-selected); }
+.creg-row[aria-selected="true"] .creg-party { font-weight: 500; }
+.creg-row[data-closed="true"] { color: var(--fin-text-soft); }
+.creg-row[data-closed="true"] .creg-status { color: var(--fin-text); }
+.creg-row[data-departed="true"] { color: var(--text-muted); }
+.creg-row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.creg-party { font-size: 0.875rem; font-weight: 450; }
+.creg-num { font-family: var(--font-martian), ui-monospace, monospace; font-variation-settings: "wdth" 87.5; font-size: 0.75rem; color: var(--text-secondary); }
+.creg-money { text-align: right; font-variant-numeric: tabular-nums; }
+.creg-money small { color: var(--text-muted); font-size: 0.75rem; }
+.creg-status[data-phase="active"] { color: var(--fin-text-soft); }
+.creg-status:not([data-phase="active"]) { font-weight: 500; }
+.creg-issues { text-align: right; color: var(--fin-fail); font-size: 0.75rem; }
+.creg-note { text-align: right; color: var(--text-muted); font-size: 0.75rem; }
+.creg-hit { font-weight: 600; color: var(--fin-text); }
+.creg-block-head {
+  position: sticky;
+  top: calc(var(--fin-head-h, 0px) + 2.25rem);
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  height: 2rem;
+  padding: 0.5rem 12px 0;
+  background: var(--fin-plate);
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--fin-text);
+}
+.creg-block-head span { font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.creg-row-new::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 1px;
+  background: var(--fin-trace);
+  transform-origin: left center;
+  animation: creg-trace 0.6s cubic-bezier(0.87, 0, 0.13, 1) both;
+}
+.creg-empty { padding: 1.5rem 0.25rem; font-size: 0.875rem; color: var(--fin-text-soft); }
+.creg-empty-new { margin: 0 0.25rem; }
+
+/* Порог — сумма нижних пределов широкой раскладки. Средняя раскладка тоже
+   помещается целиком: 718px при пороге узкой 760 (прежняя требовала 824, и
+   на окне ~900px замечания снова уходили за край). */
+@container (max-width: 1095px) {
+  .creg-head, .creg-row { grid-template-columns: minmax(104px, 1.2fr) minmax(160px, 4.8fr) minmax(72px, 2fr) 112px 116px 80px; }
+  .creg-col-kind, .creg-col-term, .creg-col-people { display: none; }
+}
+@container (max-width: 759px) {
+  .creg-head { display: none; }
+  .creg-row {
+    height: auto;
+    min-height: 60px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "party money" "meta meta";
+    row-gap: 2px;
+    padding: 0.5rem 0.25rem;
+  }
+  .creg-row .creg-party { grid-area: party; font-size: 0.9375rem; }
+  .creg-row .creg-money { grid-area: money; }
+  .creg-row .creg-meta { grid-area: meta; display: block; font-size: 0.75rem; color: var(--fin-text-soft); }
+  .creg-row .creg-col-num, .creg-row .creg-col-own, .creg-row .creg-col-kind, .creg-row .creg-col-term,
+  .creg-row .creg-status, .creg-row .creg-col-people, .creg-row .creg-issues, .creg-row .creg-note { display: none; }
+}
+.creg-meta { display: none; }
+.creg-fab {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + var(--safe-b, 0px));
+  transform: translateX(-50%);
+  z-index: 30;
+}
+
+/* ─── Меню ⋯ и всплывающие списки ─── */
+.fin-pop {
+  position: absolute;
+  z-index: var(--z-fin-pop);
+  min-width: 13rem;
+  max-height: 320px;
+  overflow: auto;
+  padding: 0.25rem;
+  background: var(--fin-card-bg);
+  border: 1px solid var(--fin-card-line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-float);
+}
+.fin-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 0.625rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--fin-text);
+  text-align: left;
+  cursor: pointer;
+}
+.fin-pop-item:hover, .fin-pop-item[data-active="true"] { background: var(--fin-hover); }
+.fin-pop-item[data-danger="true"] { color: var(--fin-fail); }
+.fin-pop-group { padding: 0.5rem 0.625rem 0.25rem; }
+.fin-pop-hint { margin-left: auto; }
+.fin-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: none;
+  border: none;
+  color: var(--fin-text);
+  cursor: pointer;
+  flex: none;
+}
+.fin-icon-btn:hover { background: var(--fin-hover); }
+.fin-icon-btn:disabled { opacity: 0.35; cursor: default; background: none; }
+
+/* ─── Карточка по центру ─── */
+.card-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-fin-card);
+  background: var(--fin-scrim);
+}
+.card-sheet {
+  position: fixed;
+  z-index: var(--z-fin-card);
+  left: 50%;
+  top: 50%;
+  width: min(var(--fin-card-w), calc(100vw - 48px));
+  max-height: calc(100dvh - 96px);
+  translate: -50% -50%;
+  display: flex;
+  flex-direction: column;
+  background: var(--fin-card-bg);
+  border: 1px solid var(--fin-card-line);
+  border-radius: var(--fin-plate-radius);
+  box-shadow: var(--shadow-float);
+  color: var(--fin-text);
+  overflow: hidden;
+}
+.card-sheet[data-dock="bottom"] {
+  top: auto;
+  bottom: 12px;
+  max-height: 56dvh;
+  translate: -50% 0;
+}
+@media (max-width: 639px) {
+  .card-sheet, .card-sheet[data-dock="bottom"] {
+    inset: 0;
+    width: 100%;
+    max-height: none;
+    translate: none;
+    border-radius: 0;
+    border: none;
+    padding-bottom: var(--safe-b, 0px);
+  }
+}
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 56px;
+  padding: 0 0.75rem 0 0.5rem;
+  border-bottom: 1px solid var(--fin-line);
+  flex: none;
+}
+.card-top-num { font-family: var(--font-martian), ui-monospace, monospace; font-variation-settings: "wdth" 87.5; font-size: 0.8125rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-top-state { flex: 1; min-width: 0; font-size: 0.8125rem; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-body { overflow: auto; padding: 1.5rem 2rem 2rem; overscroll-behavior: contain; }
+@media (max-width: 639px) { .card-body { padding: 1.25rem 1rem 2rem; } }
+.card-title {
+  margin: 0;
+  font-size: 1.625rem;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-title[data-empty="true"] { color: var(--text-muted); }
+.card-title:focus { outline: none; }
+.parties-line {
+  display: grid;
+  grid-template-columns: auto minmax(2rem, 1fr) auto;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 0.625rem 0 0;
+  font-size: 0.875rem;
+}
+.parties-line svg { width: 100%; height: 10px; color: var(--fin-text-soft); overflow: visible; }
+.parties-line small { color: var(--text-muted); font-size: 0.8125rem; margin-right: 0.35em; }
+.parties-sense { display: flex; justify-content: flex-end; margin-top: 0.25rem; }
+.card-issues { display: grid; gap: 0.25rem; margin: 1rem 0 0; font-size: 0.8125rem; color: var(--fin-fail); }
+.card-issue { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; align-items: baseline; }
+.card-issue[data-ack="true"] { color: var(--text-muted); }
+.card-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px 24px;
+  margin-top: 1.5rem;
+}
+@media (max-width: 639px) { .card-grid { grid-template-columns: minmax(0, 1fr); } }
+.card-grid > [data-wide="true"] { grid-column: 1 / -1; }
+.card-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 2rem 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+.card-section-line { flex: 1; height: 1px; background: var(--fin-line); }
+.card-section-end { font-weight: 400; font-size: 0.8125rem; }
+
+/* ─── Поле карточки: покой, наведение, правка, сохранение ─── */
+.ifield { position: relative; min-width: 0; scroll-margin-block: 96px; }
+.ifield-label { display: flex; align-items: baseline; gap: 0.5rem; min-height: 1rem; margin-bottom: 0.25rem; }
+.ifield-value {
+  display: block;
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  margin: 0 -0.5rem;
+  width: calc(100% + 1rem);
+  border-radius: 6px;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--fin-text);
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+button.ifield-value { cursor: text; }
+button.ifield-value:hover { box-shadow: inset 0 0 0 1px var(--fin-line); }
+.ifield-value[data-empty="true"] { color: var(--text-muted); }
+.ifield-value[data-pending="true"] { color: var(--text-muted); }
+.ifield-value[data-readonly="true"] { cursor: default; }
+.ifield-input {
+  display: block;
+  width: calc(100% + 1rem);
+  margin: 0 -0.5rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--fin-text);
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5rem; }
+.ifield-input:focus { outline: none; }
+.ifield-trace {
+  position: absolute;
+  left: -0.5rem;
+  right: -0.5rem;
+  bottom: -3px;
+  height: 1px;
+  background: var(--fin-trace);
+  transform: scaleX(0);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+}
+.ifield-trace[data-state="sending"] { opacity: 1; transform: scaleX(0.85); transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s, opacity 0s 0.15s; }
+.ifield-trace[data-state="done"] { opacity: 0; transform: scaleX(1); transition: transform 0.16s ease-out, opacity 0.4s ease-out 0.16s; }
+.ifield-trace[data-state="failed"] { opacity: 1; transform: scaleX(1); background: var(--fin-fail); }
+.ifield-error { margin-top: 0.25rem; font-size: 0.75rem; color: var(--fin-fail); }
+.ifield-note { margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-muted); }
+
+/* ─── Вопрос «опечатка или с даты» — слоем у поля ─── */
+.change-mode {
+  position: absolute;
+  z-index: var(--z-fin-pop);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--fin-card-bg);
+  border: 1px solid var(--fin-card-line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-float);
+  font-size: 0.8125rem;
+  color: var(--fin-text);
+}
+.change-mode input {
+  width: 7.5rem;
+  height: 1.875rem;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--fin-line);
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+}
+.change-mode button { background: none; border: none; padding: 0.25rem 0; font: inherit; color: var(--fin-text); cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-decoration-color: var(--fin-dotted); text-underline-offset: 3px; }
+.change-mode button:hover { text-decoration-style: solid; text-decoration-color: currentColor; }
+.change-mode button:disabled { opacity: 0.45; cursor: default; }
+
+/* ─── Соглашения, текст из файла, «как было», история ─── */
+.amend-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 0.25rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--fin-line); font-size: 0.8125rem; }
+.amend-row s { color: var(--text-muted); text-decoration-thickness: 1px; }
+/* Спорный платёж и снятый «не по договору» в «Оплачено» не входят — строка
+   приглушена, а что с ней, сказано словом справа. */
+.amend-row[data-muted="true"] > span:nth-child(2) { color: var(--fin-text-soft); }
+.amend-when { font-family: var(--font-martian), ui-monospace, monospace; font-variation-settings: "wdth" 87.5; font-size: 0.75rem; color: var(--text-secondary); }
+.source-text { white-space: pre-wrap; font-size: 0.875rem; line-height: 1.5; }
+.source-text mark { background: none; color: inherit; text-decoration: underline; text-decoration-color: var(--fin-text); text-underline-offset: 3px; }
+.source-text mark[data-hover="true"] { text-decoration-style: dotted; text-decoration-color: var(--fin-dotted); }
+.piece-row { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; gap: 0.25rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--fin-line); font-size: 0.8125rem; }
+.piece-row input, .piece-row select { height: 1.875rem; padding: 0 0.5rem; border-radius: 6px; border: 1px solid var(--fin-line); background: var(--input-bg); color: var(--fin-text); font: inherit; font-size: 0.8125rem; }
+.snapshot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem 1.5rem; font-size: 0.875rem; color: var(--fin-text-soft); font-variant-numeric: tabular-nums; }
+.hist-day { margin: 0.75rem 0 0.25rem; font-size: 0.75rem; color: var(--text-muted); }
+.hist-row { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.75rem; padding: 0.35rem 0; font-size: 0.8125rem; }
+
+/* ─── Протокол загрузки ─── */
+.proto { display: grid; gap: 0; }
+.proto-item { border-top: 1px solid var(--fin-line); }
+.proto-head {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 0.25rem;
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--fin-text);
+  cursor: pointer;
+}
+.proto-head .ix-num { padding-top: 0; }
+.proto-title { font-size: 1rem; font-weight: 500; }
+.proto-summary { display: block; margin-top: 0.2rem; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.proto-state { font-size: 0.8125rem; white-space: nowrap; }
+.proto-body { padding: 0 0.25rem 1.25rem 3.25rem; font-size: 0.8125rem; overflow-x: auto; }
+@media (max-width: 639px) { .proto-body { padding-left: 0.25rem; } }
+.proto-table { width: 100%; border-collapse: collapse; }
+.proto-table th { text-align: left; font-weight: 500; color: var(--text-muted); font-size: 0.75rem; padding: 0.35rem 0.5rem 0.35rem 0; border-bottom: 1px solid var(--fin-line); }
+.proto-table td { padding: 0.4rem 0.5rem 0.4rem 0; border-bottom: 1px solid var(--fin-line); vertical-align: top; }
+.proto-table select, .proto-table input[type="text"] {
+  height: 1.875rem;
+  max-width: 16rem;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--fin-line);
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+.proto-big { font-size: clamp(4rem, 9vw, 8rem); font-weight: 300; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
+.proto-rule { font-size: 0.875rem; line-height: 1.5; }
+.proto-count { font-size: 1.25rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+/* ─── Лист Univer реестра ─── */
+.creg-sheet-wrap { position: relative; border: 1px solid var(--fin-line); border-radius: 8px; overflow: hidden; }
+.creg-sheet-note { min-height: 1.25rem; margin: 0.25rem 0 0.5rem; font-size: 0.8125rem; color: var(--fin-text-soft); }
+/* Отказ под листом — цветом отказа. Без этой строки правило выше, стоящее
+   позже `.fin-fail`, перебивало его, и «не заведено: …» читалось серым. */
+.creg-sheet-note.fin-fail { color: var(--fin-fail); }
+.creg-sheet-foot { display: flex; align-items: flex-start; gap: 1rem; }
+.creg-sheet-foot .creg-sheet-note { flex: 1; }
+.creg-look-reset { flex: none; margin-top: 0.25rem; font-size: 0.8125rem; }
+/* Подсказка ячейки листа реестра — вместо заметки Univer: текст замечания,
+   «Учтено» и «Открыть договор». Встаёт под ячейкой (у низа окна — над ней). */
+.creg-hint {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  gap: 0.4rem;
+  max-width: min(380px, calc(100vw - 24px));
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--fin-line);
+  background: var(--fin-plate);
+  color: var(--fin-text);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.creg-hint-line { display: flex; align-items: baseline; gap: 0.75rem; justify-content: space-between; }
+.creg-hint-ack {
+  flex: none;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--fin-line);
+  background: transparent;
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.creg-hint-ack:hover { border-color: var(--fin-text-soft); }
+.creg-hint-ack:disabled { opacity: 0.6; cursor: default; }
+.creg-hint-open { justify-self: start; font-size: 0.75rem; }
+.creg-hint-fail { margin: 0; color: var(--fin-fail); font-size: 0.75rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .creg-row-new::before { animation: none; opacity: 0; }
+  .ifield-trace[data-state="sending"], .ifield-trace[data-state="done"] { transition: none; }
+}
+
+/* ─── Выбор текстом с линией: вкладки и «Нет · Видит · Правит» ─── */
+.fin-sel {
+  position: relative;
+  display: flex;
+  gap: 1.25rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.fin-sel::-webkit-scrollbar { display: none; }
+.fin-sel-item {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0.5rem 0 0.625rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--fin-text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fin-sel-item:hover { color: var(--fin-text); }
+.fin-sel-item[aria-selected="true"],
+.fin-sel-item[aria-checked="true"] { color: var(--fin-text); font-weight: 600; }
+.fin-sel-item:disabled { cursor: default; }
+.fin-sel-item:disabled:not([aria-checked="true"]):not([aria-selected="true"]) { opacity: 0.45; }
+.fin-sel-item:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 3px; border-radius: 2px; }
+.fin-sel-count { font-size: 0.8125rem; font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.fin-sel-line {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1.5px;
+  background: var(--fin-text);
+  transform-origin: left center;
+  pointer-events: none;
+}
+.fin-sel[data-size="sm"] { gap: 0.875rem; }
+.fin-sel[data-size="sm"] .fin-sel-item { font-size: 0.8125rem; padding: 0.25rem 0 0.375rem; }
+.fin-sel[data-size="sm"] .fin-sel-line { height: 1px; }
+
+/* ─── Рама: запросы и имя вместо «Выйти» ─── */
+.fin-head-requests,
+.fin-head-person {
+  flex: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 0.5rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fin-chrome-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fin-head-person::after,
+.fin-head-requests::after {
+  content: "";
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 8px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.3s var(--ease-out);
+}
+.fin-head-person:hover::after,
+.fin-head-requests:hover::after,
+.fin-head-person[data-on="true"]::after { transform: scaleX(1); }
+.fin-head-person:focus-visible,
+.fin-head-requests:focus-visible { outline: 2px solid var(--fin-chrome-text); outline-offset: 2px; border-radius: 4px; }
+.fin-head-person-icon { color: var(--fin-chrome-text); }
+.fin-head-person-icon:hover { background: var(--fin-neutral-soft); }
+
+.fin-denied { padding: 1.5rem 0.25rem; font-size: 0.9375rem; color: var(--fin-text-soft); }
+
+/* Кабинет отдаёт себе плиту целиком: колонки разделов нет. */
+.fin-plate[data-cabinet="true"] { display: block; }
+.fin-body-cabinet { padding: 0; }
+
+/* ─── Портрет ─── */
+.cab { min-width: 0; }
+.cab-portrait {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 208px;
+  padding: 1rem 1.5rem 1.5rem;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+@media (max-width: 1023.98px) { .cab-portrait { height: 168px; } }
+@media (max-width: 639.98px) { .cab-portrait { height: 148px; padding: 0.75rem 1rem 1rem; } }
+.cab-liquid { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; }
+.cab-portrait-veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--stage-bg) 72%, transparent) 0%, color-mix(in srgb, var(--stage-bg) 10%, transparent) 70%);
+}
+.cab-portrait-top { display: flex; justify-content: space-between; gap: 0.75rem; }
+.cab-portrait-foot { display: flex; flex-direction: column; gap: 0.625rem; min-width: 0; }
+.cab-name { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+@media (max-width: 639.98px) { .cab-name { font-size: 1.75rem; } }
+.cab-portrait-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* ─── Колонка кабинета по центру плиты ─── */
+.cab-column {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding: 1.5rem 24px 3rem;
+  color: var(--fin-text);
+}
+@media (max-width: 639.98px) { .cab-column { padding: 1rem 16px 5rem; } }
+.cab-body { margin-top: 1.25rem; min-width: 0; }
+
+.cab-tabs { display: grid; gap: 0.25rem; margin-top: 0.5rem; border-bottom: 1px solid var(--fin-line); }
+.cab-tabs-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: end; }
+.cab-tabs-row[data-single="true"] { grid-template-columns: minmax(0, 1fr); }
+.cab-tabs-group { padding-bottom: 0.7rem; color: var(--text-muted); }
+@media (max-width: 639.98px) {
+  .cab-tabs-row { grid-template-columns: minmax(0, 1fr); }
+  .cab-tabs-group { display: none; }
+}
+
+/* ─── «Ждут решения» ─── */
+.cab-pending { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--fin-line); }
+.cab-block-title { margin: 0 0 0.375rem; font-size: 0.8125rem; font-weight: 600; color: var(--fin-text); }
+.cab-pending-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr) 7rem auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  font-size: 0.875rem;
+  overflow: hidden;
+}
+.cab-pending-who { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cab-pending-row[data-kind="reset"] .cab-pending-what { font-weight: 600; }
+.cab-pending-time { font-size: 0.75rem; text-align: right; }
+.cab-pending-act { display: inline-flex; align-items: center; gap: 0.75rem; justify-content: flex-end; }
+.cab-pending-resolve { font-size: 0.8125rem; color: var(--fin-text-soft); }
+.cab-recent { margin: 0.5rem 0 0; font-size: 0.8125rem; }
+@media (max-width: 639.98px) {
+  .cab-pending-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "who time" "what act";
+    gap: 0.125rem 0.75rem;
+    padding: 0.5rem 0;
+  }
+  .cab-pending-who { grid-area: who; }
+  .cab-pending-time { grid-area: time; }
+  .cab-pending-what { grid-area: what; }
+  .cab-pending-act { grid-area: act; }
+}
+
+/* ─── Строки «подпись · значение» ─── */
+.cab-lines { display: grid; }
+.cab-line {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  min-height: 44px;
+  font-size: 0.875rem;
+}
+.cab-line-top { align-items: start; padding-top: 0.75rem; }
+.cab-line-top .cab-line-label { padding-top: 0; }
+.cab-line-label { color: var(--fin-text-soft); }
+.cab-line-value { position: relative; min-width: 0; }
+.cab-line-text {
+  max-width: 100%;
+  padding: 0.25rem 0.5rem;
+  margin-left: -0.5rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  color: var(--fin-text);
+  text-align: left;
+  cursor: text;
+  overflow-wrap: anywhere;
+}
+.cab-line-text:hover { border-color: var(--fin-card-line); }
+.cab-line-text:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 2px; }
+.cab-line-text[data-empty="true"] { color: var(--text-muted); }
+.cab-line-text.fin-mono, .cab-line-static.fin-mono { font-size: 0.875rem; }
+.cab-line-static { color: var(--fin-text); overflow-wrap: anywhere; }
+.cab-line-static[data-empty="true"] { color: var(--text-muted); }
+.cab-input { max-width: 28rem; padding: 0.4rem 0.6rem; }
+.cab-phone { display: block; max-width: 20rem; }
+.cab-line-error { display: block; margin-top: 0.25rem; font-size: 0.75rem; }
+.cab-trace {
+  position: absolute;
+  left: -0.5rem;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--fin-trace);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
+}
+[data-sending="true"] > .cab-trace {
+  opacity: 1;
+  transform: scaleX(0.85);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s, opacity 0s 0.15s;
+}
+.cab-lines-gap { height: 1px; margin: 0.5rem 0; background: var(--fin-line); }
+.cab-companies { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.cab-company[aria-current="true"] { font-weight: 600; }
+.cab-password { display: grid; gap: 0.75rem; max-width: 22rem; padding-bottom: 0.75rem; }
+.cab-consequence { margin: 0; font-size: 0.8125rem; color: var(--fin-text); }
+@media (max-width: 639.98px) {
+  .cab-line { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; padding: 0.5rem 0; }
+  .cab-line-label { font-size: 0.75rem; }
+}
+
+/* ─── Списки: сеансы, сотрудники ─── */
+.cab-list { display: grid; }
+.cab-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.2fr) minmax(7rem, 0.8fr) minmax(8rem, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: var(--fin-row-h);
+  padding: 0 0.5rem;
+  margin: 0 -0.5rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.875rem;
+  color: var(--fin-text);
+  text-align: left;
+}
+button.cab-row { width: calc(100% + 1rem); background: none; border-left: none; border-right: none; border-top: none; font: inherit; cursor: pointer; }
+button.cab-row:hover { background: var(--fin-hover); }
+button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offset: -2px; }
+.cab-row-main { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cab-row-note { font-size: 0.8125rem; }
+.cab-row-act { display: inline-flex; justify-content: flex-end; }
+.cab-session-ip { font-size: 0.75rem; }
+.cab-list-foot { justify-self: start; margin-top: 0.75rem; }
+/* Каждая строка — своя сетка, поэтому колонки заданы шириной, а не `auto`:
+   иначе длинный статус («просит сбросить пароль · 14:02») сдвигал бы
+   должность и телефон в своей строке, и столбцы расходились. */
+.cab-person { grid-template-columns: minmax(12rem, 1.3fr) minmax(7rem, 0.8fr) 11rem 15rem; }
+.cab-session { grid-template-columns: minmax(12rem, 1.2fr) 9rem minmax(10rem, 1fr) 8rem; }
+.cab-person-job, .cab-person-phone { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cab-person-status { overflow: hidden; text-overflow: ellipsis; }
+.cab-person-phone { font-size: 0.75rem; }
+.cab-person-status { font-size: 0.8125rem; text-align: right; white-space: nowrap; }
+.cab-person-status[data-tone="strong"] { font-weight: 600; }
+.cab-person[data-request="true"] { background: var(--fin-selected); }
+@media (max-width: 759.98px) {
+  .cab-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "main status" "job phone";
+    gap: 0.125rem 0.75rem;
+    padding-block: 0.5rem;
+  }
+  .cab-row-main { grid-area: main; }
+  .cab-person-status { grid-area: status; }
+  .cab-person-job { grid-area: job; font-size: 0.8125rem; }
+  .cab-person-phone { grid-area: phone; text-align: right; }
+  .cab-session { grid-template-areas: "main act" "ip note"; }
+  .cab-session .cab-row-act { grid-area: act; }
+  .cab-session .cab-session-ip { grid-area: ip; }
+  .cab-session .cab-row-note { grid-area: note; text-align: right; }
+}
+
+.cab-error { margin: 0.75rem 0 0; font-size: 0.8125rem; }
+.cab-wait, .cab-empty { padding: 1.25rem 0.25rem; margin: 0; font-size: 0.875rem; color: var(--fin-text-soft); }
+.cab-note { margin: 1rem 0 0; font-size: 0.8125rem; }
+.cab-admin-line { margin: 0.5rem 0; font-size: 0.9375rem; color: var(--fin-text); }
+
+/* ─── Сотрудники ─── */
+.cab-people-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  border-bottom: 1px solid var(--fin-line);
+}
+.cab-people-tabs { flex: 1 1 auto; }
+.cab-people-add { display: inline-flex; gap: 0.5rem; padding-bottom: 0.375rem; }
+@media (max-width: 639.98px) { .cab-people-add { display: none; } }
+.cab-dept-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1.25rem;
+  padding: 0.875rem 0 0.5rem;
+  font-size: 0.875rem;
+}
+.cab-dept-title { flex: 1 1 auto; font-weight: 500; }
+.cab-dept-title .fin-mono { font-size: 0.8125rem; }
+.cab-dept-act { font-size: 0.8125rem; color: var(--fin-text-soft); }
+.cab-fab { z-index: 30; }
+
+.cab-add {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+  padding: 1rem;
+  border: 1px solid var(--fin-card-line);
+  border-radius: 10px;
+  background: var(--fin-card-bg);
+}
+.cab-add-grid { display: grid; grid-template-columns: minmax(12rem, 1.4fr) minmax(12rem, 1fr) minmax(8rem, 0.8fr) minmax(8rem, 0.9fr); gap: 0.75rem; }
+@media (max-width: 899.98px) { .cab-add-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 559.98px) { .cab-add-grid { grid-template-columns: minmax(0, 1fr); } }
+.cab-add-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.cab-add-actions { display: inline-flex; gap: 0.5rem; margin-left: auto; }
+.cab-add-dept { grid-template-columns: 8rem minmax(0, 1fr) auto; align-items: end; }
+@media (max-width: 559.98px) { .cab-add-dept { grid-template-columns: minmax(0, 1fr); } }
+.cab-add-dept .cab-error { grid-column: 1 / -1; }
+
+/* Текстовый переключатель вместо флажка: «Доступ в систему», юрлица. */
+.cab-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--fin-card-line);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--fin-text-soft);
+  cursor: pointer;
+}
+.cab-toggle[aria-pressed="true"] { color: var(--fin-text); border-color: var(--fin-text); font-weight: 600; }
+.cab-toggle:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 2px; }
+
+/* ─── Карточка сотрудника ─── */
+.cab-card-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; margin: 0.5rem 0 0; font-size: 0.875rem; }
+.cab-card-status { margin: 1rem 0 0; font-size: 0.9375rem; color: var(--fin-text); }
+.cab-card-status[data-tone="strong"] { font-weight: 600; }
+.cab-card-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+/* Строка под кнопками: почему кнопок нет или чего не хватает. Одна строка,
+   цвет — только у «разделов не открыто» (янтарь, как истёкшее окно). */
+.cab-card-note { margin: 0.625rem 0 0; font-size: 0.8125rem; }
+.cab-open-form { display: grid; gap: 0.75rem; max-width: 22rem; margin-top: 1rem; }
+.cab-open-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.cab-card-tabs { margin-top: 1.5rem; border-bottom: 1px solid var(--fin-line); }
+.cab-card-body { margin-top: 1rem; }
+.cab-card .cab-line { grid-template-columns: 140px minmax(0, 1fr); }
+
+/* ─── Права ─── */
+.cab-rights { display: grid; }
+/* «Набор: Договоры · Учёт денег · …» — ссылки в строку над матрицей. */
+.cab-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.8125rem;
+}
+.cab-presets .eyebrow { color: var(--text-muted); }
+.cab-rights-wrap { display: grid; gap: 0.5rem; }
+.cab-rights-head { margin: 0.75rem 0 0; font-size: 0.875rem; font-weight: 600; }
+.cab-rights-group { margin: 1.25rem 0 0.25rem; color: var(--text-muted); }
+.cab-right {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto;
+  align-items: center;
+  gap: 0.25rem 1.5rem;
+  min-height: 44px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--fin-line);
+}
+.cab-rights[data-person="true"] .cab-right { grid-template-columns: minmax(10rem, 1fr) auto 5.5rem; }
+.cab-right-head { min-height: 28px; border-bottom: none; }
+.cab-right-title { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; padding: 0.375rem 0; }
+.cab-right-note { margin-left: 0.5rem; font-size: 0.75rem; }
+.cab-right-sub { font-size: 0.75rem; }
+.cab-right-total { font-weight: 600; text-align: right; }
+.cab-right > .cab-trace { left: 0; }
+.cab-right > .cab-line-error { grid-column: 1 / -1; padding-bottom: 0.375rem; }
+.cab-right-more { display: grid; padding-left: 1.25rem; }
+.cab-right-sub-row { min-height: 40px; }
+.cab-entities { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; padding: 0.375rem 0; }
+.cab-entity-list { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.375rem; }
+.cab-right-fold { justify-self: start; margin: 0.625rem 0 0.25rem; font-size: 0.8125rem; color: var(--fin-text-soft); text-decoration: none; }
+.cab-level { justify-content: flex-end; }
+/* В строке «подпись · значение» выбор стоит там же, где значения, — слева. */
+.cab-line .cab-level { justify-content: flex-start; }
+@media (max-width: 639.98px) {
+  .cab-right, .cab-rights[data-person="true"] .cab-right { grid-template-columns: minmax(0, 1fr) auto; }
+  .cab-right .cab-level { grid-column: 1 / -1; justify-content: flex-start; }
+  .cab-right-head { display: none; }
+  .cab-right-more { padding-left: 0.75rem; }
+  .cab-entities { align-items: flex-start; }
+  .cab-entity-list { justify-content: flex-start; }
+}
+/* ─── «Удалить» в справочниках ─── */
+.fin-dict-remove { margin-left: auto; margin-right: 0.75rem; font-size: 0.75rem; color: var(--fin-text-soft); }
+.fin-dict-x {
+  margin-left: 0.35rem;
+  padding: 0 0.2rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.55;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.fin-dict-x:hover, .fin-dict-x:focus-visible { opacity: 1; }
+
+/* ─── Корзина в кабинете ─── */
+.cab-trash { display: grid; gap: 0.75rem; }
+.cab-trash-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.cab-trash-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--fin-line);
+}
+.cab-trash-main { display: grid; gap: 0.15rem; min-width: 0; }
+.cab-trash-title { font-size: 0.9375rem; color: var(--fin-text); overflow-wrap: anywhere; }
+.cab-trash-meta { font-size: 0.75rem; color: var(--fin-text-soft); }
+.cab-trash-fail { font-size: 0.75rem; color: var(--fin-fail); }
+.cab-trash-actions { display: flex; align-items: center; gap: 0.75rem; flex: none; }
+.cab-trash-purge { font-size: 0.8125rem; }
+.cab-trash-done { margin: 0; font-size: 0.8125rem; color: var(--fin-text); }
+.cab-trash-count { margin: 0; font-size: 0.75rem; color: var(--fin-text-soft); }
+@media (max-width: 640px) {
+  .cab-trash-row { flex-direction: column; align-items: flex-start; }
+}
+.cab-feed-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.cab-feed-search { flex: 1 1 18rem; min-width: 0; }
+.cab-feed-select { flex: 0 1 14rem; min-width: 0; font-size: 0.875rem; }
+.cab-feed-cats { margin-bottom: 0.25rem; border-bottom: 1px solid var(--fin-line); }
+.cab-feed-list { display: grid; }
+.cab-feed-day {
+  position: sticky;
+  top: var(--fin-head-h, 64px);
+  z-index: 1;
+  margin: 0;
+  padding: 0.875rem 0 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--fin-text);
+  background: var(--fin-plate);
+}
+.cab-feed-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 40px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--fin-line);
+}
+.cab-feed-list[data-person="true"] .cab-feed-row { grid-template-columns: 56px 140px minmax(0, 1fr) 96px; }
+.cab-feed-time { font-size: 0.75rem; }
+.cab-feed-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fin-text-soft); }
+.cab-feed-text { min-width: 0; overflow-wrap: anywhere; padding: 0.375rem 0; }
+.cab-feed-text .fin-link-btn { text-align: left; text-decoration: none; border-bottom: 1px solid var(--fin-dotted); }
+.cab-feed-row[data-undone="true"] .cab-feed-text { color: var(--fin-text-soft); }
+.cab-feed-act { display: inline-flex; justify-content: flex-end; }
+@media (max-width: 639.98px) {
+  .cab-feed-row, .cab-feed-list[data-person="true"] .cab-feed-row {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    grid-template-areas: "time who act" "text text text";
+    gap: 0 0.5rem;
+    padding: 0.375rem 0;
+  }
+  .cab-feed-time { grid-area: time; }
+  .cab-feed-who { grid-area: who; }
+  .cab-feed-text { grid-area: text; padding: 0.125rem 0 0; }
+  .cab-feed-act { grid-area: act; }
+  .cab-feed-list:not([data-person="true"]) .cab-feed-row { grid-template-areas: "time act act" "text text text"; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sending="true"] > .cab-trace { transition: none; }
+  .fin-head-person::after, .fin-head-requests::after { transition: none; }
+}
+
+@keyframes fin-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fin-dialog-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes creg-trace { from { transform: scaleX(0); } to { transform: scaleX(1); opacity: 0; } }

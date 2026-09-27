@@ -1,0 +1,542 @@
+/* ═══ Настройка реестра договоров (`setup-`) ══════════════════════════════════
+   Фронт-план 6.6. Те же три правила, что у блока `creg-` в globals.css:
+   * цвет — только у отказа (роза); «всё хорошо», «выбрано», «включено» —
+     весом и тоном текста, не цветом;
+   * глубина — шагом поверхности, тень только у всплывающих списков;
+   * наведение меняет фон и видимость «×», но ничего не сдвигает.
+   Только токены, которые уже объявлены: неизвестная переменная убивает
+   объявление целиком. Раскладка — по ширине контейнера (`.setup-root`,
+   `.setup-pane`), а не окна: открытая колонка разделов сужает экран так же,
+   как узкое окно. */
+
+.setup-root { container-type: inline-size; min-width: 0; color: var(--fin-text); }
+.setup-top { margin-bottom: 0.25rem; }
+.setup-back { display: inline-flex; align-items: center; gap: 0.375rem; }
+.setup-bar { margin-bottom: 1rem; }
+.setup-body { min-width: 0; }
+
+.setup-error { display: block; margin: 0.25rem 0 0; font-size: 0.75rem; line-height: 1.35; color: var(--fin-fail); }
+.setup-quiet { color: var(--fin-text-soft); }
+.setup-num { font-variant-numeric: tabular-nums; text-align: right; }
+.setup-arrow { color: var(--text-muted); }
+/* Пустое у кнопки-списка — приглушено (стандарт `ChoiceSelect`); правила
+   раскладок выше по специфичности красят кнопки в цвет текста, поэтому здесь
+   своя строка. Отказ («не назначен») — строкой ниже и побеждает. */
+.setup-root .fin-link-btn[data-empty="true"] { color: var(--text-muted); }
+.setup-root .fin-link-btn[data-fail="true"] { color: var(--fin-fail); text-decoration-color: currentColor; }
+.setup-root :is(.setup-toggle, .setup-inline-value, .setup-side-item, .setup-block-head, .setup-rule-x):focus-visible,
+.setup-field:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+/* ─── Подпись, которая правится на месте ─── */
+.setup-inline { position: relative; display: block; min-width: 0; }
+.setup-inline-value,
+.setup-inline-input {
+  display: block;
+  width: calc(100% + 1rem);
+  min-height: 2rem;
+  margin: 0 -0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  font: inherit;
+  line-height: 1.4;
+  color: var(--fin-text);
+}
+.setup-inline-value {
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setup-inline-value:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--fin-line); }
+.setup-inline-value:disabled { cursor: default; }
+.setup-inline-value[data-empty="true"],
+.setup-inline-value[data-pending="true"] { color: var(--text-muted); }
+.setup-inline-input { border: 1px solid var(--fin-text); background: var(--input-bg); }
+.setup-inline-input:focus { outline: none; }
+.setup-inline[data-mono="true"] :is(.setup-inline-value, .setup-inline-input) {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.setup-inline[data-strong="true"] :is(.setup-inline-value, .setup-inline-input) {
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  min-height: 2.5rem;
+}
+
+/* Текстовый переключатель: включённое — плотнее и темнее, выключенное — тише. */
+.setup-toggle {
+  background: none;
+  border: none;
+  padding: 0.35rem 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--fin-text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.setup-toggle:is([aria-pressed="true"], [data-on="true"]) { color: var(--fin-text); font-weight: 500; }
+.setup-toggle:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--fin-dotted); }
+.setup-toggle:disabled { opacity: 0.5; cursor: default; }
+
+/* ─── Всплывающие списки ─── */
+.setup-pop { max-width: min(420px, calc(100vw - 16px)); }
+.setup-pop:focus { outline: none; }
+.setup-pop-item { cursor: pointer; }
+.setup-pop-item[data-current="true"] { font-weight: 500; }
+.setup-pop-check { cursor: pointer; }
+.setup-pop-check input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--fin-text); }
+.setup-pop-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-pop-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 2.25rem;
+  margin: 0 0 0.25rem;
+  padding: 0 0.625rem;
+  border-radius: 6px;
+  border: 1px solid var(--fin-line);
+  background: var(--fin-card-bg);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.875rem;
+}
+.setup-pop-search:focus { outline: none; border-color: var(--fin-text); }
+
+/* ─── Форма «+ …» под списком ─── */
+.setup-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.875rem 0.25rem;
+  font-size: 0.875rem;
+}
+.setup-add-lead { color: var(--fin-text-soft); font-weight: 500; white-space: nowrap; }
+.setup-add-type { color: var(--fin-text-soft); white-space: nowrap; }
+.setup-add-type .fin-link-btn { color: var(--fin-text); }
+.setup-add-error { flex-basis: 100%; margin-top: 0; }
+.setup-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 22rem;
+  height: 2.25rem;
+  padding: 0 0.625rem;
+  border-radius: 6px;
+  border: 1px solid var(--fin-line);
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.875rem;
+}
+.setup-input:focus { outline: none; border-color: var(--fin-text); }
+
+/* ─── Поля ─── */
+.setup-fields { max-width: 1040px; }
+.setup-fields-head,
+.setup-field {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 7.5rem 11rem 7.5rem 5.5rem 4.5rem;
+  grid-template-areas: "move title type fill req hide drop";
+  align-items: center;
+  column-gap: 0.75rem;
+  padding: 0 0.25rem;
+}
+.setup-fields-head { min-height: 2rem; border-bottom: 1px solid var(--fin-line); }
+.setup-field {
+  min-height: var(--fin-row-h);
+  padding-block: 0.25rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.875rem;
+}
+.setup-field:hover { background: var(--fin-hover); }
+.setup-field[data-hidden="true"] .setup-inline-value { color: var(--fin-text-soft); }
+.setup-field-move { grid-area: move; display: inline-flex; gap: 2px; }
+.setup-move-btn { width: 34px; height: 34px; color: var(--fin-text-soft); }
+.setup-move-btn:hover:not(:disabled) { color: var(--fin-text); }
+.setup-field-title { grid-area: title; display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.setup-field-title .setup-inline { flex: 1 1 auto; }
+.setup-field-flag { flex: none; font-size: 0.75rem; color: var(--text-muted); }
+.setup-field-type { grid-area: type; min-width: 0; }
+.setup-field-kind { font-size: 0.8125rem; color: var(--text-muted); white-space: nowrap; }
+.setup-field-fill { grid-area: fill; min-width: 0; font-size: 0.8125rem; }
+.setup-field-req { grid-area: req; }
+.setup-field-req .setup-field-kind { grid-area: auto; }
+.setup-field-hide { grid-area: hide; font-size: 0.8125rem; }
+.setup-field-drop { grid-area: drop; font-size: 0.8125rem; text-align: right; }
+.setup-field-note { grid-column: 2 / -1; padding-bottom: 0.375rem; font-size: 0.75rem; color: var(--fin-text-soft); }
+.setup-field-note.setup-error { color: var(--fin-fail); margin: 0; }
+@container (max-width: 719px) {
+  .setup-fields-head { display: none; }
+  .setup-field {
+    /* Колонки фиксированной ширины: у каждой строки своя сетка, и с «auto»
+       «Спрятать» стоял то под способом заполнения, то левее — по тексту строки. */
+    grid-template-columns: 72px minmax(0, 1fr) 5.5rem 4.5rem;
+    grid-template-areas:
+      "move title title title"
+      "move type fill fill"
+      "move req hide drop";
+    row-gap: 0.125rem;
+    padding-block: 0.5rem;
+  }
+}
+
+/* ─── Два столбца: списки и листы ─── */
+.setup-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+@container (min-width: 860px) {
+  .setup-split { grid-template-columns: 15rem minmax(0, 1fr); gap: 2rem; align-items: start; }
+}
+.setup-side-wrap { min-width: 0; }
+.setup-side { display: flex; flex-direction: column; min-width: 0; }
+.setup-side-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.setup-side-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 40px;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fin-text-soft);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+.setup-side-item:hover { background: var(--fin-hover); color: var(--fin-text); }
+.setup-side-item[aria-current="true"] { background: var(--fin-selected); color: var(--fin-text); font-weight: 500; }
+.setup-side-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-side-count { flex: none; font-size: 0.8125rem; font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.setup-side-move { display: inline-flex; opacity: 0; transition: opacity 0.15s ease-out; }
+.setup-side-row:hover .setup-side-move,
+.setup-side-row:focus-within .setup-side-move { opacity: 1; }
+.setup-side-error { grid-column: 1 / -1; padding: 0 0.5rem 0.25rem; }
+.setup-add-side { padding-inline: 0; }
+.setup-add-side .setup-input { max-width: none; }
+@media (hover: none) { .setup-side-move { opacity: 1; } }
+@container (max-width: 859px) {
+  .setup-side {
+    flex-direction: row;
+    gap: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--fin-line);
+  }
+  .setup-side::-webkit-scrollbar { display: none; }
+  .setup-side-row { display: flex; flex: none; }
+  .setup-side-item { width: auto; white-space: nowrap; }
+  /* На узком экране стрелки — только у выбранного листа: у каждого они
+     удвоили бы ленту, а двигают всё равно тот, что открыт. */
+  .setup-side-row:not(:has([aria-current="true"])) .setup-side-move { display: none; }
+  .setup-side-move { opacity: 1; }
+}
+
+/* ─── Значения списка ─── */
+.setup-pane { container-type: inline-size; min-width: 0; }
+.setup-vrow {
+  display: grid;
+  align-items: center;
+  column-gap: 0.75rem;
+  min-height: var(--fin-row-h);
+  padding: 0.25rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.875rem;
+}
+.setup-vhead { min-height: 2rem; }
+.setup-vrow[data-shape="status"] { grid-template-columns: 1.5rem minmax(0, 1fr) 14rem 6rem 5.5rem; }
+.setup-vrow[data-shape="economic"] { grid-template-columns: 1.5rem minmax(0, 1fr) 12rem 6rem 5.5rem; }
+.setup-vrow[data-shape="plain"] { grid-template-columns: 1.5rem minmax(0, 1fr) 6rem 5.5rem; }
+.setup-vrow[data-shape="deal"] {
+  grid-template-columns: 1.5rem minmax(9rem, 1fr) minmax(15rem, 1.4fr) 6.5rem 8.5rem 5.5rem 5rem;
+}
+.setup-vcheck { display: flex; align-items: center; }
+.setup-vcheck input { width: 16px; height: 16px; margin: 0; accent-color: var(--fin-text); }
+.setup-vname { min-width: 0; }
+.setup-vroles { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.75rem; min-width: 0; }
+.setup-vbilling, .setup-veconomic, .setup-vmeaning { min-width: 0; font-size: 0.8125rem; }
+.setup-vcount { color: var(--fin-text-soft); }
+.setup-vaction { text-align: right; font-size: 0.8125rem; }
+.setup-vnote { grid-column: 2 / -1; padding-bottom: 0.375rem; font-size: 0.75rem; color: var(--fin-text-soft); }
+.setup-vnote.setup-error { color: var(--fin-fail); margin: 0; }
+@container (max-width: 919px) {
+  .setup-vhead[data-shape="deal"] { display: none; }
+  .setup-vrow[data-shape="deal"] {
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "check name count action"
+      ".     roles roles roles"
+      ".     billing economic economic";
+    row-gap: 0.125rem;
+    padding-block: 0.5rem;
+  }
+  .setup-vrow[data-shape="deal"] .setup-vcheck { grid-area: check; }
+  .setup-vrow[data-shape="deal"] .setup-vname { grid-area: name; }
+  .setup-vrow[data-shape="deal"] .setup-vcount { grid-area: count; }
+  .setup-vrow[data-shape="deal"] .setup-vaction { grid-area: action; }
+  .setup-vrow[data-shape="deal"] .setup-vroles { grid-area: roles; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); }
+  .setup-vrow[data-shape="deal"] .setup-vbilling { grid-area: billing; }
+  .setup-vrow[data-shape="deal"] .setup-veconomic { grid-area: economic; }
+  .setup-vrow[data-shape="deal"] [data-label]::before {
+    content: attr(data-label);
+    margin-right: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+}
+@container (max-width: 559px) {
+  .setup-vhead:is([data-shape="status"], [data-shape="economic"]) { display: none; }
+  .setup-vrow:is([data-shape="status"], [data-shape="economic"]) {
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "check name count action"
+      ".     meaning meaning meaning";
+    row-gap: 0.125rem;
+    padding-block: 0.5rem;
+  }
+  .setup-vrow:is([data-shape="status"], [data-shape="economic"]) .setup-vcheck { grid-area: check; }
+  .setup-vrow:is([data-shape="status"], [data-shape="economic"]) .setup-vname { grid-area: name; }
+  .setup-vrow:is([data-shape="status"], [data-shape="economic"]) .setup-vcount { grid-area: count; }
+  .setup-vrow:is([data-shape="status"], [data-shape="economic"]) .setup-vaction { grid-area: action; }
+  .setup-vrow:is([data-shape="status"], [data-shape="economic"]) .setup-vmeaning { grid-area: meaning; }
+  .setup-vrow[data-shape="deal"] {
+    grid-template-areas:
+      "check name count action"
+      ".     roles roles roles"
+      ".     billing billing billing"
+      ".     economic economic economic";
+  }
+}
+.setup-merge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem 0.625rem;
+  padding: 0.75rem 0.25rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.875rem;
+}
+.setup-merge-clear { margin-left: auto; font-size: 0.8125rem; }
+.setup-merge-error { flex-basis: 100%; }
+
+/* ─── Лист и его блоки ─── */
+.setup-view-head { display: flex; align-items: center; gap: 1rem; padding-bottom: 0.25rem; font-size: 0.8125rem; }
+.setup-view-title { flex: 1 1 auto; min-width: 0; }
+.setup-blocks-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.875rem;
+}
+.setup-blocks-title { font-size: 0.9375rem; font-weight: 500; }
+.setup-inline-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.setup-block { border-bottom: 1px solid var(--fin-line); }
+.setup-block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: var(--fin-row-h);
+  padding: 0.75rem 0.25rem;
+  border: none;
+  background: none;
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.setup-block-head:hover { background: var(--fin-hover); }
+.setup-block-name { min-width: 0; overflow-wrap: anywhere; }
+.setup-block-name[data-empty="true"] { font-weight: 400; color: var(--fin-text-soft); }
+.setup-block-count { flex: none; font-size: 0.8125rem; font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.setup-block-body { padding: 0 0.25rem 1rem; }
+.setup-block-foot { padding-top: 0.5rem; font-size: 0.8125rem; }
+.setup-brow {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  padding: 0.5rem 0;
+}
+.setup-blabel { padding-top: 0.45rem; font-size: 0.75rem; font-weight: 500; color: var(--text-muted); }
+.setup-bvalue { min-width: 0; font-size: 0.875rem; }
+@container (max-width: 599px) {
+  .setup-brow { grid-template-columns: minmax(0, 1fr); }
+  .setup-blabel { padding-top: 0; }
+}
+
+/* Правило предложением. «или» — в начале строки группы и плотнее, чтобы
+   группы читались списком, а не одной длинной фразой. */
+.setup-rule { font-size: 0.9375rem; line-height: 1.75; overflow-wrap: anywhere; }
+.setup-rule-line { margin: 0; }
+.setup-rule-or { font-weight: 600; }
+.setup-rule-and { color: var(--fin-text-soft); }
+.setup-rule-missing { color: var(--text-muted); }
+.setup-rule-x {
+  margin-left: 0.125rem;
+  padding: 0 0.3rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+.setup-cond:hover .setup-rule-x,
+.setup-cond:focus-within .setup-rule-x { opacity: 1; }
+.setup-rule-x:hover { color: var(--fin-text); background: var(--fin-hover); }
+@media (hover: none) { .setup-rule-x { opacity: 1; } }
+.setup-rule-tools { margin-left: 0.5rem; font-size: 0.8125rem; color: var(--fin-text-soft); white-space: nowrap; }
+.setup-rule-tools .fin-link-btn { color: var(--fin-text-soft); }
+.setup-rule-tools .fin-link-btn:hover { color: var(--fin-text); }
+.setup-rule-input {
+  height: 1.75rem;
+  max-width: 100%;
+  padding: 0 0.375rem;
+  border: 1px solid var(--fin-text);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+}
+.setup-rule-input:focus { outline: none; }
+.setup-rule-aside { margin-left: 0.75rem; }
+.setup-rule-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  min-height: 2.25rem;
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+}
+.setup-count { min-width: 6rem; color: var(--fin-text-soft); font-variant-numeric: tabular-nums; }
+.setup-count-num { color: var(--fin-text); font-weight: 500; }
+
+/* Подъём числа: окно строки с запасом сверху и снизу, как у `.sr-line-mask`.
+   Сдвиг задаёт только GSAP — в CSS transform здесь не пишется. */
+.setup-rise { position: relative; display: inline-block; overflow: clip; vertical-align: bottom; padding: 0.14em 0; margin: -0.14em 0; }
+.setup-rise > span { display: inline-block; }
+.setup-rise-out { position: absolute; left: 0; top: 0.14em; }
+
+/* У слота стороны своя ширина: подпись внутри тянется на 100% родителя, и
+   при ширине «по содержимому» ряд не переносился, а наезжал сам на себя
+   («исполнитель→», «заказчикПоменять местами» на 800). */
+.setup-sides { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 1.25rem; }
+.setup-side-slot { display: flex; flex: 1 1 12rem; align-items: baseline; gap: 0.5rem; min-width: 12rem; max-width: 22rem; }
+.setup-side-slot .setup-inline { flex: 1 1 auto; min-width: 0; }
+.setup-side-slot .setup-arrow { flex: none; }
+.setup-slot-word { flex: none; font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+.setup-sides-tools { display: inline-flex; flex: none; align-items: baseline; gap: 0.75rem; font-size: 0.8125rem; }
+
+/* Подстановки — обычная фраза, она переносится как текст. Части не держатся
+   в одной строке (`nowrap`): «предмет договора Бухгалтерское сопровождение»
+   на 390 и 800 не помещалась и выталкивала лист за правый край. */
+.setup-defaults { line-height: 1.9; color: var(--fin-text-soft); overflow-wrap: anywhere; }
+.setup-defaults .fin-link-btn { color: var(--fin-text); white-space: normal; text-align: left; }
+.setup-default { white-space: normal; }
+
+.setup-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0 1.5rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.setup-column { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; padding: 0.3rem 0; border-bottom: 1px solid var(--fin-line); font-size: 0.8125rem; }
+.setup-column-num { flex: none; color: var(--text-muted); }
+.setup-column-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-column-field { flex: none; margin-left: auto; font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+
+/* ─── Наши юрлица ─── */
+.setup-entities { max-width: 1180px; }
+.setup-erow {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(11rem, 1.1fr) 9.5rem 5.5rem minmax(12rem, 1fr) 5rem;
+  grid-template-areas: "code name bin vat acc action";
+  align-items: center;
+  column-gap: 0.75rem;
+  min-height: var(--fin-row-h);
+  padding: 0.375rem 0.25rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.875rem;
+}
+.setup-ehead { min-height: 2rem; padding-block: 0; }
+.setup-ecode { grid-area: code; min-width: 0; }
+.setup-ename { grid-area: name; display: flex; flex-direction: column; min-width: 0; }
+.setup-ename-main { font-weight: 450; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-ename .setup-inline-value { min-height: 1.5rem; padding-block: 0.1rem; font-size: 0.8125rem; }
+.setup-ename .setup-inline-value:not([data-empty="true"]) { color: var(--fin-text-soft); }
+.setup-ebin { grid-area: bin; min-width: 0; }
+.setup-evat { grid-area: vat; display: inline-flex; gap: 0.625rem; }
+.setup-eaccounts { grid-area: acc; min-width: 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
+.setup-eaccounts-list { color: var(--fin-text-soft); }
+.setup-eaction { grid-area: action; text-align: right; font-size: 0.8125rem; }
+.setup-enote { grid-column: 1 / -1; padding-bottom: 0.375rem; font-size: 0.75rem; color: var(--fin-text-soft); }
+.setup-enote.setup-error { color: var(--fin-fail); margin: 0; }
+@container (max-width: 899px) {
+  .setup-ehead { display: none; }
+  .setup-erow {
+    grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "code name name"
+      "bin  bin  vat"
+      "acc  acc  action";
+    row-gap: 0.25rem;
+    padding-block: 0.625rem;
+  }
+  .setup-erow :is(.setup-ebin, .setup-evat, .setup-eaccounts)::before {
+    content: attr(data-label);
+    margin-right: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .setup-ebin { display: flex; align-items: center; gap: 0.25rem; }
+  .setup-ebin .setup-inline { flex: 1 1 auto; max-width: 12rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-side-move, .setup-rule-x { transition: none; }
+}
+
+/* ─── «Сводка оплат» ─── */
+.setup-summary { max-width: 720px; display: grid; gap: 1.25rem; }
+.setup-summary-now { display: grid; gap: 0.25rem; justify-items: start; padding-bottom: 1rem; border-bottom: 1px solid var(--fin-line); }
+.setup-summary-title { margin: 0; font-size: 0.9375rem; font-weight: 500; color: var(--fin-text); }
+.setup-summary-meta { margin: 0; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.setup-summary-form { display: grid; grid-template-columns: minmax(0, 1fr) 14rem auto; gap: 0.5rem 0.75rem; align-items: end; }
+.setup-summary-form > .setup-error,
+.setup-summary-form > .setup-summary-meta { grid-column: 1 / -1; }
+.setup-summary-field { display: grid; gap: 0.25rem; font-size: 0.75rem; color: var(--fin-text-soft); min-width: 0; }
+@media (max-width: 640px) {
+  .setup-summary-form { grid-template-columns: minmax(0, 1fr); }
+}
+/* Книги листов в «Листах»: реестр и «Разовые» — разными группами. */
+.setup-side-book { margin: 0.75rem 0 0.25rem; padding: 0 0.5rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em; color: var(--fin-text-soft); }
+.setup-side-book:first-child { margin-top: 0; }
+.setup-book-pick { display: flex; gap: 0.75rem; font-size: 0.75rem; color: var(--fin-text-soft); flex-basis: 100%; }
+.setup-book-pick button { padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.setup-book-pick button[aria-pressed="true"] { color: var(--fin-text); font-weight: 600; }

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" viewBox="0 0 29.962206 29.962206" preserveAspectRatio="xMidYMid meet">
+  <g xmlns="http://www.w3.org/2000/svg" style="fill:#000000;stroke:none" transform="matrix(0.1,0,0,-0.1,-188.83607,185.00574)">
+    <g transform="matrix(0.11245877,0,0,0.11245877,2030.5223,1522.2777)">
+      <rect style="opacity:1;fill:#fe5000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:2;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:4.61999989;stroke-opacity:1" id="rect3342" width="2664.2834" height="2664.2834" x="-1264.1222" y="-2914.6653" transform="scale(1,-1)" ry="335.87787"/>
+      <g transform="matrix(0.85920154,0,0,0.85920154,-2271.1629,458.87568)">
+        <g transform="matrix(10,0,0,10,3374.2611,2341.7245)">
+          <path id="path3536" style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none" d="m 0,0 -37.666,-18.833 c -8.815,-4.407 -14.382,-13.416 -14.382,-23.275 l 0,-127.043 37.658,18.825 C -5.574,-145.911 0,-136.902 0,-127.049 L 0,0 Z"/>
+        </g>
+        <g transform="matrix(10,0,0,10,2593.5471,1235.7225)">
+          <path id="path3540" style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none" d="m 0,0 -37.667,-18.833 c -8.814,-4.407 -14.381,-13.416 -14.381,-23.275 l 0,-55.484 37.658,18.833 C -5.575,-74.35 0,-65.341 0,-55.482 L 0,0 Z"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
