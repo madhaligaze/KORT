@@ -17,12 +17,12 @@ import { AuthStage, AuthWait } from "@/components/stage/auth-stage";
  * первого: пока компаний мало, регистрация — главное действие экрана.
  *
  * Облик — страница книги (28.09.2026; прежний — «пилюли везде», регистрация
- * мелкой ссылкой в строке с переносом). Вход и регистрация — две двери
- * указателем, как разделы на стартовом экране: «01 Вход», «02 Регистрация»,
- * крупно, и под открытой раскрываются её строки. Поля — строки книги:
- * подпись на полях слева, значение на линейке, без рамок. Всё крупное —
- * заголовки дверей, значения, кнопка — стоит от одной вертикали (`--auth-axis`
- * в globals.css), всё мелкое — слева от неё.
+ * мелкой ссылкой в строке с переносом). Вход и регистрация — две двери:
+ * «Вход» и «Регистрация» крупно, одна под другой, и под открытой раскрываются
+ * её строки. Номеров у дверей нет — их сняли по просьбе владельца. Поля —
+ * строки книги: подпись на полях слева, значение на линейке, без рамок.
+ * Значения и кнопка стоят от одной вертикали (`--auth-axis` в globals.css),
+ * подписи — слева от неё.
  *
  * Сотрудники входят по номеру телефона (фронт-план, 6.8): номер → «пароль»
  * или «придумайте пароль». Сервер отвечает «пароль» и на незнакомый номер,
@@ -35,9 +35,9 @@ import { AuthStage, AuthWait } from "@/components/stage/auth-stage";
  *
  * Что изменилось после проверки 26.09 («Асхат»):
  * - первое поле принимает и почту, и телефон — сотрудник, пришедший без
- *   ссылки, не ищет «Войти как сотрудник». Отдельной кнопки больше нет
- *   (28.09): шаг по номеру открывает само поле, приглашение `?phone=` и
- *   запомненный вход по номеру;
+ *   ссылки, не ищет «Войти как сотрудник». Саму кнопку 28.09 сняли было
+ *   совсем и в тот же день вернули строкой под «Войти»: без неё и владелец не
+ *   увидел, как входят сотрудники, — подпись поля такое не объясняет;
  * - ссылка-приглашение `?phone=…` сразу спрашивает у сервера шаг и, если
  *   учётка ждёт пароль, открывает «Придумайте пароль»;
  * - шаг «пароль» у учётки, ждущей пароль, уводит к «Придумайте пароль»
@@ -59,7 +59,7 @@ const HEADINGS: Record<Step, string> = {
   "forgot-email": "Сброс пароля",
 };
 
-/** Куда ведёт «←» на месте номера двери. У корня стрелки нет — там номер. */
+/** Куда ведёт «←» перед заголовком двери. У первого шага стрелки нет. */
 const BACK: Partial<Record<Step, Step>> = {
   phone: "email",
   password: "phone",
@@ -194,6 +194,13 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
     setStep("forgot-email");
   };
 
+  /** «Войти как сотрудник»: к полю номера с маской; номер из первого поля не теряется. */
+  const toEmployee = () => {
+    const fromField = looksLikePhone(email) ? phoneDigits(email) : "";
+    if (fromField.length === 10 && fromField[0] === "7") setDigits(fromField);
+    setStep("phone");
+  };
+
   const goBack = (target: Step) => {
     if (target === "email") rememberMode("email");
     setStep(target);
@@ -308,7 +315,6 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
     <AuthStage intro>
       <div className="auth-doors">
         <Door
-          num="01"
           title={HEADINGS[inStep]}
           open={!registering}
           bodyId="auth-door-in"
@@ -425,16 +431,22 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
               {ACTIONS[inStep]}
             </Go>
 
+            {inStep === "email" ? (
+              <button type="button" className="auth-more" onClick={toEmployee}>
+                Войти как сотрудник
+                <Arrow />
+              </button>
+            ) : null}
             {inStep === "forgot-email" ? (
               <button type="button" className="auth-more" onClick={() => setStep("forgot")}>
                 Сброс по номеру телефона
+                <Arrow />
               </button>
             ) : null}
           </form>
         </Door>
 
         <Door
-          num="02"
           title={HEADINGS.register}
           label="Регистрация компании"
           open={registering}
@@ -505,19 +517,18 @@ const ACTIONS: Record<Step, string> = {
 const DOOR_FOLD_MS = 700;
 
 /**
- * Дверь: номер на полях, заголовок крупно, под ним — её строки.
+ * Дверь: заголовок крупно, под ним — её строки.
  *
- * Закрытая дверь — одна строка указателя: заголовок приглушён, строки
- * свёрнуты. Открывается по щелчку в любом месте строки. Открытую не закрыть:
- * одна из двух открыта всегда. На шагах глубже первого номер на полях
- * сменяется стрелкой назад.
+ * Закрытая дверь — одна строка: заголовок приглушён, строки свёрнуты.
+ * Открывается по щелчку в любом месте строки. Открытую не закрыть: одна из
+ * двух открыта всегда. На шагах глубже первого перед заголовком — стрелка
+ * назад.
  *
  * Строки закрытой двери снимаются, как только она свернулась: иначе на
  * странице два поля пароля сразу, и менеджер паролей волен заполнить
  * спрятанное. Пока сворачивается — `inert`, ни фокуса, ни ввода.
  */
 function Door({
-  num,
   title,
   label,
   open,
@@ -526,7 +537,6 @@ function Door({
   back,
   children,
 }: {
-  num: string;
   title: string;
   /** Имя для экранного диктора и проверок, если заголовка мало. */
   label?: string;
@@ -553,11 +563,7 @@ function Door({
           <button type="button" className="auth-door-back" onClick={back.onClick} aria-label={back.label}>
             <Arrow back />
           </button>
-        ) : (
-          <span className="auth-door-num" aria-hidden="true">
-            {num}
-          </span>
-        )}
+        ) : null}
         <h2 className="auth-door-title">
           <button
             type="button"
@@ -711,7 +717,6 @@ export function PasswordChangeGate({ onDone }: { onDone: () => void }) {
       <div className="auth-doors">
         <section className="auth-door" data-open="">
           <div className="auth-door-head">
-            <span className="auth-door-num" aria-hidden="true" />
             <h2 className="auth-door-title">Смена пароля</h2>
           </div>
           <div className="auth-door-body">

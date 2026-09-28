@@ -1019,33 +1019,26 @@ html, body { overflow-x: clip; }
   flex-direction: column;
 }
 
-/* ─── Двери: «01 Вход», «02 Регистрация» ─────────────────────────────
-   Указатель как на стартовом экране. Открытая дверь — тушью, закрытая —
-   приглушена: состояние несёт сам заголовок. Строки закрытой свёрнуты
-   сеткой 0fr → 1fr; `visibility` прячет их после свёртки, чтобы в
+/* ─── Двери: «Вход», «Регистрация» ──────────────────────────────────
+   Открытая дверь — тушью, закрытая — приглушена: состояние несёт сам
+   заголовок. Заголовок стоит от левого края, над подписями; номеров «01 /
+   02» на полях нет — сняли 28.09 по просьбе владельца. Строки закрытой
+   свёрнуты сеткой 0fr → 1fr; `visibility` прячет их после свёртки, чтобы в
    закрытое не попадали ни Tab, ни экранный диктор. */
 .auth-door + .auth-door { border-top: 1px solid var(--border-base); }
 .auth-door-head {
   position: relative;
-  display: grid;
-  grid-template-columns: var(--auth-axis) minmax(0, 1fr);
-  align-items: baseline;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 1.1rem 0 1.2rem;
 }
-.auth-door-num {
-  font-family: var(--font-martian), ui-monospace, monospace;
-  font-variation-settings: "wdth" 87.5;
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  transition: color var(--dur-slow) var(--ease-out);
-}
-.auth-door[data-open] .auth-door-num { color: var(--text-primary); }
+.auth-door-head > .auth-door-title { flex: 1; min-width: 0; }
+/* Стрелка назад — перед заголовком; сама иконка встаёт по левому краю. */
 .auth-door-back {
   position: relative;
   z-index: 1;
-  align-self: center;
-  justify-self: start;
+  flex: none;
   display: inline-grid;
   place-items: center;
   width: 2.5rem;
@@ -1323,24 +1316,44 @@ label.auth-row-label { cursor: pointer; }
 .auth-go .auth-arrow { transition: transform var(--dur-slow) var(--ease-out); }
 .auth-go:hover:not(:disabled) .auth-arrow { transform: translateX(4px); }
 
-/* Второстепенное действие под плитой — текстом от той же вертикали. */
+/* Другая дорога под плитой — «Войти как сотрудник», «Сброс по номеру» —
+   текстом со стрелкой от той же вертикали. Не сноска: владелец 28.09 не
+   нашёл, как входят сотрудники, пока эта строка была мелкой или её не было. */
 .auth-more {
   align-self: flex-start;
-  margin: 1rem 0 0 var(--auth-axis);
-  padding: 0.25rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  margin: 0.5rem 0 0 var(--auth-axis);
+  padding: 0;
   border: 0;
   background: none;
   font: inherit;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
   cursor: pointer;
-  text-decoration: underline dotted var(--fin-dotted);
-  text-underline-offset: 4px;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 5px;
+  -webkit-tap-highlight-color: transparent;
+  transition: text-decoration-color var(--dur-fast) var(--ease-out);
 }
-.auth-more:hover { color: var(--text-primary); text-decoration-style: solid; text-decoration-color: currentColor; }
+.auth-more .auth-arrow { width: 1rem; height: 1rem; transition: transform var(--dur-slow) var(--ease-out); }
+.auth-more:hover { text-decoration-color: currentColor; }
+.auth-more:hover .auth-arrow { transform: translateX(4px); }
+.auth-more:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 2px; }
 
 @media (max-width: 519.98px) {
   .auth-form { --auth-axis: 6.5rem; }
+  /* Вход на 360×640 обязан помещаться без прокрутки, а строка «Войти как
+     сотрудник» добавила ему 50px: на телефоне отступы плотнее. */
+  .auth-door-head { padding: 0.85rem 0 0.95rem; }
+  .auth-sheet { padding-bottom: 1.25rem; }
+  .auth-go { margin-top: 1.25rem; }
+  .auth-more { margin-top: 0.25rem; }
 }
 
 /* Поле «подпись над полем» — осталось от прежнего входа, но на нём стоят формы
