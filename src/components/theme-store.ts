@@ -6,17 +6,27 @@ import { useSyncExternalStore } from "react";
  * Тема: выбор человека и то, что стоит на экране.
  *
  * Выбор — «светлая», «тёмная» или «как в системе» (в localStorage ничего нет).
- * Что стоит на экране — атрибут `data-theme` на <html>: его ставит скрипт до
- * гидратации (app/layout.tsx), он же переключает тему вслед за системой, пока
- * человек не выбрал сам. Тумблер один — на входе и в шапке приложения
+ * Что стоит на экране — атрибут `data-theme` на <html>: первым его ставит
+ * скрипт до гидратации (app/layout.tsx), дальше — этот модуль, в том числе
+ * вслед за системой, пока человек не выбрал сам. Тумблер один — на входе и в шапке приложения
  * (`stage/theme-switch.tsx`); строку «Тема» в кабинете сняли 28.09.2026, и
  * вернуться к «как в системе» из интерфейса больше нельзя — `setChoice("system")`
  * остался для этого случая.
  *
- * Смена темы плавная для всей страницы: на время перехода на <html> висит
- * `.theme-shift`, и цвета фонов, текста и рамок перетекают за `--stage-shift`
- * — ту же длительность, за которую перетекает дымовая сцена. Без этого сцена
- * менялась бы плавно, а форма рядом — щелчком.
+ * Смена темы плавная для всей страницы — одним растворением через View
+ * Transitions: браузер снимает кадр в старой теме, тема под ним меняется
+ * мгновенно, и два кадра растворяются друг в друге на видеокарте за
+ * `--stage-shift` (globals.css, «Смена темы»). Дым, лист Univer и форма входят
+ * в кадр как есть — общий переход у всего, что на экране.
+ *
+ * До 28.09.2026 переход держал класс `.theme-shift`: он вешал transition цвета
+ * на каждый элемент страницы и через 950 мс снимался таймером. Внутри
+ * приложения это тысячи одновременных переходов — смена шла рывками; на входе
+ * снятие класса на несколько кадров возвращало вуали сцены старый цвет —
+ * вспышка в конце. Поэлементные переходы цвета не возвращать.
+ *
+ * Без View Transitions (старый браузер) и при «меньше движения» тема
+ * меняется сразу.
  */
 export type ThemeChoice = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
@@ -41,20 +51,30 @@ function readTheme(): Theme {
   return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
 }
 
-let shiftTimer: number | undefined;
+let shifting: ViewTransition | null = null;
 
 /** Поставить тему на экран — с плавным переходом всей страницы. */
 export function applyTheme(next: Theme) {
   const html = document.documentElement;
   if (html.getAttribute("data-theme") === next) return;
+  const swap = () => html.setAttribute("data-theme", next);
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!reduced) {
-    const ms = parseFloat(getComputedStyle(html).getPropertyValue("--stage-shift")) || 900;
-    html.classList.add("theme-shift");
-    window.clearTimeout(shiftTimer);
-    shiftTimer = window.setTimeout(() => html.classList.remove("theme-shift"), ms + 50);
+  // Скрытая вкладка (тема сменилась вслед за системой) кадр не снимет.
+  if (reduced || typeof document.startViewTransition !== "function" || document.visibilityState !== "visible") {
+    swap();
+    return;
   }
-  html.setAttribute("data-theme", next);
+  // `.theme-vt` живёт, пока идёт растворение: по нему тумблер выходит из общего
+  // кадра, и его черта едет своим ходом, а не растворяется вдвоём с прежней.
+  html.classList.add("theme-vt");
+  const transition = document.startViewTransition(swap);
+  shifting = transition;
+  transition.finished.finally(() => {
+    // Новое нажатие посреди растворения обрывает прежнее — класс снимает последнее.
+    if (shifting !== transition) return;
+    shifting = null;
+    html.classList.remove("theme-vt");
+  });
 }
 
 export function setChoice(next: ThemeChoice) {
@@ -68,10 +88,19 @@ export function setChoice(next: ThemeChoice) {
   listeners.forEach((listener) => listener());
 }
 
+// Пока человек не выбрал тему сам, страница идёт за системой — сразу, без
+// перезагрузки, тем же растворением, что у тумблера. Слушатель жил в скрипте
+// layout.tsx и менял тему своим кодом, мимо общего перехода.
+if (typeof window !== "undefined") {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+    if (readChoice() === "system") applyTheme(event.matches ? "dark" : "light");
+  });
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   window.addEventListener("storage", listener);
-  // Тема меняется и без нас: вслед за системой (скрипт в layout.tsx).
+  // Атрибут меняется не только отсюда: у переходов он встаёт позже вызова.
   const watch = new MutationObserver(listener);
   watch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   return () => {

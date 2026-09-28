@@ -645,38 +645,25 @@ html, body { overflow-x: clip; }
    тушью. Раньше она была тёмной всегда: в светлой теме посреди бумаги стояла
    чёрная плита (портрет кабинета, 28.09.2026).
 
-   Смену темы сцена проходит плавно. Держат это зарегистрированные свойства
-   `--stage-bg`, `--stage-fg`, `--stage-mark`: объявленные как <color>, они
-   интерполируются, и `transition` на :root ведёт их за `--stage-shift`. Всё,
-   что на них построено — фон, вуали через color-mix, надписи, знак, —
-   перетекает вместе. Шейдер цвет из CSS не получает: он читает цель
-   `--stage-bg-to` и проходит тот же путь твином GSAP той же длины.
+   Цвета сцены меняются вместе с темой мгновенно — плавность даёт общее
+   растворение страницы («Смена темы» ниже). Своих переходов у них нет: до
+   28.09.2026 они перетекали зарегистрированными свойствами (`@property`) с
+   `transition`, и вуаль в конце перехода на несколько кадров брала старый
+   цвет — вспышка на входе. Шейдер читает `--stage-bg` здесь же.
 
    Токены интерфейса переопределяются на самой сцене, а не на :root: кнопки и
    подписи внутри берут значения отсюда.                                   */
-@property --stage-bg { syntax: "<color>"; inherits: true; initial-value: #0e100f; }
-@property --stage-fg { syntax: "<color>"; inherits: true; initial-value: #fffce1; }
-@property --stage-mark { syntax: "<color>"; inherits: true; initial-value: #feefd8; }
-
 :root {
-  --stage-bg-to:   #0e100f;
-  --stage-fg-to:   #fffce1;
+  --stage-bg:   #0e100f;
+  --stage-fg:   #fffce1;
   /* Знак KORT — крем с утверждённого макета, а не мел интерфейса. */
-  --stage-mark-to: #feefd8;
-  --stage-shift:   900ms;
-
-  --stage-bg:   var(--stage-bg-to);
-  --stage-fg:   var(--stage-fg-to);
-  --stage-mark: var(--stage-mark-to);
-  transition:
-    --stage-bg var(--stage-shift) ease-in-out,
-    --stage-fg var(--stage-shift) ease-in-out,
-    --stage-mark var(--stage-shift) ease-in-out;
+  --stage-mark: #feefd8;
+  --stage-shift: 900ms;
 }
 :root[data-theme="light"] {
-  --stage-bg-to:   #cfccc2;
-  --stage-fg-to:   #0e100f;
-  --stage-mark-to: #0e100f;
+  --stage-bg:   #cfccc2;
+  --stage-fg:   #0e100f;
+  --stage-mark: #0e100f;
 }
 
 .auth-poster,
@@ -1391,19 +1378,32 @@ label.auth-row-label { cursor: pointer; }
 .phone-input[data-invalid="true"] .phone-field { border-color: var(--fin-fail); }
 
 /* ─── Смена темы ─────────────────────────────────────────────────────
-   Пока тема меняется, цвета всей страницы перетекают за `--stage-shift` —
-   вместе с дымовой сценой (theme-store.ts вешает класс на время перехода).
-   Сам тумблер исключён: у его ползунка своё движение. Цвета сцены — в списке
-   явно: правило на <html> иначе затёрло бы их переход с :root. */
-.theme-shift,
-.theme-shift :not(.theme-switch, .theme-switch *),
-.theme-shift :not(.theme-switch, .theme-switch *)::before,
-.theme-shift :not(.theme-switch, .theme-switch *)::after {
-  transition-property: background-color, color, border-color, outline-color, fill, stroke, --stage-bg, --stage-fg, --stage-mark !important;
-  transition-duration: var(--stage-shift) !important;
-  transition-timing-function: ease-in-out !important;
-  transition-delay: 0s !important;
+   Одно растворение всей страницы (theme-store.ts, View Transitions): кадр в
+   старой теме гаснет, кадр в новой проявляется за `--stage-shift`. Дым, лист,
+   форма — всё в одном кадре и разойтись не может. Растворяет видеокарта, и
+   цена одна, сколько бы строк ни стояло на странице.
+
+   Раньше здесь был `.theme-shift`: transition цвета на каждом элементе. Внутри
+   приложения — тысячи переходов разом, смена шла рывками; на входе вуаль
+   сцены в конце перехода вспыхивала старым цветом. Не возвращать.
+
+   Тумблер из общего кадра вынут: растворяясь со страницей, его черта
+   двоилась бы — прежняя гасла бы на месте, новая ехала. Его цвета догоняют
+   страницу своим переходом той же длины.
+
+   Под растворением страница живая: клик во время перехода доходит до неё. */
+::view-transition { pointer-events: none; }
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--stage-shift);
+  animation-timing-function: ease-in-out;
 }
+.theme-vt .theme-switch { view-transition-name: theme-switch; }
+::view-transition-group(theme-switch),
+::view-transition-new(theme-switch) { animation: none; }
+::view-transition-old(theme-switch) { display: none; }
+.theme-vt .theme-switch-icon { transition: color var(--stage-shift) ease-in-out, transform 520ms var(--ease-out); }
 
 /* ─── Тумблер темы ───────────────────────────────────────────────────
    Солнце и луна без подложки; выбранная — полным цветом, под ней черта,

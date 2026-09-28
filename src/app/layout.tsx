@@ -63,31 +63,19 @@ export const viewport: Viewport = {
  * Когда JS доехал, это ни на что не влияет — к этому моменту начальные
  * состояния держит уже GSAP инлайновыми стилями.
  *
- * Тему системы скрипт не только читает, но и слушает: пока человек не выбрал
- * тему сам («Как в системе»), смена темы устройства переключает страницу
- * сразу, без перезагрузки, — и сцена с дымом перетекает в новый цвет.
+ * Тему скрипт только ставит. Смену темы устройства на ходу слушает
+ * theme-store.ts — там же общий переход, которым меняется тема.
  */
 const bootScript = `
 (function(){
   var html = document.documentElement;
-  function chosen() {
-    try {
-      var t = localStorage.getItem('theme');
-      return t === 'light' || t === 'dark' ? t : null;
-    } catch(e) { return null; }
-  }
+  var chosen = null;
   try {
-    var scheme = window.matchMedia('(prefers-color-scheme: dark)');
-    html.setAttribute('data-theme', chosen() || (scheme.matches ? 'dark' : 'light'));
-    scheme.addEventListener('change', function(event) {
-      if (chosen()) return;
-      // Плавно, как у тумблера (theme-store.ts): класс на время перехода.
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        html.classList.add('theme-shift');
-        setTimeout(function(){ html.classList.remove('theme-shift'); }, 950);
-      }
-      html.setAttribute('data-theme', event.matches ? 'dark' : 'light');
-    });
+    var t = localStorage.getItem('theme');
+    if (t === 'light' || t === 'dark') chosen = t;
+  } catch(e) {}
+  try {
+    html.setAttribute('data-theme', chosen || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
   } catch(e) {}
   try {
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {

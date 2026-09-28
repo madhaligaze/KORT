@@ -18,10 +18,11 @@ import { canHover, gsap, prefersReducedMotion, useGSAP } from "./gsap";
  * движения» рисуется один неподвижный кадр, без WebGL вовсе — CSS-градиент
  * тех же трёх цветов.
  *
- * Цвет полотна под жидкостью — цвет сцены из CSS (`--stage-bg-to`): почти
- * чёрный в тёмной теме, серый в светлой. При смене темы полотно перетекает в
- * новый цвет за `--stage-shift` — столько же, сколько CSS-переход вуалей и
- * надписей вокруг, иначе дым и его рамка разошлись бы на полсекунды.
+ * Цвет полотна под жидкостью — цвет сцены из CSS (`--stage-bg`): почти
+ * чёрный в тёмной теме, серый в светлой. При смене темы полотно встаёт в
+ * новый цвет сразу, в том же кадре, что и вуали вокруг: плавность даёт общее
+ * растворение страницы (theme-store.ts). Свой твин цвета здесь был, пока
+ * вуали перетекали CSS-переходом, — и расходился с ними по кривой.
  *
  * GSAP здесь — не таймер, а дирижёр: вход, «нагрев» и темп — твины одного
  * объекта, а кадр рисуется по `gsap.ticker`, поэтому сцена и интерфейс идут в
@@ -195,13 +196,9 @@ export function parseColor(value: string): [number, number, number] | null {
   return null;
 }
 
-/** Цвет сцены и длительность её смены — из CSS, с запасными значениями. */
-function stageFromCss(el: Element): { color: [number, number, number]; seconds: number } {
-  const style = getComputedStyle(el);
-  const color = parseColor(style.getPropertyValue("--stage-bg-to")) ?? DARK;
-  const shift = style.getPropertyValue("--stage-shift").trim();
-  const ms = shift.endsWith("ms") ? parseFloat(shift) : shift.endsWith("s") ? parseFloat(shift) * 1000 : 900;
-  return { color, seconds: Number.isFinite(ms) ? ms / 1000 : 0.9 };
+/** Цвет сцены из CSS; не отдал — тёмная сцена. */
+function stageColor(el: Element): [number, number, number] {
+  return parseColor(getComputedStyle(el).getPropertyValue("--stage-bg")) ?? DARK;
 }
 
 type EngineOptions = {
@@ -310,8 +307,7 @@ function runNoise(
     heat: gl.getUniformLocation(program, "uHeat"),
     base: gl.getUniformLocation(program, "uBase"),
   };
-  const start = stageFromCss(canvas);
-  [s.br, s.bg, s.bb] = start.color;
+  [s.br, s.bg, s.bb] = stageColor(canvas);
 
   const draw = () => {
     gl.uniform3f(u.base, s.br, s.bg, s.bb);
@@ -347,27 +343,12 @@ function runNoise(
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
 
-  // Смена темы — атрибут на <html>. Полотно идёт к новому цвету той же
-  // длительностью, что CSS-переход сцены; неподвижную сцену перерисовываем
-  // на каждом шаге сами — её тикер не ведёт.
+  // Смена темы — атрибут на <html>. Кадр рисуется сразу, а не на тике:
+  // растворение снимает новую тему в ближайшем кадре, и полотно в нём уже
+  // должно быть нового цвета. Неподвижную сцену тикер не ведёт вовсе.
   const themeWatch = new MutationObserver(() => {
-    const next = stageFromCss(canvas);
-    const seconds = prefersReducedMotion() ? 0 : next.seconds;
-    gsap.to(s, {
-      br: next.color[0],
-      bg: next.color[1],
-      bb: next.color[2],
-      duration: seconds,
-      ease: "power1.inOut",
-      overwrite: "auto",
-      onUpdate: () => {
-        if (still) draw();
-      },
-      // Нулевая длительность («меньше движения») — кадр ставится здесь.
-      onComplete: () => {
-        if (still) draw();
-      },
-    });
+    [s.br, s.bg, s.bb] = stageColor(canvas);
+    draw();
   });
   themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
