@@ -340,7 +340,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
     // До создания книги: первая же отрисовка уже форматирует числа, и локаль,
     // зарегистрированная после неё, до этих ячеек не дойдёт.
     registerRuNumfmtLocale();
-    const { univerAPI } = createUniver({
+    const { univer, univerAPI } = createUniver({
       locale: LocaleType.RU_RU,
       locales: {
         [LocaleType.RU_RU]: mergeLocales(
@@ -461,14 +461,23 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
       listsRef.current = null;
       place?.stop();
       placeRef.current = null;
-      try {
-        stopTrim?.();
-        lifecycle?.dispose?.();
-        detach?.();
-        stopSpeed();
-        univerAPI.dispose();
-      } catch {
-        /* повторный dispose при быстром размонтировании — не ошибка */
+      // Снимать сам Univer, а не фасад. `univerAPI.dispose()` снимает только
+      // обёртку: связь в Univer односторонняя — ядро, снимаясь, снимает фасад,
+      // но не наоборот. До 28.09.2026 здесь стоял `univerAPI.dispose()`, и
+      // каждый уход с листа оставлял в памяти целый экземпляр — движок,
+      // холсты, подписки, таймеры. Видно это было по консоли: ушли из
+      // «Таблицы» раньше, чем лист дорисовался, — и его таймер «отрисован»
+      // срабатывал уже в кабинете, раскладывая строку формул нулевой ширины
+      // («The column width is less than 0»).
+      //
+      // Каждый шаг — в своём `try`: неудача одного (лист не дорисован,
+      // повторное снятие) не должна оставлять Univer живым.
+      for (const step of [stopTrim, lifecycle?.dispose?.bind(lifecycle), detach, stopSpeed, () => univer.dispose()]) {
+        try {
+          step?.();
+        } catch {
+          /* шаг не удался (лист не дорисован, повторный dispose) — остальные всё равно идут */
+        }
       }
       // Univer вешает тёмный класс на <html> и сам его не снимает.
       document.documentElement.classList.remove("univer-dark");
