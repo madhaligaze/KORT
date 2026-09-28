@@ -11,9 +11,11 @@ import { formatTime } from "@/components/finance/format";
  *
  * **Цвет — только у отказа.** Неверные пароли подряд — роза (возможный
  * перебор); истёкшее окно пароля — янтарь (ждёт действия, но не отказ);
- * «вход заблокирован» — вес без цвета: это решение администратора.
+ * «вход заблокирован» — вес без цвета: это решение администратора;
+ * «без доступа» — тише остальных (`quiet`): это запись справочника, а не
+ * событие, и у 28 человек из 32 она заглушала строки тех, кто входит.
  */
-export type Tone = "" | "fail" | "wait" | "strong";
+export type Tone = "" | "fail" | "wait" | "strong" | "quiet";
 
 export type Status = { text: string; tone: Tone; rank: number };
 
@@ -101,7 +103,7 @@ export function employeeStatus(row: EmployeeRow, now = Date.now()): Status {
     case "blocked":
       return { text: "вход заблокирован", tone: "strong", rank: 7 };
     default:
-      return { text: "без доступа", tone: "", rank: 6 };
+      return { text: "без доступа", tone: "quiet", rank: 6 };
   }
 }
 

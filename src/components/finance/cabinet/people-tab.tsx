@@ -5,17 +5,17 @@ import { useMemo, useState } from "react";
 import { ChoiceSelect } from "@/components/choice-select";
 import { can } from "@/components/finance/access";
 import { type Department, type EmployeeRow, type Me, peopleApi } from "@/components/finance/api";
+import { FilterChips } from "@/components/finance/cabinet/filter-chips";
 import { EmployeeCard } from "@/components/finance/cabinet/employee-card";
 import { employeeStatus, sortPeople } from "@/components/finance/cabinet/status";
 import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 import { PhoneInput, formatPhone, phoneValue } from "@/components/finance/ui/phone-input";
-import { SelectLine } from "@/components/finance/ui/select-line";
 import { useSessionDrop, useSessionState } from "@/components/session-state";
 
 /**
- * «Люди · Сотрудники» (фронт-план, 6.9).
+ * «Команда · Сотрудники» (фронт-план, 6.9).
  *
- * Отделы — вкладками со счётчиками, как отборы реестра. **Порядок — это
+ * Отделы — чипами со счётчиками (`filter-chips.tsx`). **Порядок — это
  * сообщение:** сначала запросы и неверные пароли, потом «в системе», потом
  * остальные по давности входа, ждущие пароль, без доступа, с закрытым
  * входом. Строка с запросом встаёт наверх на следующем опросе и получает фон
@@ -97,11 +97,15 @@ export function PeopleTab({
   const current = departments.find((item) => item.id === department) ?? null;
   const openIndex = openId ? shown.findIndex((row) => row.id === openId) : -1;
   const opened = openId ? (rows.find((row) => row.id === openId) ?? null) : null;
+  // Отдел в строке нужен только там, где он разный: во «Всех». В отборе по
+  // отделу колонка повторяла бы один и тот же код тридцать раз.
+  const withDept = department === ALL;
+  const codeOf = useMemo(() => new Map(departments.map((item) => [item.id, item.code])), [departments]);
 
   return (
     <div className="cab-people">
       <div className="cab-people-bar">
-        <SelectLine items={tabs} value={department} onChange={onDepartment} label="Отделы" className="cab-people-tabs" />
+        <FilterChips items={tabs} value={department} onChange={onDepartment} label="Отделы" />
         {manage ? (
           <span className="cab-people-add">
             <button type="button" className="btn-ghost btn-sm" onClick={() => setAdding("person")}>
@@ -129,8 +133,10 @@ export function PeopleTab({
             />
           ) : (
             <>
+              {/* Код — не моноширинным: в Martian Mono кириллическая «О» кода
+                  «ЮО» читалась нулём. */}
               <span className="cab-dept-title">
-                <span className="fin-mono">{current.code}</span> · {current.title}
+                {current.code} · {current.title}
               </span>
               {can(me, "people", "view") ? (
                 <button type="button" className="fin-link-btn cab-dept-act" onClick={() => onDepartmentRights(current.id)}>
@@ -176,24 +182,52 @@ export function PeopleTab({
 
       {shown.length === 0 && adding === null ? <p className="cab-empty">В отделе пока никого.</p> : null}
 
+      {/* Шапка колонок — подпись, как у реестра (`.creg-head`), и прилипает под
+          шапкой приложения: в списке из тридцати строк без неё номер и
+          должность читались наугад. На телефоне строка — карточка в две
+          строки, и шапки нет. */}
+      {shown.length > 0 ? (
+        <div className="cab-row cab-person cab-list-head" data-dept={withDept ? "true" : undefined}>
+          <span className="eyebrow">Сотрудник</span>
+          {withDept ? <span className="eyebrow">Отдел</span> : null}
+          <span className="eyebrow">Должность</span>
+          <span className="eyebrow">Телефон</span>
+          <span className="eyebrow cab-person-status">Доступ</span>
+        </div>
+      ) : null}
       <div className="cab-list" role="list">
         {shown.map((row) => {
           const status = employeeStatus(row);
+          const code = row.department_id ? codeOf.get(row.department_id) : undefined;
           return (
             <button
               key={row.id}
               type="button"
               role="listitem"
               className="cab-row cab-person"
+              data-dept={withDept ? "true" : undefined}
               data-request={status.rank <= 1 ? "true" : undefined}
               onClick={() => onOpen(row.id)}
             >
-              <span className="cab-row-main">{row.full_name}</span>
-              <span className="cab-person-job fin-soft">{row.job_title || "—"}</span>
-              <span className="cab-person-phone fin-mono fin-soft">{row.phone ? formatPhone(row.phone) : "—"}</span>
+              <span className="cab-row-main">
+                {row.full_name}
+                {row.id === me.employee?.id ? <span className="cab-person-self"> · вы</span> : null}
+              </span>
+              {withDept ? (
+                <span className="cab-person-dept" data-empty={code ? undefined : "true"}>
+                  {code ?? "—"}
+                </span>
+              ) : null}
+              <span className="cab-person-job" data-empty={row.job_title ? undefined : "true"}>
+                {row.job_title || "—"}
+              </span>
+              <span className={`cab-person-phone ${row.phone ? "fin-mono" : ""}`} data-empty={row.phone ? undefined : "true"}>
+                {row.phone ? formatPhone(row.phone) : "—"}
+              </span>
               <span
                 className={`cab-person-status ${status.tone === "fail" ? "fin-fail" : status.tone === "wait" ? "fin-wait" : ""}`}
                 data-tone={status.tone || undefined}
+                title={status.text}
               >
                 {status.text}
               </span>
@@ -203,7 +237,7 @@ export function PeopleTab({
       </div>
 
       {manage ? (
-        <button type="button" className="creg-fab only-mobile cab-fab" onClick={() => setAdding("person")}>
+        <button type="button" className="btn-primary creg-fab only-mobile cab-fab" onClick={() => setAdding("person")}>
           + Сотрудник
         </button>
       ) : null}

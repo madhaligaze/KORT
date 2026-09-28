@@ -3308,7 +3308,13 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
 .fin-plate[data-cabinet="true"] { display: block; }
 .fin-body-cabinet { padding: 0; }
 
-/* ─── Портрет ─── */
+/* ─── Портрет ───
+   Полоса, а не афиша (28.09.2026): 208px портрета с почтой крупным кеглем
+   уводили вкладки и первую строку списка под край окна 1280×590. Дым остаётся
+   акцентом справа, а текст и кнопки стоят на вуали цвета сцены: масса дыма
+   догоняет курсор, и без вуали имя и «Выйти» оказывались на самом ярком месте
+   кадра. Стекло (`backdrop-filter`) не берём — размытие поверх WebGL
+   пересчитывается каждый кадр, а на T480 кадр и так на пределе. */
 .cab { min-width: 0; }
 .cab-portrait {
   position: relative;
@@ -3317,25 +3323,48 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 208px;
-  padding: 1rem 1.5rem 1.5rem;
+  gap: 0.75rem;
+  min-height: 152px;
+  padding: 0.875rem 1.25rem 1.125rem;
   background: var(--bg-base);
   color: var(--text-primary);
 }
-@media (max-width: 1023.98px) { .cab-portrait { height: 168px; } }
-@media (max-width: 639.98px) { .cab-portrait { height: 148px; padding: 0.75rem 1rem 1rem; } }
+@media (max-width: 639.98px) { .cab-portrait { min-height: 128px; padding: 0.75rem 1rem 0.875rem; } }
 .cab-liquid { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; }
 .cab-portrait-veil {
   position: absolute;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(0deg, color-mix(in srgb, var(--stage-bg) 72%, transparent) 0%, color-mix(in srgb, var(--stage-bg) 10%, transparent) 70%);
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--stage-bg) 92%, transparent) 0%,
+      color-mix(in srgb, var(--stage-bg) 82%, transparent) 36%,
+      color-mix(in srgb, var(--stage-bg) 0%, transparent) 74%),
+    linear-gradient(0deg, color-mix(in srgb, var(--stage-bg) 40%, transparent) 0%, transparent 70%);
+}
+/* На телефоне текст идёт во всю ширину — вуаль гуще до правого края. */
+@media (max-width: 639.98px) {
+  .cab-portrait-veil {
+    background: linear-gradient(90deg,
+      color-mix(in srgb, var(--stage-bg) 90%, transparent) 0%,
+      color-mix(in srgb, var(--stage-bg) 76%, transparent) 62%,
+      color-mix(in srgb, var(--stage-bg) 40%, transparent) 100%);
+  }
 }
 .cab-portrait-top { display: flex; justify-content: space-between; gap: 0.75rem; }
-.cab-portrait-foot { display: flex; flex-direction: column; gap: 0.625rem; min-width: 0; }
-.cab-name { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
-@media (max-width: 639.98px) { .cab-name { font-size: 1.75rem; } }
+/* Кнопки на дыме — на своей плашке цвета сцены: волосяная рамка без фона
+   поверх движущейся картинки читалась рассыпанным текстом. Наведение не
+   просвечивает (общее `.btn-ghost:hover` — полупрозрачное). */
+.cab-portrait-btn { background: color-mix(in srgb, var(--stage-bg) 88%, transparent); }
+.cab-portrait-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--stage-bg) 84%, var(--stage-fg)); }
+.cab-portrait-foot { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.cab-name {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.5vw, 2.125rem);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
 .cab-portrait-line {
   display: flex;
   flex-wrap: wrap;
@@ -3356,13 +3385,21 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
 @media (max-width: 639.98px) { .cab-column { padding: 1rem 16px 5rem; } }
 .cab-body { margin-top: 1.25rem; min-width: 0; }
 
-.cab-tabs { display: grid; gap: 0.25rem; margin-top: 0.5rem; border-bottom: 1px solid var(--fin-line); }
-.cab-tabs-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: end; }
-.cab-tabs-row[data-single="true"] { grid-template-columns: minmax(0, 1fr); }
-.cab-tabs-group { padding-bottom: 0.7rem; color: var(--text-muted); }
+/* Два уровня вкладок: разделы крупно на линии, подразделы мельче под ней.
+   Различаются кеглем и тем, что линия раздела лежит на волосяной черте
+   во всю ширину, а у подразделов черты нет — подраздел принадлежит
+   разделу над ним, а не стоит с ним в ряд. */
+.cab-nav { display: grid; }
+.fin-sel[data-size="lg"] { gap: 2rem; }
+.fin-sel[data-size="lg"] .fin-sel-item { font-size: 1.0625rem; padding: 0.5rem 0 0.75rem; }
+.fin-sel[data-size="lg"] .fin-sel-line { height: 2px; }
+.cab-groups { border-bottom: 1px solid var(--fin-line); }
+.cab-subtabs { margin-top: 0.5rem; gap: 1.25rem; }
+.cab-subtabs .fin-sel-item { font-size: 0.875rem; padding: 0.375rem 0 0.5rem; }
+.cab-subtabs .fin-sel-line { height: 1px; }
 @media (max-width: 639.98px) {
-  .cab-tabs-row { grid-template-columns: minmax(0, 1fr); }
-  .cab-tabs-group { display: none; }
+  .fin-sel[data-size="lg"] { gap: 1.5rem; }
+  .fin-sel[data-size="lg"] .fin-sel-item { font-size: 1rem; }
 }
 
 /* ─── «Ждут решения» ─── */
@@ -3449,7 +3486,6 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
   transform: scaleX(0.85);
   transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s, opacity 0s 0.15s;
 }
-.cab-lines-gap { height: 1px; margin: 0.5rem 0; background: var(--fin-line); }
 .cab-companies { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
 .cab-company[aria-current="true"] { font-weight: 600; }
 .cab-password { display: grid; gap: 0.75rem; max-width: 22rem; padding-bottom: 0.75rem; }
@@ -3474,7 +3510,9 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
   color: var(--fin-text);
   text-align: left;
 }
-button.cab-row { width: calc(100% + 1rem); background: none; border-left: none; border-right: none; border-top: none; font: inherit; cursor: pointer; }
+/* `font: inherit` сбрасывал и кегль `.cab-row`: имя и должность выходили
+   16px рядом с телефоном в 12px. Кегль строки — после сброса. */
+button.cab-row { width: calc(100% + 1rem); background: none; border-left: none; border-right: none; border-top: none; font: inherit; font-size: 0.875rem; cursor: pointer; }
 button.cab-row:hover { background: var(--fin-hover); }
 button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offset: -2px; }
 .cab-row-main { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3487,7 +3525,19 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
    должность и телефон в своей строке, и столбцы расходились. */
 .cab-person { grid-template-columns: minmax(12rem, 1.3fr) minmax(7rem, 0.8fr) 11rem 15rem; }
 .cab-session { grid-template-columns: minmax(12rem, 1.2fr) 9rem minmax(10rem, 1fr) 8rem; }
-.cab-person-job, .cab-person-phone { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Во «Всех» — колонка отдела. Только на широком: в телефонной карточке
+   своей клетки у неё нет. */
+@media (min-width: 760px) {
+  .cab-person[data-dept="true"] { grid-template-columns: minmax(12rem, 1.3fr) 4.5rem minmax(7rem, 0.8fr) 11rem 15rem; }
+}
+/* 760–1100: полная сетка шире колонки (856px при 728 доступных на 800), и
+   «Доступ» уходил за правый край плиты — плита обрезает, прокрутки вбок нет,
+   поэтому снаружи дефект не виден. Узкие колонки, длинный статус — с «…». */
+@media (min-width: 760px) and (max-width: 1099.98px) {
+  .cab-person { grid-template-columns: minmax(10rem, 1.3fr) minmax(6rem, 0.8fr) 9.5rem 11rem; column-gap: 0.75rem; }
+  .cab-person[data-dept="true"] { grid-template-columns: minmax(9rem, 1.3fr) 3.5rem minmax(6rem, 0.8fr) 9.5rem 11rem; }
+}
+.cab-person-job, .cab-person-phone, .cab-person-dept { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fin-text-soft); }
 .cab-person-status { overflow: hidden; text-overflow: ellipsis; }
 .cab-person-phone { font-size: 0.75rem; }
 .cab-person-status { font-size: 0.8125rem; text-align: right; white-space: nowrap; }
@@ -3519,13 +3569,117 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
 .cab-people-bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  border-bottom: 1px solid var(--fin-line);
+/* «Изменить / Добавить» — только в листе профиля, ниже. */
+.cab-line-act { display: none; }
+
+/* ─── Лист профиля: поле — ячейка ───
+   Подпись над значением, ячейки разделены волосяной сеткой (зазор 1px над
+   цветом линии). Правимая ячейка целиком — кнопка: значение растянуто на неё
+   слоем, и наведение подсвечивает всю ячейку, а не слово. */
+.cab-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  max-width: 48rem;
+  background: var(--fin-card-line);
+  border: 1px solid var(--fin-card-line);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
-.cab-people-tabs { flex: 1 1 auto; }
-.cab-people-add { display: inline-flex; gap: 0.5rem; padding-bottom: 0.375rem; }
+.cab-fields > .cab-line {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "label act" "value value";
+  align-items: baseline;
+  align-content: start;
+  gap: 0.375rem 0.75rem;
+  min-height: 76px;
+  padding: 0.75rem 1rem 0.875rem;
+  background: var(--fin-plate);
+  font-size: 0.9375rem;
+}
+.cab-fields > .cab-line[data-wide="true"] { grid-column: 1 / -1; }
+.cab-fields .cab-line-label { grid-area: label; font-size: 0.75rem; font-weight: 500; color: var(--text-muted); }
+.cab-fields .cab-line-value { grid-area: value; position: static; }
+.cab-fields .cab-line-act {
+  grid-area: act;
+  display: inline;
+  font-size: 0.75rem;
+  color: var(--fin-text-soft);
+  opacity: 0;
+}
+/* Пустое своё поле просит заполнить всегда; заполненное — по наведению. */
+.cab-fields > .cab-line[data-empty="true"] .cab-line-act {
+  opacity: 1;
+  color: var(--fin-text);
+  text-decoration: underline;
+  text-decoration-color: var(--fin-dotted);
+  text-underline-offset: 3px;
+}
+.cab-fields > .cab-line[data-editable="true"]:hover .cab-line-act,
+.cab-fields > .cab-line:has(.cab-line-text:focus-visible) .cab-line-act { opacity: 1; }
+@media (hover: none) { .cab-fields .cab-line-act { opacity: 1; } }
+.cab-fields > .cab-line[data-editable="true"]:not([data-editing="true"]):hover {
+  background-image: linear-gradient(var(--fin-hover), var(--fin-hover));
+}
+.cab-fields .cab-line-text {
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  font-size: inherit;
+  cursor: pointer;
+}
+.cab-fields .cab-line-text::after { content: ""; position: absolute; inset: 0; }
+.cab-fields .cab-line-text:focus-visible { outline: none; }
+.cab-fields > .cab-line:has(.cab-line-text:focus-visible) { outline: 2px solid var(--fin-text); outline-offset: -2px; }
+.cab-fields .cab-line-text.fin-mono,
+.cab-fields .cab-line-static.fin-mono { font-size: 0.875rem; }
+.cab-fields .cab-trace { left: 0; right: 0; bottom: 0; }
+.cab-fields .cab-input { max-width: none; }
+.cab-fields .cab-phone { max-width: 22rem; }
+.cab-password-open { margin-top: 0.125rem; }
+@media (max-width: 639.98px) {
+  .cab-fields { grid-template-columns: minmax(0, 1fr); }
+  .cab-fields > .cab-line { min-height: 68px; padding: 0.625rem 0.875rem 0.75rem; gap: 0.25rem 0.75rem; }
+}
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding-bottom: 0.5rem;
+}
+.cab-people-add { display: inline-flex; gap: 0.5rem; margin-left: auto; }
+
+/* Чипы отбора (`filter-chips.tsx`): прямоугольник с волосяной рамкой;
+   выбранный — рамкой тушью, весом и лёгким тоном, не заливкой. */
+.cab-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; min-width: 0; }
+.cab-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-height: 34px;
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--fin-card-line);
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--fin-text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cab-chip:hover { color: var(--fin-text); border-color: var(--fin-text-soft); }
+.cab-chip[data-on="true"],
+.cab-chip[data-on="true"]:hover { color: var(--fin-text); border-color: var(--fin-text); background: var(--fin-selected); font-weight: 600; }
+.cab-chip:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 2px; }
+.cab-chip-count { font-size: 0.75rem; font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cab-chip[data-on="true"] .cab-chip-count { color: var(--fin-text-soft); }
+/* Пустой отдел — тише, но выбирается: у него есть права и переименование. */
+.cab-chip[data-zero="true"]:not([data-on="true"]) { color: var(--text-muted); border-color: var(--fin-line); }
+.cab-chip[data-zero="true"]:not([data-on="true"]):hover { color: var(--fin-text); border-color: var(--fin-text-soft); }
 @media (max-width: 639.98px) { .cab-people-add { display: none; } }
 .cab-dept-line {
   display: flex;
@@ -3536,7 +3690,6 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
   font-size: 0.875rem;
 }
 .cab-dept-title { flex: 1 1 auto; font-weight: 500; }
-.cab-dept-title .fin-mono { font-size: 0.8125rem; }
 .cab-dept-act { font-size: 0.8125rem; color: var(--fin-text-soft); }
 .cab-fab { z-index: 30; }
 
@@ -3551,9 +3704,29 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
 }
 .cab-add-grid { display: grid; grid-template-columns: minmax(12rem, 1.4fr) minmax(12rem, 1fr) minmax(8rem, 0.8fr) minmax(8rem, 0.9fr); gap: 0.75rem; }
 @media (max-width: 899.98px) { .cab-add-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.cab-person-dept { font-size: 0.8125rem; }
+/* Пустая клетка — тихий прочерк: две колонки ярких «—» у тридцати человек
+   без должности и номера читались как данные. */
+.cab-person [data-empty="true"] { color: var(--text-muted); }
+.cab-person-self { font-weight: 400; color: var(--fin-text-soft); }
 @media (max-width: 559.98px) { .cab-add-grid { grid-template-columns: minmax(0, 1fr); } }
 .cab-add-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.cab-person-status[data-tone="quiet"] { color: var(--fin-text-soft); }
 .cab-add-actions { display: inline-flex; gap: 0.5rem; margin-left: auto; }
+
+/* Шапка колонок — подпись, как у реестра (`.creg-head`). У сотрудников
+   прилипает под шапкой приложения: список длинный. */
+.cab-list-head { min-height: 2.25rem; }
+.cab-list-head .eyebrow { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cab-people .cab-list-head {
+  position: sticky;
+  top: var(--fin-head-h, 0px);
+  z-index: 2;
+  background: var(--fin-plate);
+}
+@media (max-width: 759.98px) {
+  .cab-list-head, .cab-person-dept { display: none; }
+}
 .cab-add-dept { grid-template-columns: 8rem minmax(0, 1fr) auto; align-items: end; }
 @media (max-width: 559.98px) { .cab-add-dept { grid-template-columns: minmax(0, 1fr); } }
 .cab-add-dept .cab-error { grid-column: 1 / -1; }

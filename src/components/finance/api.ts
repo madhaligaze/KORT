@@ -1509,7 +1509,10 @@ export const peopleApi = {
       request<{ ok: boolean; sessions_closed: number }>("/auth/password", { method: "POST", body: JSON.stringify(body) }),
     /** Свои ФИО и телефон — только владельцу и администратору. */
     profile: (data: { full_name?: string; phone?: string }) =>
-      request<Me>("/auth/profile", { method: "PATCH", body: JSON.stringify(data) }),
+      request<{ id: string; full_name: string; phone: string }>("/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
   },
 };
 

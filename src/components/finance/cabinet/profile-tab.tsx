@@ -2,23 +2,43 @@
 
 import { useEffect, useState } from "react";
 
-import { RESOURCE_TITLES, isAdmin, levelOf } from "@/components/finance/access";
-import { type Me, financeApi, peopleApi } from "@/components/finance/api";
+import { RESOURCE_TITLES, can, isAdmin, levelOf } from "@/components/finance/access";
+import { type Department, type Me, financeApi, peopleApi } from "@/components/finance/api";
 import { EditLine } from "@/components/finance/cabinet/edit-line";
 import { plural } from "@/components/finance/format";
 
 /**
  * «Моё · Профиль» (фронт-план, 6.9).
  *
- * Страница про себя, а не форма: «подпись · значение», строки 44px. ФИО,
- * телефон, отдел и должность сотруднику задаёт администратор — у него это
- * текст без рамки наведения; владелец и администратор правят свои на месте.
+ * Лист формы в две колонки (28.09.2026): у каждого поля — ячейка, подпись
+ * над значением. До того были строки «подпись · значение», и у владельца без
+ * ФИО и телефона висели прочерки — незаполненное выглядело не полем, а
+ * пропуском. Теперь пустое поле говорит, что в него вписать и кто это делает:
+ * своё — «Добавить» и образец («+7 ___ ___ __ __»), чужое — «задаёт
+ * администратор».
+ *
+ * ФИО и телефон правят себе владелец и администратор; отдел и должность — тот,
+ * у кого право на людей (сервер пускает к своей записи сотрудника, как в
+ * карточке). Остальным это текст.
  *
  * «Сменить пароль» раскрывает три поля на месте, и над кнопкой — последствие
  * фактом: «Остальные сеансы закроются: 2». Не ронять человека из всех
  * сеансов молча — урок кабинета дашборда BBC.
  */
-export function ProfileTab({ me, onMe }: { me: Me; onMe: (next: Me) => void }) {
+const BY_ADMIN = "задаёт администратор";
+
+export function ProfileTab({
+  me,
+  onMe,
+  departments,
+  onPeopleChanged,
+}: {
+  me: Me;
+  onMe: (next: Me) => void;
+  /** Отделы компании — для выбора своего; `null` — ещё не прочитаны или не видны. */
+  departments: Department[] | null;
+  onPeopleChanged?: () => void;
+}) {
   const admin = isAdmin(me);
   const employee = me.employee;
   const department = employee?.department;
@@ -28,14 +48,35 @@ export function ProfileTab({ me, onMe }: { me: Me; onMe: (next: Me) => void }) {
   // строка честнее и сама просит её заполнить.
   const shownName = employee?.full_name || me.user?.full_name || "";
   const name = shownName && shownName === me.user?.email ? "" : shownName;
+  const ownRecord = employee && can(me, "people", "edit") ? employee : null;
+  // После любой правки `me` перечитывается целиком. Ответ `/auth/profile` —
+  // только `{id, full_name, phone}`, а раньше он ложился в `me` вместо «кто
+  // вошёл»: поправил своё ФИО — и до перезагрузки пропадали имя в шапке,
+  // роль и права (28.09.2026). Отдел и должность живут в записи сотрудника,
+  // и портрет без перечитывания показывал бы прежнее.
+  const refresh = async () => {
+    onMe(await financeApi.me());
+    onPeopleChanged?.();
+  };
+  const saveSelf = async (patch: { full_name?: string; phone?: string }) => {
+    await peopleApi.self.profile(patch);
+    await refresh();
+  };
+  const saveRecord = async (patch: { department_id?: string | null; job_title?: string }) => {
+    if (!ownRecord) return;
+    await peopleApi.employees.update(ownRecord.id, patch);
+    await refresh();
+  };
+  const email = me.user?.email ?? "";
 
   return (
-    <div className="cab-lines">
+    <div className="cab-fields">
       <EditLine
         label="ФИО"
         value={name}
         editable={admin}
-        onSave={async (value) => onMe(await peopleApi.self.profile({ full_name: value }))}
+        placeholder={admin ? "Фамилия и имя" : BY_ADMIN}
+        onSave={(value) => saveSelf({ full_name: value })}
       />
       <EditLine
         label="Телефон"
@@ -43,24 +84,37 @@ export function ProfileTab({ me, onMe }: { me: Me; onMe: (next: Me) => void }) {
         kind="phone"
         mono
         editable={admin}
-        onSave={async (value) => onMe(await peopleApi.self.profile({ phone: value }))}
+        placeholder={admin ? "+7 ___ ___ __ __" : BY_ADMIN}
+        onSave={(value) => saveSelf({ phone: value })}
       />
-      {me.user?.email ? <EditLine label="Почта" value={me.user.email} onSave={async () => undefined} /> : null}
       <EditLine
         label="Отдел"
-        value={department ? `${department.code} · ${department.title}` : ""}
-        onSave={async () => undefined}
+        value={department?.id ?? ""}
+        kind="select"
+        options={[
+          { value: "", label: "Без отдела" },
+          ...(departments ?? []).map((item) => ({ value: item.id, label: `${item.code} · ${item.title}` })),
+        ]}
+        shown={department ? `${department.code} · ${department.title}` : undefined}
+        editable={Boolean(ownRecord) && departments !== null}
+        onSave={(value) => saveRecord({ department_id: value || null })}
       />
-      <EditLine label="Должность" value={employee?.job_title ?? ""} onSave={async () => undefined} />
+      <EditLine
+        label="Должность"
+        value={employee?.job_title ?? ""}
+        editable={Boolean(ownRecord)}
+        placeholder={ownRecord ? "Не указана" : BY_ADMIN}
+        onSave={(value) => saveRecord({ job_title: value })}
+      />
+      {email ? <EditLine label="Почта" value={email} onSave={async () => undefined} /> : null}
 
-      <div className="cab-lines-gap" />
-      <div className="cab-line cab-line-top">
+      <div className="cab-line cab-line-top" data-wide={email ? undefined : "true"}>
         <span className="cab-line-label">Пароль</span>
         <span className="cab-line-value">
           {changing ? (
             <PasswordForm onDone={() => setChanging(false)} />
           ) : (
-            <button type="button" className="cab-line-text" onClick={() => setChanging(true)}>
+            <button type="button" className="btn-ghost btn-sm cab-password-open" onClick={() => setChanging(true)}>
               Сменить пароль
             </button>
           )}
@@ -68,9 +122,8 @@ export function ProfileTab({ me, onMe }: { me: Me; onMe: (next: Me) => void }) {
       </div>
 
       {/* Тема — тумблером в шапке, как на входе (28.09.2026), а не строкой здесь. */}
-      {(me.companies?.length ?? 0) > 1 ? <div className="cab-lines-gap" /> : null}
       {(me.companies?.length ?? 0) > 1 ? (
-        <div className="cab-line">
+        <div className="cab-line" data-wide="true">
           <span className="cab-line-label">Компании</span>
           <span className="cab-line-value cab-companies">
             {(me.companies ?? []).map((company) =>

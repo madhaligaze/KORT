@@ -151,8 +151,21 @@ export function EditLine({
   }
 
   return (
-    <div className="cab-line">
+    <div
+      className="cab-line"
+      data-editable={editable ? "true" : undefined}
+      data-empty={rest ? undefined : "true"}
+      data-editing={editing ? "true" : undefined}
+    >
       <span className="cab-line-label">{label}</span>
+      {/* Подсказка действия — только в листе профиля (`.cab-fields`): там
+          поле — ячейка, и пустая ячейка без «Добавить» выглядела прочерком,
+          а не полем. В строках карточки сотрудника её не видно. */}
+      {editable && !editing ? (
+        <span className="cab-line-act" aria-hidden="true">
+          {rest ? "Изменить" : "Добавить"}
+        </span>
+      ) : null}
       <span className="cab-line-value" data-sending={sending ? "true" : undefined}>
         {editing ? (
           control
@@ -167,7 +180,7 @@ export function EditLine({
           </button>
         ) : (
           <span className={`cab-line-static ${mono ? "fin-mono" : ""}`} data-empty={rest ? undefined : "true"}>
-            {rest || (blank ? emptyText : "—")}
+            {rest || emptyText}
           </span>
         )}
         <span className="cab-trace" aria-hidden="true" />

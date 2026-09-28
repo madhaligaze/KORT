@@ -32,3 +32,4 @@ package-lock.json
 coverage/
 *.tsbuildinfo
 next-env.d.ts
+/docs/

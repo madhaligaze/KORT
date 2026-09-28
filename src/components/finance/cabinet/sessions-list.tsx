@@ -52,6 +52,12 @@ export function SessionsList({ employeeId, onChanged }: { employeeId?: string; o
   const others = items.filter((item) => !item.current);
   return (
     <div className="cab-list">
+      <div className="cab-row cab-session cab-list-head">
+        <span className="eyebrow">Устройство</span>
+        <span className="eyebrow">Адрес</span>
+        <span className="eyebrow">Когда</span>
+        <span />
+      </div>
       {items.map((item) => (
         <div key={item.id} className="cab-row cab-session">
           <span className="cab-row-main">

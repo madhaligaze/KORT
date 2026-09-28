@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { can, isAdmin, nameOf } from "@/components/finance/access";
 import { type Department, type EmployeeRow, type Me, type NotificationItem, peopleApi } from "@/components/finance/api";
 import { readParam, writeParams } from "@/components/finance/address";
 import { ActionFeed } from "@/components/finance/cabinet/action-feed";
+import { FilterChips } from "@/components/finance/cabinet/filter-chips";
 import { PendingStrip } from "@/components/finance/cabinet/pending";
 import { PEOPLE_ALL, PeopleTab } from "@/components/finance/cabinet/people-tab";
 import { MyAccess, ProfileTab } from "@/components/finance/cabinet/profile-tab";
@@ -31,8 +32,14 @@ import { SplitReveal } from "@/components/motion/split-reveal";
  *
  * Вход без «Загрузка…»: кто вошёл, уже известно (`me`), поэтому портрет и
  * вкладки рисуются сразу, а данные вкладки подгружаются.
+ *
+ * Вкладки — два уровня (28.09.2026): крупно разделы «Моё · Команда ·
+ * Корзина», под ними — подразделы выбранного. До того три строки вкладок с
+ * подписями «Моё / Люди / Учёт» стояли стопкой, выбранной была одна на все
+ * три, и стопка читалась как форма, а не как переключатель.
  */
 type Tab = "profile" | "access" | "sessions" | "actions" | "people" | "rights" | "audit" | "trash";
+type Group = "mine" | "team" | "trash";
 
 const MINE: { key: Tab; label: string }[] = [
   { key: "profile", label: "Профиль" },
@@ -40,6 +47,17 @@ const MINE: { key: Tab; label: string }[] = [
   { key: "sessions", label: "Сеансы" },
   { key: "actions", label: "Действия" },
 ];
+
+const GROUP_OF: Record<Tab, Group> = {
+  profile: "mine",
+  access: "mine",
+  sessions: "mine",
+  actions: "mine",
+  people: "team",
+  rights: "team",
+  audit: "team",
+  trash: "trash",
+};
 
 const TAB_KEY = "fin_cab_tab";
 /** Опрос людей и запросов — раз в 30 с, пока вкладка видна (план, «Живой режим»). */
@@ -99,10 +117,18 @@ export function Cabinet({
   // Корзина — у владельца и администратора: восстановить и стереть насовсем
   // можно что угодно, от договора до сотрудника.
   const keepsTrash = isAdmin(me);
-  const ledgerTabs = useMemo(() => (keepsTrash ? [{ key: "trash" as Tab, label: "Корзина" }] : []), [keepsTrash]);
+  const groups = useMemo(() => {
+    const out: { key: Group; label: string; tabs: { key: Tab; label: string; count?: number }[] }[] = [
+      { key: "mine", label: "Моё", tabs: MINE },
+    ];
+    if (people.length) out.push({ key: "team", label: "Команда", tabs: people });
+    // У корзины подразделов нет: раздел и есть экран.
+    if (keepsTrash) out.push({ key: "trash", label: "Корзина", tabs: [] });
+    return out;
+  }, [people, keepsTrash]);
   const allowed = useMemo(
-    () => new Set<Tab>([...MINE.map((t) => t.key), ...people.map((t) => t.key), ...ledgerTabs.map((t) => t.key)]),
-    [people, ledgerTabs],
+    () => new Set<Tab>([...MINE.map((t) => t.key), ...people.map((t) => t.key), ...(keepsTrash ? ["trash" as Tab] : [])]),
+    [people, keepsTrash],
   );
 
   const [tab, setTabState] = useState<Tab>(() => {
@@ -194,10 +220,25 @@ export function Cabinet({
   }, [seePeople, load]);
 
   const shownTab: Tab = allowed.has(tab) ? tab : "profile";
+  const shownGroup = GROUP_OF[shownTab];
+  const group = groups.find((item) => item.key === shownGroup) ?? groups[0];
+  // Раздел помнит свой подраздел: вернулся в «Команду» — там же, где был.
+  const lastInGroup = useRef<Partial<Record<Group, Tab>>>({});
+  useEffect(() => {
+    lastInGroup.current[shownGroup] = shownTab;
+  }, [shownGroup, shownTab]);
+  const openGroup = (key: Group) => {
+    const next = groups.find((item) => item.key === key);
+    if (!next) return;
+    setTab(lastInGroup.current[key] ?? next.tabs[0]?.key ?? (key === "trash" ? "trash" : "profile"));
+  };
   const departments = data?.departments ?? [];
   const pickedRightsDept = rightsDept ?? (department !== PEOPLE_ALL && departments.some((d) => d.id === department) ? department : departments[0]?.id ?? null);
 
-  const name = nameOf(me);
+  // Почта — не имя. Владелец без ФИО заведён сотрудником под своей почтой, и
+  // портрет крупно повторял её в третий раз за экран (шапка, портрет, профиль).
+  const own = nameOf(me);
+  const name = own && own !== me.user?.email && own !== me.user?.phone ? own : "";
   const role = me.role ?? (me.company?.role as Me["role"]) ?? "employee";
   const line = [me.employee?.job_title, me.employee?.department?.code, me.user?.phone ? formatPhone(me.user.phone) : ""]
     .filter(Boolean)
@@ -210,13 +251,13 @@ export function Cabinet({
         <div className="cab-portrait-veil" aria-hidden="true" />
         <div className="cab-portrait-top">
           {hasSections ? (
-            <button type="button" className="btn-ghost btn-sm" onClick={onBack}>
+            <button type="button" className="btn-ghost btn-sm cab-portrait-btn" onClick={onBack}>
               <ArrowLeftIcon size={15} />К учёту
             </button>
           ) : (
             <span />
           )}
-          <button type="button" className="btn-ghost btn-sm" onClick={onLogout}>
+          <button type="button" className="btn-ghost btn-sm cab-portrait-btn" onClick={onLogout}>
             Выйти
           </button>
         </div>
@@ -243,45 +284,30 @@ export function Cabinet({
           />
         ) : null}
 
-        <div className="cab-tabs">
-          {/* Без подписи группы строка — одна колонка: иначе вкладки встают в
-              колонку 64px под подпись «Моё», и у сотрудника от них остаётся
-              обрезанный «Профиль» (26.09, прод). */}
-          <div className="cab-tabs-row" data-single={people.length ? undefined : "true"}>
-            {people.length ? <span className="eyebrow cab-tabs-group">Моё</span> : null}
+        <nav className="cab-nav" aria-label="Личный кабинет">
+          {/* У сотрудника раздел один — «Моё»; строка из одного слова ничего
+              не переключает, поэтому сразу подразделы. */}
+          {groups.length > 1 ? (
             <SelectLine
-              items={MINE}
-              value={MINE.some((t) => t.key === shownTab) ? shownTab : null}
-              onChange={setTab}
-              label="Моё"
-              className="cab-tabs-line"
+              items={groups.map((item) => ({ key: item.key, label: item.label }))}
+              value={shownGroup}
+              onChange={openGroup}
+              label="Разделы кабинета"
+              size="lg"
+              className="cab-groups"
             />
-          </div>
-          {people.length ? (
-            <div className="cab-tabs-row">
-              <span className="eyebrow cab-tabs-group">Люди</span>
-              <SelectLine
-                items={people}
-                value={people.some((t) => t.key === shownTab) ? shownTab : null}
-                onChange={setTab}
-                label="Люди"
-                className="cab-tabs-line"
-              />
-            </div>
           ) : null}
-          {ledgerTabs.length ? (
-            <div className="cab-tabs-row">
-              <span className="eyebrow cab-tabs-group">Учёт</span>
-              <SelectLine
-                items={ledgerTabs}
-                value={ledgerTabs.some((t) => t.key === shownTab) ? shownTab : null}
-                onChange={setTab}
-                label="Учёт"
-                className="cab-tabs-line"
-              />
-            </div>
+          {group.tabs.length ? (
+            <SelectLine
+              key={group.key}
+              items={group.tabs}
+              value={shownTab}
+              onChange={setTab}
+              label={group.label}
+              className="cab-subtabs"
+            />
           ) : null}
-        </div>
+        </nav>
 
         {loadError && seePeople ? (
           <p className="cab-error fin-fail" role="alert">
@@ -290,7 +316,14 @@ export function Cabinet({
         ) : null}
 
         <FadeIn key={`tab-${shownTab}`} className="cab-body">
-          {shownTab === "profile" ? <ProfileTab me={me} onMe={onMe} /> : null}
+          {shownTab === "profile" ? (
+            <ProfileTab
+              me={me}
+              onMe={onMe}
+              departments={data ? departments : null}
+              onPeopleChanged={() => void load()}
+            />
+          ) : null}
           {shownTab === "access" ? <MyAccess me={me} /> : null}
           {shownTab === "sessions" ? <SessionsList /> : null}
           {shownTab === "actions" ? (
@@ -321,12 +354,11 @@ export function Cabinet({
               <p className="cab-empty">Отделов пока нет. Отдел заводится во вкладке «Сотрудники».</p>
             ) : (
               <div className="cab-rights-wrap">
-                <SelectLine
+                <FilterChips
                   items={departments.map((d) => ({ key: d.id, label: d.code }))}
                   value={pickedRightsDept}
                   onChange={setRightsDept}
                   label="Отдел"
-                  className="cab-people-tabs"
                 />
                 {pickedRightsDept ? (
                   <>

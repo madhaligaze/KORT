@@ -28,7 +28,8 @@ type Props<K extends string> = {
   onChange: (key: K) => void;
   role?: "tablist" | "radiogroup";
   label: string;
-  size?: "md" | "sm";
+  /** `lg` — верхний уровень вкладок кабинета («Моё · Команда · Корзина»). */
+  size?: "lg" | "md" | "sm";
   className?: string;
   disabled?: boolean;
 };
