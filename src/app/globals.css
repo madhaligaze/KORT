@@ -21,7 +21,7 @@
   --text-muted:    #9a9988;
   --text-accent:   #fffce1;
 
-  /* «Акцент» — мел. Главное действие — кремовая пилюля с тёмным текстом:
+  /* «Акцент» — мел. Главное действие — кремовая плита с тёмным текстом:
      самый контрастный предмет на экране без единого нового цвета.         */
   --accent:        #fffce1;
   --accent-hover:  #f1edcf;
@@ -47,8 +47,9 @@
   --iris-blood:    #a52d25;
   --iris:          linear-gradient(100deg, var(--iris-sage) 0%, var(--iris-amber) 52%, var(--iris-blood) 100%);
 
-  /* Карточки почти острые (8px у GSAP), кнопки — пилюли. Середины нет:
-     скругление в 16px на всём подряд — примета шаблона.                    */
+  /* Карточки почти острые (8px у GSAP), кнопки — без скругления (с 28.09.2026;
+     до того были пилюлями). Середины нет: скругление в 16px на всём подряд —
+     примета шаблона. `--radius-pill` — только полосе прокрутки.            */
   --radius-card:   8px;
   --radius-inner:  6px;
   --radius-btn:    6px;
@@ -310,7 +311,13 @@ body {
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────── */
-/* Главное действие — кремовая пилюля (в светлой теме — тушь). По наведению
+/* Кнопки — прямоугольники, а не пилюли. 28.09.2026 «пилюля на каждой кнопке»
+   названа нейрослопом: вход стал страницей книги с плитой «Войти», а внутри
+   приложения пилюли стояли по-прежнему — «Новый счёт», «Скачать в Excel»,
+   «К учёту», фильтры. Язык тот же, что у входа и у «+ Доход» в «Журнале»:
+   главное действие — плита без скругления, остальное — волосяная рамка.
+
+   Главное действие — кремовая плита (в светлой теме — тушь). По наведению
    по ней проходит отблеск жидкой сцены: единственный раз, когда её цвета
    касаются элемента интерфейса, и то на полсекунды.
 
@@ -326,11 +333,11 @@ body {
   gap: 0.45rem;
   background: var(--accent);
   color: var(--accent-fg);
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   font-weight: 500;
   font-size: 0.875rem;
   letter-spacing: -0.01em;
-  padding: 0.6rem 1.4rem;
+  padding: 0.6rem 1.25rem;
   transition: background var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-out);
   cursor: pointer;
   border: none;
@@ -370,8 +377,8 @@ body {
 .btn-primary:disabled::before { display: none; }
 .btn-primary:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
 
-/* Всё остальное — пилюля с волосяной обводкой. По наведению обводка
-   набирает цвет текста, как у GSAP: заливки нет.                          */
+/* Всё остальное — прямоугольник с волосяной рамкой. По наведению рамка
+   набирает цвет текста, как у GSAP.                                        */
 .btn-ghost {
   display: inline-flex;
   align-items: center;
@@ -380,11 +387,11 @@ body {
   background: transparent;
   color: var(--text-primary);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   font-weight: 450;
   font-size: 0.875rem;
   letter-spacing: -0.01em;
-  padding: 0.6rem 1.3rem;
+  padding: 0.6rem 1.1rem;
   transition:
     background var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
@@ -400,10 +407,10 @@ body {
 .btn-ghost:disabled { opacity: 0.38; cursor: not-allowed; }
 .btn-ghost:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
 
-/* Маленькая пилюля для шапок. Утилиты Tailwind `px-2.5 py-1.5` на .btn-ghost
+/* Маленькая кнопка для шапок. Утилиты Tailwind `px-2.5 py-1.5` на .btn-ghost
    не работали бы: правила этого файла не в слое и бьют утилиты по каскаду. */
 .btn-sm {
-  padding: 0.4rem 0.9rem;
+  padding: 0.4rem 0.8rem;
   font-size: 0.8125rem;
   min-height: 36px;
 }
@@ -493,10 +500,11 @@ select:has(> option[data-placeholder]:checked) > option:not([data-placeholder]) 
 }
 
 /* ─── Badges ──────────────────────────────────────────────────── */
+/* Метка, а не капсула: прямоугольник, как у кнопок (28.09.2026). */
 .badge {
   display: inline-flex;
   align-items: center;
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   font-size: 0.6875rem;
   font-weight: 500;
   padding: 0.18rem 0.6rem;
@@ -1529,7 +1537,7 @@ label.auth-row-label { cursor: pointer; }
   .auth-panel { position: static; }
 }
 
-/* Пилюля в шапке на десктопе ниже общего минимума в 44px: он для пальца, а
+/* Кнопка в шапке на десктопе ниже общего минимума в 44px: он для пальца, а
    мышью в шапке 36px хватает. Селектор из двух классов — чтобы выиграть у
    общего правила `.btn-ghost { min-height: 44px }` при любом порядке. */
 @media (min-width: 640px) {
@@ -1797,9 +1805,11 @@ label.auth-row-label { cursor: pointer; }
   }
 }
 
-/* ─── Выбранный фильтр-чип ─── */
-.fin-chip[data-on] { color: var(--fin-plate); background: var(--fin-chrome); border-color: var(--fin-chrome); }
-:root[data-theme="dark"] .fin-chip[data-on] { color: var(--fin-chrome); background: var(--text-primary); border-color: var(--text-primary); }
+/* ─── Выбранный фильтр-чип ───
+   Рамкой тушью и весом подписи, как `.cab-toggle`, — не заливкой: залитая
+   капсула была той самой пилюлей (28.09.2026). */
+.fin-chip[data-on],
+.fin-chip[data-on]:hover { color: var(--fin-text); border-color: var(--fin-text); font-weight: 600; }
 
 /* ─── Банки ─── */
 .fin-banks {
@@ -1873,12 +1883,13 @@ label.auth-row-label { cursor: pointer; }
   .fin-aside[data-summary="false"] { display: none; }
 }
 .fin-nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.6rem;
   width: 100%;
   padding: 0.45rem 0.5rem;
-  border-radius: 10px;
+  border-radius: 0;
   border: 1px solid transparent;
   background: transparent;
   color: var(--fin-text-soft);
@@ -1888,28 +1899,29 @@ label.auth-row-label { cursor: pointer; }
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out);
 }
-.fin-nav-item:hover { color: var(--fin-text); background: var(--fin-rail-mark-bg); }
-/* Текущий раздел — чёрная плашка, как у Finmap: единственная заливка в
-   колонке, поэтому она и читается как «вы здесь». */
-.fin-nav-item[data-on="true"] {
-  background: var(--fin-chrome);
-  color: var(--fin-plate);
+.fin-nav-item:hover { color: var(--fin-text); }
+/* Текущий раздел — подписью тушью, весом и чертой-закладкой у левого края,
+   а не залитой плашкой. Кремовая скруглённая плашка (наследство Finmap) была
+   той же пилюлей, что сняли со входа 28.09.2026; правило индикаторов —
+   состояние несёт сама подпись. Черта встаёт снизу вверх, а не щёлкает. */
+.fin-nav-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 2px;
+  background: currentColor;
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  transition: transform var(--dur-slow) var(--ease-out);
 }
-/* На тёмной плите тёмная заливка не читается: текущий раздел был почти не
-   виден, а наведённый выглядел ярче него. Инверсия — та же, что у ленты
-   вкладок, и по той же причине. */
-:root[data-theme="dark"] .fin-nav-item[data-on="true"] {
-  background: var(--text-primary);
-  color: var(--fin-chrome);
-}
-:root[data-theme="dark"] .fin-nav-item[data-on="true"]:hover {
-  background: var(--text-primary);
-  color: var(--fin-chrome);
-}
+.fin-nav-item[data-on="true"] { color: var(--fin-text); font-weight: 600; }
+.fin-nav-item[data-on="true"]::before { transform: scaleY(1); }
 .fin-nav-ico { display: inline-flex; flex: 0 0 auto; width: 18px; justify-content: center; color: var(--fin-text); opacity: 0.8; }
-.fin-nav-item[data-on="true"] .fin-nav-ico { color: inherit; opacity: 1; }
+.fin-nav-item[data-on="true"] .fin-nav-ico { opacity: 1; }
 .fin-rail-toggle {
   /* Видима по умолчанию, прячется на узких экранах ниже. Наоборот не работает:
      включение из медиа-блока, стоящего ВЫШЕ этого объявления, проигрывает ему
@@ -1921,7 +1933,7 @@ label.auth-row-label { cursor: pointer; }
   margin-top: 0.5rem;
   padding: 0.4rem 0.5rem;
   border: 1px solid var(--fin-line);
-  border-radius: 10px;
+  border-radius: 0;
   background: transparent;
   color: var(--fin-text-soft);
   font-size: 0.8125rem;
@@ -1986,10 +1998,13 @@ label.auth-row-label { cursor: pointer; }
   white-space: nowrap;
 }
 
-/* ─── Лента вкладок: активная — пилюля ─── */
+/* ─── Лента вкладок на узком окне ───
+   Текущая — весом и чертой под подписью, как виды реестра (`.fin-mode`) и
+   разделы кабинета. Была залитой пилюлей — снята 28.09.2026 вместе с
+   остальными. */
 .fin-tabs {
   display: flex;
-  gap: 0.25rem;
+  gap: 1.25rem;
   overflow-x: auto;
   padding: 1rem 1rem 0.5rem;
   scrollbar-width: none;
@@ -2019,27 +2034,25 @@ label.auth-row-label { cursor: pointer; }
   align-items: center;
   gap: 0.375rem;
   flex: 0 0 auto;
-  padding: 0.4rem 1rem;
-  border-radius: var(--radius-pill);
+  padding: 0.4rem 0;
+  border-radius: 0;
   font-size: 0.9375rem;
-  font-weight: 500;
+  font-weight: 450;
   letter-spacing: -0.01em;
   color: var(--fin-text-soft);
   background: transparent;
-  border: 1px solid transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
   white-space: nowrap;
   min-height: 2.25rem;
-  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .fin-tab:hover { color: var(--fin-text); }
 .fin-tab[data-on="true"] {
-  color: var(--fin-plate);
-  background: var(--fin-chrome);
-}
-:root[data-theme="dark"] .fin-tab[data-on="true"] {
-  color: var(--fin-chrome);
-  background: var(--text-primary);
+  color: var(--fin-text);
+  font-weight: 650;
+  border-bottom-color: currentColor;
 }
 
 /* ─── Тумблер темы в шапке ───
@@ -2271,7 +2284,7 @@ label.auth-row-label { cursor: pointer; }
   align-items: center;
   gap: 0.25rem;
   padding: 0.15rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 0;
   font-size: 0.6875rem;
   border: 1px solid var(--fin-line);
   color: var(--fin-text-soft);
@@ -2899,7 +2912,8 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 999px;
+  /* Квадрат, не круг: круглые значки — та же пилюля (28.09.2026). */
+  border-radius: 0;
   background: none;
   border: none;
   color: var(--fin-text);
@@ -3184,7 +3198,7 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
 .creg-hint-ack {
   flex: none;
   padding: 0.15rem 0.6rem;
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   border: 1px solid var(--fin-line);
   background: transparent;
   color: var(--fin-text);
@@ -3552,7 +3566,7 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
   min-height: 32px;
   padding: 0 0.75rem;
   border: 1px solid var(--fin-card-line);
-  border-radius: 999px;
+  border-radius: 0;
   background: none;
   font: inherit;
   font-size: 0.8125rem;
