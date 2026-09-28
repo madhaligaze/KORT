@@ -1000,68 +1000,354 @@ html, body { overflow-x: clip; }
   overflow: hidden;
 }
 
+/* Форма стоит от верха, а не по центру: двери раскрываются вниз, и
+   центровка гоняла бы оба заголовка вверх-вниз при каждой смене двери. */
 .auth-panel {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: clamp(1.5rem, 5vw, 4rem);
-  padding-bottom: max(clamp(1.5rem, 5vw, 4rem), var(--safe-b));
+  padding: clamp(4rem, 15vh, 11rem) clamp(1.5rem, 5vw, 4rem) max(1.5rem, var(--safe-b));
   background: var(--bg-surface);
   color: var(--text-primary);
 }
+/* `--auth-axis` — вертикаль значений: от неё начинаются заголовки дверей,
+   поля и плита «Войти». Левее — поля книги: номер двери, подписи. */
 .auth-form {
-  width: min(26rem, 100%);
+  --auth-axis: 9.5rem;
+  width: min(30rem, 100%);
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
 }
-.auth-heading {
-  font-size: 1.875rem;
+
+/* ─── Двери: «01 Вход», «02 Регистрация» ─────────────────────────────
+   Указатель как на стартовом экране. Открытая дверь — тушью, закрытая —
+   приглушена: состояние несёт сам заголовок. Строки закрытой свёрнуты
+   сеткой 0fr → 1fr; `visibility` прячет их после свёртки, чтобы в
+   закрытое не попадали ни Tab, ни экранный диктор. */
+.auth-door + .auth-door { border-top: 1px solid var(--border-base); }
+.auth-door-head {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--auth-axis) minmax(0, 1fr);
+  align-items: baseline;
+  padding: 1.1rem 0 1.2rem;
+}
+.auth-door-num {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  transition: color var(--dur-slow) var(--ease-out);
+}
+.auth-door[data-open] .auth-door-num { color: var(--text-primary); }
+.auth-door-back {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  justify-self: start;
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-left: -0.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-inner);
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.auth-door-back .auth-arrow { transition: transform var(--dur-slow) var(--ease-out); }
+.auth-door-back:hover .auth-arrow { transform: translateX(-4px); }
+.auth-door-back:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
+
+.auth-door-title {
+  margin: 0;
+  font-size: clamp(2rem, 1.35rem + 1.5vw, 2.625rem);
   font-weight: 400;
-  line-height: 1.1;
-  letter-spacing: -0.035em;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: var(--text-muted);
+  transition: color var(--dur-slow) var(--ease-out);
+}
+.auth-door[data-open] .auth-door-title { color: var(--text-primary); }
+.auth-door-title > button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Закрытая дверь открывается щелчком в любом месте своей строки. */
+.auth-door-title > button::after { content: ""; position: absolute; inset: 0; }
+.auth-door[data-open] .auth-door-title > button { cursor: default; }
+.auth-door:not([data-open]) .auth-door-head:hover .auth-door-title { color: var(--text-secondary); }
+.auth-door-title > button:focus-visible { outline: none; }
+.auth-door-title > button:focus-visible::after { outline: 2px solid var(--text-primary); outline-offset: -2px; border-radius: var(--radius-inner); }
+
+.auth-door-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 640ms var(--ease-in-out), visibility 0s linear 640ms;
+}
+.auth-door[data-open] > .auth-door-body {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows 640ms var(--ease-in-out), visibility 0s;
+}
+/* `clip` с запасом, а не `hidden`: рамка фокуса у краёв не обрезается. */
+.auth-door-inner {
+  min-height: 0;
+  overflow: clip;
+  overflow-clip-margin: 6px;
+}
+
+/* Строки открытой двери поднимаются по одной. Анимация — CSS: дверь
+   открылась — селектор совпал снова, и она проигрывается заново. Только
+   `backwards`: удержанная анимация перебивала бы `transform` у :active. */
+.auth-sheet {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 2rem;
+}
+.auth-door:last-child .auth-sheet { padding-bottom: 0; }
+.auth-sheet > * { animation: auth-rise 720ms var(--ease-out) backwards; }
+.auth-sheet > :nth-child(2) { animation-delay: 50ms; }
+.auth-sheet > :nth-child(3) { animation-delay: 100ms; }
+.auth-sheet > :nth-child(4) { animation-delay: 150ms; }
+.auth-sheet > :nth-child(5) { animation-delay: 200ms; }
+.auth-sheet > :nth-child(n + 6) { animation-delay: 250ms; }
+.auth-door:not([data-open]) .auth-sheet > * { animation: none; }
+@keyframes auth-rise {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+/* ─── Строка книги ───────────────────────────────────────────────────
+   Подпись на полях, значение на линейке, справа — короткое. Рамок нет:
+   поле — это линейка. В фокусе линейка прочерчивается тушью слева
+   направо и подпись темнеет; отказ — та же линейка и подпись цветом. */
+.auth-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--auth-axis) minmax(0, 1fr) auto;
+  align-items: baseline;
+  border-bottom: 1px solid var(--border-base);
+}
+.auth-row:not(.auth-row + .auth-row) { border-top: 1px solid var(--border-base); }
+.auth-row::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--text-primary);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform var(--dur-slow) var(--ease-out);
+  pointer-events: none;
+}
+.auth-row:focus-within::after { transform: scaleX(1); }
+.auth-row[data-invalid]::after { transform: scaleX(1); background: var(--accent-rose); }
+
+.auth-row-label {
+  padding-right: 1rem;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  line-height: 1.25;
+  color: var(--text-muted);
+  transition: color var(--dur-base) var(--ease-out);
+}
+label.auth-row-label { cursor: pointer; }
+.auth-row:focus-within .auth-row-label { color: var(--text-primary); }
+.auth-row[data-invalid] .auth-row-label { color: var(--accent-rose); }
+
+.auth-input,
+.auth-row .phone-field,
+.auth-row .phone-field:hover,
+.auth-row .phone-field:focus {
+  display: block;
+  width: 100%;
+  padding: 1rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-primary);
+  line-height: 1.25;
+  outline: none;
+}
+.auth-input {
+  font-size: max(16px, 1rem);
+  letter-spacing: -0.01em;
+}
+.auth-input::placeholder { color: var(--text-muted); }
+/* Призрак маски совпадает с полем символ в символ, поэтому отступы — те же. */
+.auth-row .phone-ghost { padding: 0; border: 0; }
+/* Автозаполнение Chrome красит поле своим фоном — без рамки это плашка
+   посреди линейки. Фон перекрывается тенью цвета панели. */
+.auth-row input:-webkit-autofill,
+.auth-row input:-webkit-autofill:hover,
+.auth-row input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  caret-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-surface) inset;
+  transition: background-color 600000s 0s;
+}
+/* Номер между шагами не вводится заново — он стоит текстом с «Изменить». */
+.auth-fixed {
+  display: block;
+  padding: 1rem 0;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  white-space: nowrap;
+  font-size: 1rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
-.auth-fields { display: flex; flex-direction: column; gap: 0.9rem; }
+
+.auth-row-aside { padding-left: 1rem; font-size: 0.8125rem; }
+.auth-row-hint { color: var(--text-muted); white-space: nowrap; }
+.auth-aside-btn {
+  padding: 0.75rem 0;
+  margin: -0.75rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: underline dotted var(--fin-dotted);
+  text-underline-offset: 4px;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.auth-aside-btn:hover { color: var(--text-primary); text-decoration-style: solid; text-decoration-color: currentColor; }
+.auth-aside-btn:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 2px; }
+.auth-row-note {
+  display: block;
+  margin-top: -0.4rem;
+  padding-bottom: 0.85rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--accent-rose);
+}
+
+/* Текст и отказ стоят от вертикали значений, как всё крупное. */
+.auth-say {
+  margin: 0 0 1.1rem var(--auth-axis);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.auth-error {
+  margin: 1rem 0 0 var(--auth-axis);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--accent-rose);
+}
+
+/* ─── Плита «Войти» ──────────────────────────────────────────────────
+   Не пилюля: прямоугольник от вертикали значений до края — как итоговая
+   строка книги. Подпись слева, стрелка справа и уходит вперёд по
+   наведению; по плите проходит отблеск дымовой сцены, как у .btn-primary. */
+.auth-go {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: calc(100% - var(--auth-axis));
+  min-height: 3.5rem;
+  margin: 1.5rem 0 0 var(--auth-axis);
+  /* На узком телефоне «Зарегистрировать компанию» уходит на вторую строку —
+     плита растёт, а не режет подпись. */
+  padding: 0.8rem 1.1rem 0.8rem 1.25rem;
+  line-height: 1.25;
+  border: 0;
+  border-radius: 0;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-out);
+}
+.auth-go::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(100deg,
+    transparent 15%,
+    color-mix(in srgb, var(--iris-sage) 70%, transparent) 38%,
+    color-mix(in srgb, var(--iris-amber) 70%, transparent) 55%,
+    color-mix(in srgb, var(--iris-blood) 45%, transparent) 70%,
+    transparent 88%);
+  transform: translateX(-105%);
+  transition: transform 0s;
+  pointer-events: none;
+}
+.auth-go:hover:not(:disabled) { background: var(--accent-hover); }
+.auth-go:hover:not(:disabled)::before { transform: translateX(105%); transition: transform 1s var(--ease-out); }
+.auth-go:active:not(:disabled) { transform: scale(0.985); background: var(--accent-press); }
+.auth-go:disabled { background: var(--bg-active); color: var(--text-muted); cursor: not-allowed; }
+.auth-go:disabled::before { display: none; }
+.auth-go:focus-visible { outline: 2px solid var(--accent-fg); outline-offset: -6px; }
+.auth-arrow {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.auth-go .auth-arrow { transition: transform var(--dur-slow) var(--ease-out); }
+.auth-go:hover:not(:disabled) .auth-arrow { transform: translateX(4px); }
+
+/* Второстепенное действие под плитой — текстом от той же вертикали. */
+.auth-more {
+  align-self: flex-start;
+  margin: 1rem 0 0 var(--auth-axis);
+  padding: 0.25rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-decoration: underline dotted var(--fin-dotted);
+  text-underline-offset: 4px;
+}
+.auth-more:hover { color: var(--text-primary); text-decoration-style: solid; text-decoration-color: currentColor; }
+
+@media (max-width: 519.98px) {
+  .auth-form { --auth-axis: 6.5rem; }
+}
+
+/* Поле «подпись над полем» — осталось от прежнего входа, но на нём стоят формы
+   кабинета: смена пароля, новый сотрудник, отдел, карточка сотрудника. Вход
+   его больше не использует. */
 .auth-field { display: flex; flex-direction: column; gap: 0.4rem; }
 .auth-hint { font-size: 0.75rem; color: var(--text-muted); }
-.auth-error {
-  padding: 0.6rem 0.8rem;
-  border-radius: var(--radius-inner);
-  font-size: 0.8125rem;
-  color: var(--accent-rose);
-  background: var(--outflow-bg);
-  border: 1px solid var(--outflow-border);
-}
-.auth-note {
-  font-size: 0.9375rem;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-.auth-note code { font-family: var(--font-martian), ui-monospace, monospace; font-size: 0.8em; color: var(--text-primary); }
-.auth-switch { align-self: flex-start; }
-
-/* Вход сотрудника по номеру (фронт-план ERP, 6.8). Ссылки под формой —
-   одной строкой с переносом: «Войти как сотрудник» кнопкой, остальное —
-   ссылками, чтобы главное действие экрана оставалось одно. */
-.auth-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1.25rem;
-  margin-top: 1.25rem;
-}
-.auth-link { font-size: 0.8125rem; color: var(--text-secondary); }
-.auth-link:hover { color: var(--text-primary); }
-/* Номер между шагами не вводится заново — он стоит текстом с «Изменить». */
-.auth-number {
-  display: flex;
-  align-items: baseline;
-  gap: 0.9rem;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-.auth-number .fin-mono { font-size: 0.9375rem; color: var(--text-primary); }
 
 /* Телефон с маской-призраком. Призрак лежит НАД полем (фон поля иначе его
    закрыл бы) и не ловит мышь; набранная часть в нём невидима, поэтому видна
@@ -1107,52 +1393,58 @@ html, body { overflow-x: clip; }
 }
 
 /* ─── Тумблер темы ───────────────────────────────────────────────────
-   Солнце слева, луна справа, ползунок — под выбранной. Ползунок переезжает
-   «каплей»: левый и правый край — отдельные переходы, и тот, что впереди по
-   ходу, уходит первым. Переход берётся из конечного состояния, поэтому
-   порядок краёв задан на каждом из двух. */
+   Солнце и луна без подложки; выбранная — полным цветом, под ней черта,
+   другая приглушена и отвёрнута. Тот же язык, что у имени в шапке
+   приложения: выбранное подчёркнуто, а не залито. Пилюлю с кругом сняли
+   28.09.2026 — «стандартная пилюля везде».
+
+   Черта переезжает «каплей»: левый и правый край — отдельные переходы, и
+   тот, что впереди по ходу, уходит первым, — на полпути она тянется под
+   обеими иконками. Переход берётся из конечного состояния, поэтому порядок
+   краёв задан на каждом из двух.
+
+   Цвета — переменными: на входе это тушь панели, в шапке приложения —
+   мел тёмной рамы. */
 .theme-switch {
-  --sw-w: 4.75rem;
-  --sw-h: 2.5rem;
+  --sw-on: var(--text-primary);
+  --sw-off: var(--text-muted);
   --sw-icon: 1.125rem;
-  --sw-pad: 0.25rem;
-  /* Круг внутри рамки 1px: высота минус рамка и два отступа. */
-  --sw-knob: calc(var(--sw-h) - 2px - 2 * var(--sw-pad));
+  --sw-gap: 0.875rem;
+  --sw-pad: 0.5rem;
+  --sw-w: calc(2 * var(--sw-pad) + 2 * var(--sw-icon) + var(--sw-gap));
   position: relative;
+  flex: none;
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--sw-gap);
   width: var(--sw-w);
-  height: var(--sw-h);
-  padding: 0 calc(var(--sw-pad) + (var(--sw-knob) - var(--sw-icon)) / 2);
-  border: 1px solid var(--border-base);
-  border-radius: var(--radius-pill);
-  background: var(--bg-hover);
-  color: var(--text-muted);
+  height: 2.5rem;
+  padding: 0 var(--sw-pad);
+  border: 0;
+  border-radius: var(--radius-inner);
+  background: none;
+  color: var(--sw-off);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--stage-shift) ease-in-out;
 }
-.theme-switch:hover { border-color: var(--border-strong); }
-.theme-switch:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+.theme-switch:focus-visible { outline: 2px solid var(--sw-on); outline-offset: 0; }
 
 .theme-switch-knob {
   position: absolute;
-  top: var(--sw-pad);
-  bottom: var(--sw-pad);
+  bottom: 0.4375rem;
+  height: 2px;
   left: var(--sw-pad);
-  right: calc(var(--sw-w) - 2px - var(--sw-pad) - var(--sw-knob));
-  border-radius: var(--radius-pill);
-  background: var(--text-primary);
+  right: calc(var(--sw-w) - var(--sw-pad) - var(--sw-icon));
+  background: var(--sw-on);
   /* К солнцу: первым уходит левый край, правый догоняет. Задний край
-     трогается позже и идёт дольше — на полпути ползунок накрывает обе иконки. */
+     трогается позже и идёт дольше — на полпути черта под обеими иконками. */
   transition:
     left 340ms var(--ease-out),
     right 520ms cubic-bezier(0.65, 0, 0.35, 1) 110ms,
     background-color var(--stage-shift) ease-in-out;
 }
 .theme-switch[data-on="dark"] .theme-switch-knob {
-  left: calc(var(--sw-w) - 2px - var(--sw-pad) - var(--sw-knob));
+  left: calc(var(--sw-w) - var(--sw-pad) - var(--sw-icon));
   right: var(--sw-pad);
   /* К луне: первым уходит правый край. */
   transition:
@@ -1163,7 +1455,7 @@ html, body { overflow-x: clip; }
 
 .theme-switch-icon {
   position: relative;
-  z-index: 1;
+  flex: none;
   width: var(--sw-icon);
   height: var(--sw-icon);
   fill: none;
@@ -1176,19 +1468,25 @@ html, body { overflow-x: clip; }
 .theme-switch-sun circle { fill: currentColor; stroke: none; }
 .theme-switch-moon path { fill: currentColor; stroke: none; }
 .theme-switch-rays { transform-origin: 12px 12px; transition: transform 520ms var(--ease-out); }
+/* Наведение подтягивает невыбранную иконку к выбранной, но не до конца. */
+.theme-switch:hover { --sw-off: color-mix(in srgb, var(--sw-on) 80%, transparent); }
 
-/* Выбранная иконка — на ползунке, цветом фона; другая приглушена и отвёрнута. */
-.theme-switch[data-on="light"] .theme-switch-sun { color: var(--bg-base); }
-.theme-switch[data-on="dark"] .theme-switch-moon { color: var(--bg-base); }
+.theme-switch[data-on="light"] .theme-switch-sun,
+.theme-switch[data-on="dark"] .theme-switch-moon { color: var(--sw-on); }
 .theme-switch[data-on="dark"] .theme-switch-rays { transform: rotate(-45deg) scale(0.8); }
 .theme-switch[data-on="light"] .theme-switch-moon { transform: rotate(-30deg); }
+
+@media (pointer: coarse) {
+  .theme-switch { height: 2.75rem; }
+}
 
 /* На входе тумблер стоит в правом верхнем углу панели формы. */
 .auth-panel { position: relative; }
 .auth-theme {
   position: absolute;
-  top: max(1.25rem, var(--safe-t));
-  right: clamp(1.25rem, 3vw, 2.5rem);
+  z-index: 2;
+  top: max(1rem, var(--safe-t));
+  right: clamp(0.75rem, 2.4vw, 2rem);
 }
 
 /* Ожидание — та же сцена без дыма: вход проявляется из этого же цвета. */
@@ -1211,7 +1509,11 @@ html, body { overflow-x: clip; }
   /* Сцена во весь экран сжимается в полосу: 100svh → 34svh вместе с входом. */
   .auth-poster { min-height: calc(34svh + 66svh * (1 - var(--auth-open))); gap: 1.25rem; }
   .auth-mark { width: clamp(9rem, 44vw, 15rem); }
-  .auth-panel { align-items: flex-start; }
+  .auth-panel { padding-top: clamp(0.5rem, 3vw, 2rem); }
+  /* Тумблер уходит на сцену, в её правый верхний угол: в панели он ложился
+     бы на заголовок двери. Точка отсчёта — весь экран входа. */
+  .auth-stage { position: relative; }
+  .auth-panel { position: static; }
 }
 
 /* Пилюля в шапке на десктопе ниже общего минимума в 44px: он для пальца, а
@@ -1727,30 +2029,66 @@ html, body { overflow-x: clip; }
   background: var(--text-primary);
 }
 
-/* ─── Три действия ─── */
-.fin-actions { display: flex; gap: 0.5rem; }
-.fin-act {
+/* ─── Тумблер темы в шапке ───
+   Тот же, что на входе (`.theme-switch`), в цветах тёмной рамы. */
+.fin-head-theme {
+  --sw-on: var(--fin-chrome-text);
+  --sw-off: var(--fin-chrome-muted);
+}
+
+/* ─── Новая операция: «+ Доход · − Расход · ⇄ Перевод» ───
+   Стояли в шапке пилюлями; с 28.09.2026 — у заголовка «Журнала»: шапку видят
+   все отделы, а записывать деньги — дело финансов. Прямоугольники с волосяной
+   рамкой, как плита входа, а не пилюли. Цвет — только у знака, и это смысл
+   денег: приход зелёный, расход — цветом расхода. */
+.fin-title-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 1.5rem;
+}
+.fin-ops { display: flex; gap: 0.5rem; }
+.fin-op {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
-  height: 40px;
-  padding: 0 1.25rem;
-  border-radius: var(--radius-pill);
-  font-size: 0.9375rem;
+  gap: 0.5rem;
+  height: 2.5rem;
+  padding: 0 1rem 0 0.875rem;
+  border: 1px solid var(--fin-card-line);
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.875rem;
   font-weight: 500;
   letter-spacing: -0.01em;
-  cursor: pointer;
-  border: none;
-  background: var(--fin-neutral-soft);
-  color: var(--fin-chrome-text);
+  color: var(--fin-text);
   white-space: nowrap;
-  transition: filter var(--dur-fast) var(--ease-out);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
-.fin-act:hover { filter: brightness(1.25); }
-.fin-act:focus-visible { outline: 2px solid var(--fin-chrome-text); outline-offset: 2px; }
-.fin-act[data-kind="income"] { background: var(--fin-income-soft); }
-.fin-act[data-kind="expense"] { background: var(--fin-expense-soft); }
+.fin-op:hover { border-color: var(--fin-text); background: var(--fin-hover); }
+.fin-op:active { background: var(--fin-selected); }
+.fin-op:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 2px; }
+.fin-op-sign {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--fin-text-soft);
+}
+.fin-op[data-kind="income"] .fin-op-sign { color: var(--fin-income); }
+.fin-op[data-kind="expense"] .fin-op-sign { color: var(--fin-expense); }
+/* Узкое окно: заголовка раздела нет — кнопки своим рядом под лентой, во всю
+   ширину. На широком этого ряда нет, кнопки стоят у заголовка. */
+.fin-ops-row { display: none; }
+@media (max-width: 767.98px) {
+  .fin-title-bar { display: none; }
+  .fin-ops-row { display: block; padding: 0.625rem 0 0.75rem; }
+  .fin-ops-row .fin-op { flex: 1; padding: 0 0.5rem; }
+}
 
 /* ─── Таблица журнала ─── */
 .fin-body { padding: 0 1rem 1.5rem; min-width: 0; color: var(--fin-text); }
@@ -2166,13 +2504,9 @@ html:has(.usheet) { overscroll-behavior-x: none; }
 /* ─── Телефон ─── */
 @media (max-width: 639.98px) {
   .fin-head { flex-wrap: wrap; }
-  /* Кнопки денег — своим рядом ПОСЛЕ названия и значка кабинета. Без
-     `order` значок стоял в DOM за ними и уезжал третьим рядом один. */
-  .fin-actions { flex: 1 0 100%; order: 1; }
   /* Под плавающей кнопкой («+ Сотрудник», «+ Новый договор») — место, иначе
      она закрывала последнюю строку списка, и до неё было не долистать. */
   .cab-list, .creg-list { padding-bottom: 4.5rem; }
-  .fin-act { flex: 1; padding: 0 0.75rem; }
   .fin-plate { margin: 0 0.5rem 0.5rem; border-radius: 12px; }
   .fin-body { padding: 0 0.75rem 1.25rem; }
 

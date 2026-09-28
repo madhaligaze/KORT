@@ -54,6 +54,7 @@ import { Cabinet } from "@/components/finance/cabinet/cabinet";
 import { plural, shortName } from "@/components/finance/format";
 import { FadeIn } from "@/components/motion/fade-in";
 import { SplitReveal } from "@/components/motion/split-reveal";
+import { ThemeSwitch } from "@/components/stage/theme-switch";
 import { RulesPanel } from "@/components/finance/rules-panel";
 import { OperationDialog } from "@/components/finance/operation-dialog";
 import { Journal } from "@/components/finance/journal";
@@ -783,6 +784,29 @@ export function FinanceClient() {
     );
   }
 
+  /**
+   * Новая операция — у заголовка «Журнала», а не в шапке: сервисом пользуются
+   * отделы, которым записывать деньги незачем. Только при праве правки
+   * журнала; без права кнопок нет вовсе, а не пустое место (фронт-план, 3.3).
+   * «Перевод» на телефоне не прячется: перевод из кассы на счёт — обычная
+   * работа кассира.
+   */
+  const operationActions =
+    section === "journal" && can(me, "journal", "edit") ? (
+      <div className="fin-ops" role="group" aria-label="Новая операция">
+        {/* Имена кнопок прежние — «+ Доход» и т. д.: по ним их находят проверки. */}
+        <button type="button" className="fin-op" data-kind="income" onClick={() => setDialog({ kind: "income", plan: false })}>
+          <span className="fin-op-sign">+</span> Доход
+        </button>
+        <button type="button" className="fin-op" data-kind="expense" onClick={() => setDialog({ kind: "expense", plan: false })}>
+          <span className="fin-op-sign">−</span> Расход
+        </button>
+        <button type="button" className="fin-op" onClick={() => setDialog({ kind: "transfer", plan: false })}>
+          <span className="fin-op-sign">⇄</span> Перевод
+        </button>
+      </div>
+    ) : null;
+
   return (
     <SessionScope scope={sessionScope}>
     <div className="fin-page">
@@ -826,39 +850,25 @@ export function FinanceClient() {
           </button>
         ) : null}
 
-        {/* Строка действий — только при праве правки журнала; без права её нет
-            вовсе, а не пустое место (фронт-план, 3.3). */}
-        {can(me, "journal", "edit") ? (
-        <div className="fin-actions">
-          <button type="button" className="fin-act" data-kind="income" onClick={() => setDialog({ kind: "income", plan: false })}>
-            + Доход
-          </button>
-          <button type="button" className="fin-act" data-kind="expense" onClick={() => setDialog({ kind: "expense", plan: false })}>
-            − Расход
-          </button>
-          {/* «Перевод» на телефоне не прячется: перевод из кассы на счёт —
-              обычная работа кассира. В одну строку с двумя другими кнопками он
-              не влезал, поэтому на узком экране вся тройка переносится на свою
-              строку (см. `.fin-head` в globals.css). */}
-          <button type="button" className="fin-act" onClick={() => setDialog({ kind: "transfer", plan: false })}>
-            ⇄ Перевод
-          </button>
-        </div>
-        ) : null}
+        {/* «+ Доход / − Расход / ⇄ Перевод» здесь больше нет (28.09.2026): шапку
+            видят все отделы, а записывать деньги — дело финансов. Кнопки — у
+            заголовка «Журнала», см. `operationActions` выше. */}
         {money ? (
           <button
             type="button"
-            className="fin-act only-desktop"
-            style={{ padding: "0 0.75rem" }}
+            className="fin-icon-btn fin-head-person-icon only-desktop"
             onClick={() => {
               reload();
               setSheetRefresh((value) => value + 1);
             }}
             title="Перечитать данные"
+            aria-label="Перечитать данные"
           >
-            <RefreshIcon size={15} />
+            <RefreshIcon size={16} />
           </button>
         ) : null}
+        {/* Тема — тем же тумблером, что на входе; строки «Тема» в кабинете нет. */}
+        <ThemeSwitch className="fin-head-theme" />
         {/* Имя вместо «Выйти»: выход — редкое действие, он в кабинете. */}
         <button
           type="button"
@@ -1066,6 +1076,14 @@ export function FinanceClient() {
                 ),
               )}
             </nav>
+          ) : operationActions ? (
+            // Журнал: справа от заголовка — новая операция.
+            <div className="fin-title-bar">
+              <SplitReveal key={`title-${section}`} as="h1" className="fin-section-title" duration={0.9}>
+                {sectionItem?.title ?? ""}
+              </SplitReveal>
+              {operationActions}
+            </div>
           ) : (
             <SplitReveal key={`title-${section}`} as="h1" className="fin-section-title" duration={0.9}>
               {sectionItem?.title ?? ""}
@@ -1085,6 +1103,8 @@ export function FinanceClient() {
               </button>
             ))}
           </nav>
+          {/* На узком окне заголовка нет — кнопки встают своим рядом под лентой. */}
+          {operationActions ? <div className="fin-ops-row">{operationActions}</div> : null}
           {REGISTRY_MODE_KEYS.has(section) ? (
             <nav className="fin-modes" aria-label="Вид реестра">
               {REGISTRY_MODES.map((mode) => (

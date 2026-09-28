@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { readParam, writeParams } from "@/components/finance/address";
 import { type Me, FinanceApiError, financeApi } from "@/components/finance/api";
 import { PHONE_NOT_MOBILE, PhoneInput, formatPhone, phoneDigits, phoneValue } from "@/components/finance/ui/phone-input";
-import { FadeIn } from "@/components/motion/fade-in";
 import { SplitReveal } from "@/components/motion/split-reveal";
 import { AuthStage, AuthWait } from "@/components/stage/auth-stage";
 
@@ -16,6 +15,14 @@ import { AuthStage, AuthWait } from "@/components/stage/auth-stage";
  * первый экран — не «введите логин», а выбор между «войти» и
  * «зарегистрировать компанию», и второе стоит не мельче
  * первого: пока компаний мало, регистрация — главное действие экрана.
+ *
+ * Облик — страница книги (28.09.2026; прежний — «пилюли везде», регистрация
+ * мелкой ссылкой в строке с переносом). Вход и регистрация — две двери
+ * указателем, как разделы на стартовом экране: «01 Вход», «02 Регистрация»,
+ * крупно, и под открытой раскрываются её строки. Поля — строки книги:
+ * подпись на полях слева, значение на линейке, без рамок. Всё крупное —
+ * заголовки дверей, значения, кнопка — стоит от одной вертикали (`--auth-axis`
+ * в globals.css), всё мелкое — слева от неё.
  *
  * Сотрудники входят по номеру телефона (фронт-план, 6.8): номер → «пароль»
  * или «придумайте пароль». Сервер отвечает «пароль» и на незнакомый номер,
@@ -28,7 +35,9 @@ import { AuthStage, AuthWait } from "@/components/stage/auth-stage";
  *
  * Что изменилось после проверки 26.09 («Асхат»):
  * - первое поле принимает и почту, и телефон — сотрудник, пришедший без
- *   ссылки, не ищет «Войти как сотрудник»;
+ *   ссылки, не ищет «Войти как сотрудник». Отдельной кнопки больше нет
+ *   (28.09): шаг по номеру открывает само поле, приглашение `?phone=` и
+ *   запомненный вход по номеру;
  * - ссылка-приглашение `?phone=…` сразу спрашивает у сервера шаг и, если
  *   учётка ждёт пароль, открывает «Придумайте пароль»;
  * - шаг «пароль» у учётки, ждущей пароль, уводит к «Придумайте пароль»
@@ -38,15 +47,26 @@ import { AuthStage, AuthWait } from "@/components/stage/auth-stage";
  */
 type Step = "email" | "register" | "phone" | "password" | "set" | "forgot" | "forgot-sent" | "forgot-email";
 
+/** Заголовок двери «Вход» на каждом шаге. Короткий: он набран крупно в узкой колонке. */
 const HEADINGS: Record<Step, string> = {
-  email: "Вход в учёт компании",
-  register: "Регистрация компании",
+  email: "Вход",
+  register: "Регистрация",
   phone: "Вход сотрудника",
   password: "Вход сотрудника",
-  set: "Придумайте пароль",
+  set: "Новый пароль",
   forgot: "Сброс пароля",
-  "forgot-sent": "Запрос отправлен администратору",
+  "forgot-sent": "Запрос отправлен",
   "forgot-email": "Сброс пароля",
+};
+
+/** Куда ведёт «←» на месте номера двери. У корня стрелки нет — там номер. */
+const BACK: Partial<Record<Step, Step>> = {
+  phone: "email",
+  password: "phone",
+  set: "phone",
+  forgot: "phone",
+  "forgot-sent": "phone",
+  "forgot-email": "email",
 };
 
 /** Похоже на номер, а не на почту: цифры и знаки номера, и цифр не меньше десяти. */
@@ -72,6 +92,17 @@ function rememberMode(mode: "phone" | "email") {
   } catch {
     /* не запомнится — ничего страшного */
   }
+}
+
+/**
+ * Первое поле открытой двери — в фокус, когда дверь открыли рукой. Только там,
+ * где есть мышь: на телефоне фокус поднял бы клавиатуру поверх раскрытия.
+ */
+function focusFirstField(bodyId: string) {
+  if (!window.matchMedia("(hover: hover)").matches) return;
+  requestAnimationFrame(() => {
+    document.querySelector<HTMLInputElement>(`#${bodyId} input:not([type="hidden"])`)?.focus({ preventScroll: true });
+  });
 }
 
 export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; notice?: string }) {
@@ -152,6 +183,22 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
     }
   };
 
+  /** «Забыли?» у первого шага: в поле номер — сброс по номеру, иначе — кто сбрасывает пароль по почте. */
+  const forgotFromEmail = () => {
+    const fromField = looksLikePhone(email) ? phoneDigits(email) : "";
+    if (fromField.length === 10 && fromField[0] === "7") {
+      setDigits(fromField);
+      setStep("forgot");
+      return;
+    }
+    setStep("forgot-email");
+  };
+
+  const goBack = (target: Step) => {
+    if (target === "email") rememberMode("email");
+    setStep(target);
+  };
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (busy) return;
@@ -217,212 +264,228 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
     }
   };
 
-  const numberLine = (
-    <p className="auth-number">
-      <span className="fin-mono">{formatPhone(phone)}</span>
-      <button type="button" className="fin-link-btn" onClick={() => setStep("phone")}>
-        Изменить
-      </button>
+  /** Регистрация открыта — дверь «Вход» свёрнута на своём первом шаге. */
+  const registering = step === "register";
+  const inStep: Step = registering ? "email" : step;
+  const back = BACK[inStep];
+
+  const failLine = error ? (
+    <p className="auth-error" role="alert">
+      {error}
     </p>
+  ) : null;
+
+  const numberRow = (
+    <Row
+      label="Телефон"
+      aside={
+        <button type="button" className="auth-aside-btn" onClick={() => setStep("phone")}>
+          Изменить
+        </button>
+      }
+    >
+      <span className="auth-fixed">{formatPhone(phone)}</span>
+    </Row>
+  );
+
+  const phoneRow = (
+    <Row label="Телефон" htmlFor="fin-phone" note={phoneHint} noteId="fin-phone-hint" invalid={!!phoneHint}>
+      <PhoneInput
+        id="fin-phone"
+        value={digits}
+        onChange={(next) => {
+          setDigits(next);
+          setError("");
+        }}
+        autoFocus
+        onBlurCheck={setPhoneHint}
+        aria-describedby={phoneHint ? "fin-phone-hint" : undefined}
+      />
+    </Row>
   );
 
   return (
     <AuthStage intro>
-      <SplitReveal key={`h-${step}`} as="h2" className="auth-heading" by="words" duration={0.7}>
-        {HEADINGS[step]}
-      </SplitReveal>
+      <div className="auth-doors">
+        <Door
+          num="01"
+          title={HEADINGS[inStep]}
+          open={!registering}
+          bodyId="auth-door-in"
+          onOpen={() => {
+            setStep("email");
+            focusFirstField("auth-door-in");
+          }}
+          back={back && !registering ? { label: "Назад", onClick: () => goBack(back) } : undefined}
+        >
+          <form key={inStep} className="auth-sheet" onSubmit={submit} noValidate>
+            {shownNotice && (inStep === "email" || inStep === "phone") ? <p className="auth-say">{shownNotice}</p> : null}
 
-      <FadeIn key={`b-${step}`}>
-        <form className="auth-fields" onSubmit={submit} noValidate>
-          {step === "register" ? (
-            <label className="auth-field">
-              <span className="eyebrow">Название компании</span>
+            {inStep === "email" ? (
+              <>
+                <Row label="Почта или телефон" htmlFor="auth-login">
+                  <input
+                    id="auth-login"
+                    className="auth-input"
+                    type="text"
+                    inputMode="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="buh@company.kz"
+                    autoComplete="username"
+                    required
+                  />
+                </Row>
+                <Row
+                  label="Пароль"
+                  htmlFor="auth-password"
+                  aside={
+                    <button type="button" className="auth-aside-btn" onClick={forgotFromEmail}>
+                      Забыли?
+                    </button>
+                  }
+                >
+                  <PasswordInput id="auth-password" value={password} onChange={setPassword} autoComplete="current-password" />
+                </Row>
+              </>
+            ) : null}
+
+            {inStep === "phone" || inStep === "forgot" ? phoneRow : null}
+
+            {inStep === "password" ? (
+              <>
+                {numberRow}
+                <Row
+                  label="Пароль"
+                  htmlFor="auth-phone-password"
+                  aside={
+                    <button type="button" className="auth-aside-btn" onClick={() => setStep("forgot")}>
+                      Забыли?
+                    </button>
+                  }
+                >
+                  <PasswordInput
+                    id="auth-phone-password"
+                    value={password}
+                    onChange={setPassword}
+                    autoComplete="current-password"
+                    autoFocus
+                  />
+                </Row>
+              </>
+            ) : null}
+
+            {inStep === "set" ? (
+              <>
+                {numberRow}
+                <Row label="Новый пароль" htmlFor="auth-set" aside={<span className="auth-row-hint">от 8 символов</span>}>
+                  <PasswordInput id="auth-set" value={password} onChange={setPassword} autoComplete="new-password" autoFocus />
+                </Row>
+                <Row
+                  label="Ещё раз"
+                  htmlFor="auth-again"
+                  note={mismatch ? "Пароли не совпадают" : ""}
+                  noteId="fin-again-hint"
+                  invalid={mismatch}
+                >
+                  <input
+                    id="auth-again"
+                    className="auth-input"
+                    type="password"
+                    value={again}
+                    onChange={(event) => setAgain(event.target.value)}
+                    onBlur={() => setAgainTouched(true)}
+                    autoComplete="new-password"
+                    aria-invalid={mismatch || undefined}
+                    aria-describedby={mismatch ? "fin-again-hint" : undefined}
+                  />
+                </Row>
+              </>
+            ) : null}
+
+            {inStep === "forgot-email" ? (
+              <p className="auth-say">
+                Пароль администратора сбрасывает владелец компании в личном кабинете. Пароль владельца
+                восстанавливается только на сервере.
+              </p>
+            ) : null}
+            {inStep === "forgot-sent" ? (
+              <p className="auth-say">Когда пароль сбросят, введите номер снова — система попросит придумать новый.</p>
+            ) : null}
+
+            {registering ? null : failLine}
+
+            <Go
+              busy={busy}
+              disabled={
+                ((inStep === "phone" || inStep === "forgot") && !phoneReady) ||
+                (inStep === "set" && (password.length === 0 || again.length === 0))
+              }
+            >
+              {ACTIONS[inStep]}
+            </Go>
+
+            {inStep === "forgot-email" ? (
+              <button type="button" className="auth-more" onClick={() => setStep("forgot")}>
+                Сброс по номеру телефона
+              </button>
+            ) : null}
+          </form>
+        </Door>
+
+        <Door
+          num="02"
+          title={HEADINGS.register}
+          label="Регистрация компании"
+          open={registering}
+          bodyId="auth-door-new"
+          onOpen={() => {
+            setStep("register");
+            focusFirstField("auth-door-new");
+          }}
+        >
+          <form className="auth-sheet" onSubmit={submit} noValidate>
+            <Row label="Компания" htmlFor="auth-company">
               <input
-                className="input-field"
+                id="auth-company"
+                className="auth-input"
                 value={company}
                 onChange={(event) => setCompany(event.target.value)}
                 placeholder="ТОО «Компания»"
                 autoComplete="organization"
                 required
               />
-            </label>
-          ) : null}
-
-          {shownNotice && (step === "email" || step === "phone") ? <p className="auth-note">{shownNotice}</p> : null}
-
-          {step === "email" || step === "register" ? (
-            <>
-              <label className="auth-field">
-                <span className="eyebrow">{step === "email" ? "Почта или телефон" : "Почта"}</span>
-                <input
-                  className="input-field"
-                  type={step === "email" ? "text" : "email"}
-                  inputMode={step === "email" ? "email" : undefined}
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder={step === "email" ? "buh@company.kz или +7 7__ ___ __ __" : "buh@company.kz"}
-                  autoComplete={step === "email" ? "username" : "email"}
-                  required
-                />
-              </label>
-              <label className="auth-field">
-                <span className="eyebrow">Пароль</span>
-                <input
-                  className="input-field"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete={step === "email" ? "current-password" : "new-password"}
-                  required
-                />
-                {step === "register" ? <span className="auth-hint">От восьми символов.</span> : null}
-              </label>
-            </>
-          ) : null}
-
-          {step === "register" ? (
-            <label className="auth-field">
-              <span className="eyebrow">Ваше имя</span>
+            </Row>
+            <Row label="Ваше имя" htmlFor="auth-name">
               <input
-                className="input-field"
+                id="auth-name"
+                className="auth-input"
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
                 autoComplete="name"
                 required
               />
-            </label>
-          ) : null}
-
-          {step === "phone" || step === "forgot" ? (
-            <label className="auth-field" htmlFor="fin-phone">
-              <span className="eyebrow">Телефон</span>
-              <PhoneInput
-                id="fin-phone"
-                value={digits}
-                onChange={(next) => {
-                  setDigits(next);
-                  setError("");
-                }}
-                autoFocus
-                onBlurCheck={setPhoneHint}
-                aria-describedby={phoneHint ? "fin-phone-hint" : undefined}
+            </Row>
+            <Row label="Почта" htmlFor="auth-email">
+              <input
+                id="auth-email"
+                className="auth-input"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="buh@company.kz"
+                autoComplete="email"
+                required
               />
-              {phoneHint ? (
-                <span id="fin-phone-hint" className="auth-hint fin-fail">
-                  {phoneHint}
-                </span>
-              ) : null}
-            </label>
-          ) : null}
-
-          {step === "password" || step === "set" ? numberLine : null}
-
-          {step === "password" ? (
-            <PasswordField value={password} onChange={setPassword} autoComplete="current-password" autoFocus />
-          ) : null}
-
-          {step === "set" ? (
-            <>
-              <PasswordField
-                value={password}
-                onChange={setPassword}
-                autoComplete="new-password"
-                autoFocus
-                hint="От восьми символов."
-              />
-              <label className="auth-field">
-                <span className="eyebrow">Ещё раз</span>
-                <input
-                  className="input-field"
-                  type="password"
-                  value={again}
-                  onChange={(event) => setAgain(event.target.value)}
-                  onBlur={() => setAgainTouched(true)}
-                  autoComplete="new-password"
-                  aria-invalid={mismatch || undefined}
-                  aria-describedby={mismatch ? "fin-again-hint" : undefined}
-                />
-                {mismatch ? (
-                  <span id="fin-again-hint" className="auth-hint fin-fail">
-                    Пароли не совпадают
-                  </span>
-                ) : null}
-              </label>
-            </>
-          ) : null}
-
-          {step === "forgot-email" ? (
-            <p className="auth-note">
-              Пароль администратора сбрасывает владелец компании в личном кабинете. Пароль владельца
-              восстанавливается только на сервере.
-            </p>
-          ) : null}
-          {step === "forgot-sent" ? (
-            <p className="auth-note">Когда пароль сбросят, введите номер снова — система попросит придумать новый.</p>
-          ) : null}
-
-          {error ? (
-            <p className="auth-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          <button
-            type="submit"
-            className="btn-primary mt-1"
-            disabled={
-              busy ||
-              ((step === "phone" || step === "forgot") && !phoneReady) ||
-              (step === "set" && (password.length === 0 || again.length === 0))
-            }
-          >
-            {busy ? "Минуту…" : ACTIONS[step]}
-          </button>
-        </form>
-
-        <div className="auth-links">
-          {step === "email" ? (
-            <>
-              <button type="button" className="btn-ghost auth-switch" onClick={() => setStep("phone")}>
-                Войти как сотрудник
-              </button>
-              <button type="button" className="fin-link-btn auth-link" onClick={() => setStep("forgot-email")}>
-                Забыли пароль?
-              </button>
-              <button type="button" className="fin-link-btn auth-link" onClick={() => setStep("register")}>
-                Регистрация компании
-              </button>
-            </>
-          ) : null}
-          {step === "register" ? (
-            <button type="button" className="btn-ghost auth-switch" onClick={() => setStep("email")}>
-              У меня уже есть учётная запись
-            </button>
-          ) : null}
-          {step === "phone" ? (
-            <button
-              type="button"
-              className="btn-ghost auth-switch"
-              onClick={() => {
-                rememberMode("email");
-                setStep("email");
-              }}
-            >
-              Войти по почте
-            </button>
-          ) : null}
-          {step === "password" ? (
-            <button type="button" className="fin-link-btn auth-link" onClick={() => setStep("forgot")}>
-              Забыли пароль?
-            </button>
-          ) : null}
-          {step === "forgot" ? (
-            <button type="button" className="btn-ghost auth-switch" onClick={() => setStep("phone")}>
-              Ко входу
-            </button>
-          ) : null}
-        </div>
-      </FadeIn>
+            </Row>
+            <Row label="Пароль" htmlFor="auth-new-password" aside={<span className="auth-row-hint">от 8 символов</span>}>
+              <PasswordInput id="auth-new-password" value={password} onChange={setPassword} autoComplete="new-password" />
+            </Row>
+            {registering ? failLine : null}
+            <Go busy={busy}>{ACTIONS.register}</Go>
+          </form>
+        </Door>
+      </div>
     </AuthStage>
   );
 }
@@ -438,18 +501,161 @@ const ACTIONS: Record<Step, string> = {
   "forgot-email": "Ко входу",
 };
 
-function PasswordField({
+/** Сколько сворачивается дверь (`.auth-door-body` в globals.css) — с запасом. */
+const DOOR_FOLD_MS = 700;
+
+/**
+ * Дверь: номер на полях, заголовок крупно, под ним — её строки.
+ *
+ * Закрытая дверь — одна строка указателя: заголовок приглушён, строки
+ * свёрнуты. Открывается по щелчку в любом месте строки. Открытую не закрыть:
+ * одна из двух открыта всегда. На шагах глубже первого номер на полях
+ * сменяется стрелкой назад.
+ *
+ * Строки закрытой двери снимаются, как только она свернулась: иначе на
+ * странице два поля пароля сразу, и менеджер паролей волен заполнить
+ * спрятанное. Пока сворачивается — `inert`, ни фокуса, ни ввода.
+ */
+function Door({
+  num,
+  title,
+  label,
+  open,
+  bodyId,
+  onOpen,
+  back,
+  children,
+}: {
+  num: string;
+  title: string;
+  /** Имя для экранного диктора и проверок, если заголовка мало. */
+  label?: string;
+  open: boolean;
+  bodyId: string;
+  onOpen: () => void;
+  back?: { label: string; onClick: () => void };
+  children: ReactNode;
+}) {
+  const [present, setPresent] = useState(open);
+  // Открылась — строки нужны в этом же кадре, а не после эффекта: иначе
+  // фокус в первое поле некуда поставить.
+  if (open && !present) setPresent(true);
+  useEffect(() => {
+    if (open) return;
+    const timer = window.setTimeout(() => setPresent(false), DOOR_FOLD_MS);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  return (
+    <section className="auth-door" data-open={open || undefined}>
+      <div className="auth-door-head">
+        {back ? (
+          <button type="button" className="auth-door-back" onClick={back.onClick} aria-label={back.label}>
+            <Arrow back />
+          </button>
+        ) : (
+          <span className="auth-door-num" aria-hidden="true">
+            {num}
+          </span>
+        )}
+        <h2 className="auth-door-title">
+          <button
+            type="button"
+            aria-label={label}
+            aria-expanded={open}
+            aria-controls={bodyId}
+            tabIndex={open ? -1 : undefined}
+            onClick={() => {
+              if (!open) onOpen();
+            }}
+          >
+            {/* Текст под SplitText на месте не меняется — новый заголовок новым элементом. */}
+            <SplitReveal key={title} by="words" duration={0.8}>
+              {title}
+            </SplitReveal>
+          </button>
+        </h2>
+      </div>
+      <div id={bodyId} className="auth-door-body" inert={!open}>
+        <div className="auth-door-inner">{present ? children : null}</div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Строка книги: подпись на полях, значение на линейке, справа — короткое
+ * («Забыли?», «от 8 символов», «Изменить»). Отказ — под значением, цветом.
+ */
+function Row({
+  label,
+  htmlFor,
+  aside,
+  note,
+  noteId,
+  invalid,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  aside?: ReactNode;
+  note?: string;
+  noteId?: string;
+  invalid?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="auth-row" data-invalid={invalid || undefined}>
+      {htmlFor ? (
+        <label className="auth-row-label" htmlFor={htmlFor}>
+          {label}
+        </label>
+      ) : (
+        <span className="auth-row-label">{label}</span>
+      )}
+      <div className="auth-row-value">
+        {children}
+        {note ? (
+          <span id={noteId} className="auth-row-note">
+            {note}
+          </span>
+        ) : null}
+      </div>
+      {aside ? <div className="auth-row-aside">{aside}</div> : null}
+    </div>
+  );
+}
+
+/** Главное действие — плита от вертикали значений до края, со стрелкой. */
+function Go({ busy, disabled, children }: { busy: boolean; disabled?: boolean; children: ReactNode }) {
+  return (
+    <button type="submit" className="auth-go" disabled={busy || disabled} aria-busy={busy || undefined}>
+      <span>{busy ? "Минуту…" : children}</span>
+      {busy ? null : <Arrow />}
+    </button>
+  );
+}
+
+function Arrow({ back = false }: { back?: boolean }) {
+  return (
+    <svg className="auth-arrow" viewBox="0 0 20 20" aria-hidden="true">
+      <path d={back ? "M17 10H4M9 5l-5 5 5 5" : "M3 10h13M11 5l5 5-5 5"} />
+    </svg>
+  );
+}
+
+function PasswordInput({
+  id,
   value,
   onChange,
   autoComplete,
   autoFocus,
-  hint,
 }: {
+  id: string;
   value: string;
   onChange: (value: string) => void;
   autoComplete: string;
   autoFocus?: boolean;
-  hint?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   // `autoFocus` в форме, которая проявляется, срабатывает раньше, чем поле
@@ -460,19 +666,16 @@ function PasswordField({
     return () => cancelAnimationFrame(frame);
   }, [autoFocus]);
   return (
-    <label className="auth-field">
-      <span className="eyebrow">Пароль</span>
-      <input
-        ref={ref}
-        className="input-field"
-        type="password"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        autoComplete={autoComplete}
-        required
-      />
-      {hint ? <span className="auth-hint">{hint}</span> : null}
-    </label>
+    <input
+      ref={ref}
+      id={id}
+      className="auth-input"
+      type="password"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      autoComplete={autoComplete}
+      required
+    />
   );
 }
 
@@ -505,39 +708,42 @@ export function PasswordChangeGate({ onDone }: { onDone: () => void }) {
 
   return (
     <AuthStage>
-      <h2 className="auth-heading">Смените временный пароль</h2>
-      <form className="auth-fields" onSubmit={submit}>
-        <label className="auth-field">
-          <span className="eyebrow">Временный пароль</span>
-          <input
-            className="input-field"
-            type="password"
-            value={oldPassword}
-            onChange={(event) => setOld(event.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        <label className="auth-field">
-          <span className="eyebrow">Новый пароль</span>
-          <input
-            className="input-field"
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNew(event.target.value)}
-            autoComplete="new-password"
-            required
-          />
-        </label>
-        {error ? (
-          <p className="auth-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <button type="submit" className="btn-primary mt-1" disabled={busy}>
-          {busy ? "Меняем…" : "Сменить пароль"}
-        </button>
-      </form>
+      <div className="auth-doors">
+        <section className="auth-door" data-open="">
+          <div className="auth-door-head">
+            <span className="auth-door-num" aria-hidden="true" />
+            <h2 className="auth-door-title">Смена пароля</h2>
+          </div>
+          <div className="auth-door-body">
+            <div className="auth-door-inner">
+              <form className="auth-sheet" onSubmit={submit}>
+                <Row label="Временный пароль" htmlFor="auth-old-password">
+                  <PasswordInput
+                    id="auth-old-password"
+                    value={oldPassword}
+                    onChange={setOld}
+                    autoComplete="current-password"
+                    autoFocus
+                  />
+                </Row>
+                <Row
+                  label="Новый пароль"
+                  htmlFor="auth-fresh-password"
+                  aside={<span className="auth-row-hint">от 8 символов</span>}
+                >
+                  <PasswordInput id="auth-fresh-password" value={newPassword} onChange={setNew} autoComplete="new-password" />
+                </Row>
+                {error ? (
+                  <p className="auth-error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                <Go busy={busy}>Сменить пароль</Go>
+              </form>
+            </div>
+          </div>
+        </section>
+      </div>
     </AuthStage>
   );
 }

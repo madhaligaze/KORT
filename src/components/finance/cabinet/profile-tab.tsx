@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { RESOURCE_TITLES, isAdmin, levelOf } from "@/components/finance/access";
 import { type Me, financeApi, peopleApi } from "@/components/finance/api";
 import { EditLine } from "@/components/finance/cabinet/edit-line";
-import { ThemeLine } from "@/components/finance/cabinet/theme-line";
 import { plural } from "@/components/finance/format";
 
 /**
@@ -68,8 +67,8 @@ export function ProfileTab({ me, onMe }: { me: Me; onMe: (next: Me) => void }) {
         </span>
       </div>
 
-      <div className="cab-lines-gap" />
-      <ThemeLine />
+      {/* Тема — тумблером в шапке, как на входе (28.09.2026), а не строкой здесь. */}
+      {(me.companies?.length ?? 0) > 1 ? <div className="cab-lines-gap" /> : null}
       {(me.companies?.length ?? 0) > 1 ? (
         <div className="cab-line">
           <span className="cab-line-label">Компании</span>
