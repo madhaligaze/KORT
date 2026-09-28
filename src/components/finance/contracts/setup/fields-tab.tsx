@@ -1,20 +1,25 @@
 "use client";
 
 /**
- * «Поля»: какие колонки есть у договора, в каком порядке и как подписаны.
+ * «Поля»: какие колонки есть у договора, как их заполняют и — у списков —
+ * какие в них значения.
  *
- * Один список управляет листом, карточкой, разбором Excel, выгрузкой и
+ * С 28.09.2026 здесь и списки: вкладки «Поля» и «Списки» говорили об одном и
+ * том же поле с двух концов, и было непонятно, где что править. Теперь поле —
+ * одна строка (название, тип, что с ним не так), а всё о нём — в раскрытии под
+ * строкой: название, тип, заполнение, обязательность, видимость и значения
+ * списка. Закрытая строка молчит: на экране тридцать полей, и шум семи колонок
+ * переключателей на каждой строке — то, что владелец назвал «непонятно, что за
+ * реализация».
+ *
+ * Один список полей управляет листом, карточкой, разбором Excel, выгрузкой и
  * правами на поля, поэтому правка здесь меняет всё сразу — после ответа
  * сервера схема перечитывается, и лист перестраивается сам.
  *
- * Системное поле можно переименовать и спрятать, но не убрать: на нём держатся
- * начисления, долги и отборы листов. Поэтому «Убрать» есть только у своего
- * поля: у системного эта кнопка всегда кончалась отказом сервера.
- *
- * «Заполнение» — как поле заполняют в листе и карточке (по «Настройкам
- * реестра» BBC): только из списка, список или своё, у стороны — только наши
- * юрлица. Из этого лист ставит выпадающий список, а сервер решает, заводить ли
- * новое значение из напечатанного.
+ * Системное поле можно переименовать, спрятать, сделать обязательным, но не
+ * убрать и не сменить ему тип: на нём держатся отборы листов, начисления и
+ * долги. Это сказано словами у типа и в подсказке, а не молчаливым текстом,
+ * который не нажимается.
  */
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 
@@ -22,14 +27,35 @@ import { type FieldType, type RegistryField, contractsApi } from "@/components/f
 import { useRegistry } from "@/components/finance/contracts/store";
 import { plural } from "@/components/finance/format";
 import { useSessionState } from "@/components/session-state";
-import { ArrowDownIcon, ArrowUpIcon } from "@/components/icons";
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 import { InlineText } from "@/components/finance/contracts/setup/inline-text";
+import { ValuesPane, isListField, twins, unmeant } from "@/components/finance/contracts/setup/lists-tab";
 import { ChoicePop } from "@/components/finance/contracts/setup/popover";
+import { tip } from "@/components/finance/contracts/setup/tip";
 import { useSetupAction } from "@/components/finance/contracts/setup/use-setup-action";
 import { CUSTOM_TYPES, TYPE_WORDS, fillWord, hasValue } from "@/components/finance/contracts/setup/words";
 
-const READ_ONLY = new Set(["paid_snapshot", "remaining_snapshot", "paid", "remaining"]);
+const READ_ONLY = new Set(["paid_snapshot", "remaining_snapshot", "paid", "remaining", "summary_paid", "summary_remaining", "age_months"]);
+
+/** Что значит тип поля — для подсказки у типа. */
+const TYPE_TIPS: Partial<Record<FieldType, string>> = {
+  text: "Свободный текст.",
+  number: "Число без денег: количество, срок.",
+  money: "Сумма в тенге с копейками — её складывают отчёты.",
+  date: "Дата вида дд.мм.гггг.",
+  bool: "Да или нет.",
+  list: "Одно значение из списка — список раскрывается под полем.",
+  multi_list: "Несколько значений из списка.",
+  url: "Ссылка — в карточке открывается кнопкой.",
+  person: "Сотрудник из личного кабинета («Люди»).",
+  party: "Сторона договора: контрагент или наше юрлицо.",
+  department: "Отдел компании. По нему режутся права «договоры своего отдела».",
+  choice: "Выбор из нескольких вариантов, заданных системой.",
+};
+
+const FILL_TIP =
+  "Как поле заполняют в листе и карточке: только из списка (напечатанное не из списка — отказ) или список с подсказкой, но можно своё (новое значение заведётся само).";
 
 type Ask =
   | { kind: "archive"; field: RegistryField; count: number }
@@ -45,7 +71,8 @@ export function FieldsTab() {
   const action = useSetupAction();
   const [ask, setAsk] = useState<Ask | null>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  // Набранное новое поле переживает перезагрузку (`session-state.tsx`).
+  // Раскрытое поле и набранное новое переживают перезагрузку (`session-state.tsx`).
+  const [openKey, setOpenKey] = useSessionState<string | null>("setup.field-open", null);
   const [title, setTitle] = useSessionState("setup.field-new.title", "");
   const [type, setType] = useSessionState<FieldType>("setup.field-new.type", "text");
 
@@ -54,8 +81,8 @@ export function FieldsTab() {
     [schema],
   );
 
-  // Сколько договоров держат значение поля — для «Значения в 212 договорах
-  // уйдут вместе с ним». Считается по хранилищу: все договоры уже в браузере.
+  // Сколько договоров держат значение поля — «в 212 договорах». Считается по
+  // хранилищу: все договоры уже в браузере.
   const filled = useMemo(() => {
     const counts = new Map<string, number>();
     for (const contract of byId.values()) {
@@ -71,8 +98,7 @@ export function FieldsTab() {
   // в фокусе: иначе второй Alt+↓ подряд уходил бы в никуда.
   useEffect(() => {
     if (!focusKey) return;
-    const row = document.querySelector<HTMLElement>(`[data-field-row="${CSS.escape(focusKey)}"]`);
-    row?.focus({ preventScroll: false });
+    document.querySelector<HTMLElement>(`[data-field-head="${CSS.escape(focusKey)}"]`)?.focus({ preventScroll: false });
   }, [focusKey, fields]);
 
   if (!schema) return null;
@@ -86,9 +112,8 @@ export function FieldsTab() {
     void action.run(`move:${field.key}`, () => contractsApi.setup.updateField(field.key, { after }));
   };
 
-  const onRowKey = (event: KeyboardEvent<HTMLDivElement>, index: number, key: string) => {
+  const onHeadKey = (event: KeyboardEvent<HTMLButtonElement>, index: number, key: string) => {
     if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
-    if (event.target !== event.currentTarget) return;
     event.preventDefault();
     setFocusKey(key);
     move(index, event.key === "ArrowUp" ? -1 : 1);
@@ -110,144 +135,241 @@ export function FieldsTab() {
 
   return (
     <div className="setup-fields">
-      <div className="setup-fields-head" aria-hidden="true">
+      <div className="setup-fhead">
         <span />
-        <span className="eyebrow">Поле</span>
-        <span className="eyebrow">Тип</span>
-        <span className="eyebrow">Заполнение</span>
+        <span className="eyebrow" {...tip("Колонка договора — в листе, карточке, выгрузке и правах. Щёлкните строку, чтобы открыть её настройки.")}>
+          Поле
+        </span>
+        <span className="eyebrow" {...tip("Что в поле хранится: текст, сумма, дата, список… От типа зависит, как его заполняют и считают.")}>
+          Тип
+        </span>
         <span />
-        <span />
+        <span className="eyebrow setup-num" {...tip("В скольких договорах поле заполнено.")}>
+          Заполнено
+        </span>
         <span />
       </div>
       <div role="list" aria-label="Поля договора">
         {fields.map((field, index) => {
           const count = filled.get(field.key) ?? 0;
-          const readOnly = READ_ONLY.has(field.key);
-          const errors = [
-            action.error(`move:${field.key}`),
-            action.error(`required:${field.key}`),
-            action.error(`hidden:${field.key}`),
-            action.error(`type:${field.key}`),
-            action.error(`fill:${field.key}`),
-            action.error(`archive:${field.key}`),
-          ].filter(Boolean);
+          const open = openKey === field.key;
+          const list = isListField(field);
+          const values = schema.lists[field.key] ?? [];
+          const twinCount = list ? twins(values) : 0;
+          const bare = list ? unmeant(field, values) : 0;
+          const errors = ["move", "required", "hidden", "type", "fill", "archive", "title"]
+            .map((slot) => action.error(`${slot}:${field.key}`))
+            .filter(Boolean);
+          // Особое — только то, что отличает поле от обычного: так строка
+          // молчит, пока с полем всё как у всех.
+          const notes: { text: string; fail?: boolean; tip: string }[] = [];
+          if (list) notes.push({ text: `${values.length} ${plural(values.length, "значение", "значения", "значений")}`, tip: "Значения списка — раскройте поле, чтобы их править." });
+          if (bare) notes.push({ text: `без смысла ${bare}`, fail: true, tip: "У этих значений не назначен смысл — у договоров с ними горит замечание." });
+          if (twinCount) notes.push({ text: `похожих ${twinCount}`, fail: true, tip: "Похоже на опечатку: два значения почти одинаковы и делят отчёт надвое. Раскройте поле — там «свести» или «это разные»." });
+          if (field.required) notes.push({ text: "обязательное", tip: "Пустое поле даёт договору замечание «Не заполнено»." });
+          if (field.hidden) notes.push({ text: "спрятано", tip: "Поля нет в листе и карточке, значения в договорах сохранены." });
+          if (!field.system) notes.push({ text: "своё", tip: "Поле заведено здесь, а не системой: его можно удалить и сменить ему тип." });
           return (
-            <div
-              key={field.key}
-              role="listitem"
-              tabIndex={0}
-              data-field-row={field.key}
-              className="setup-field"
-              data-hidden={field.hidden ? "true" : undefined}
-              aria-label={`${field.title}, ${index + 1} из ${fields.length}. Alt и стрелка — подвинуть`}
-              onKeyDown={(event) => onRowKey(event, index, field.key)}
-            >
+            <div key={field.key} role="listitem" className="setup-frow" data-open={open ? "true" : undefined} data-hidden={field.hidden ? "true" : undefined}>
               <span className="setup-field-move">
                 <button
                   type="button"
                   className="fin-icon-btn setup-move-btn"
                   aria-label={`Поднять «${field.title}»`}
+                  {...tip("Выше в списке — левее в листе, выше в карточке. С клавиатуры: Alt и стрелка.")}
                   disabled={index === 0 || action.busy(`move:${field.key}`)}
                   onClick={() => move(index, -1)}
                 >
-                  <ArrowUpIcon size={16} />
+                  <ArrowUpIcon size={15} />
                 </button>
                 <button
                   type="button"
                   className="fin-icon-btn setup-move-btn"
                   aria-label={`Опустить «${field.title}»`}
+                  {...tip("Ниже в списке — правее в листе, ниже в карточке.")}
                   disabled={index === fields.length - 1 || action.busy(`move:${field.key}`)}
                   onClick={() => move(index, 1)}
                 >
-                  <ArrowDownIcon size={16} />
+                  <ArrowDownIcon size={15} />
                 </button>
               </span>
-              <span className="setup-field-title">
-                <InlineText
-                  value={field.title}
-                  label="Название поля"
-                  trace={action.trace(`title:${field.key}`)}
-                  error={action.error(`title:${field.key}`)}
-                  onCommit={(next) =>
-                    void action.run(`title:${field.key}`, () => contractsApi.setup.updateField(field.key, { title: next }))
-                  }
-                />
-                {field.system ? null : <span className="setup-field-flag">своё</span>}
-                {field.hidden ? <span className="setup-field-flag">спрятано</span> : null}
-              </span>
-              <span className="setup-field-type">
-                {field.system ? (
-                  <span className="annot">{TYPE_WORDS[field.type] ?? field.type}</span>
-                ) : (
-                  <span className="annot">
-                    <ChoicePop
-                      value={field.type}
-                      options={CUSTOM_TYPES.map((item) => ({ value: item, label: TYPE_WORDS[item] }))}
-                      label={`Тип поля «${field.title}»`}
-                      disabled={action.busy(`type:${field.key}`)}
-                      onPick={(next) => {
-                        if (count > 0) setAsk({ kind: "type", field, type: next as FieldType, count });
-                        else patch(field, { type: next }, "type");
-                      }}
-                    />
-                  </span>
-                )}
-              </span>
-              <span className="setup-field-fill">
-                {field.fill && field.fills && field.fills.length > 1 ? (
-                  <ChoicePop
-                    value={field.fill}
-                    options={field.fills.map((item) => ({ value: item, label: fillWord(field.type, item) }))}
-                    label={`Как заполняется «${field.title}»`}
-                    disabled={action.busy(`fill:${field.key}`)}
-                    onPick={(next) => patch(field, { fill: next }, "fill")}
-                  />
-                ) : null}
-              </span>
-              <span className="setup-field-req">
-                {readOnly ? (
-                  <span className="setup-field-kind">только чтение</span>
-                ) : (
-                  <button
-                    type="button"
-                    className="setup-toggle"
-                    aria-pressed={field.required}
-                    disabled={action.busy(`required:${field.key}`)}
-                    onClick={() => patch(field, { required: !field.required }, "required")}
-                  >
-                    {/* Состояние — словом: одно «обязательное» на каждой строке,
-                        различавшееся только оттенком, читалось как «все поля
-                        обязательны», хотя не было ни одного. */}
-                    {field.required ? "обязательное" : "необязательное"}
-                  </button>
-                )}
-              </span>
-              <span className="setup-field-hide">
-                <button
-                  type="button"
-                  className="fin-link-btn"
-                  disabled={action.busy(`hidden:${field.key}`)}
-                  onClick={() => patch(field, { hidden: !field.hidden }, "hidden")}
-                >
-                  {field.hidden ? "Показать" : "Спрятать"}
-                </button>
-              </span>
-              <span className="setup-field-drop">
-                {field.system ? null : (
-                  <button
-                    type="button"
-                    className="fin-link-btn setup-quiet"
-                    disabled={action.busy(`archive:${field.key}`)}
-                    onClick={() => setAsk({ kind: "archive", field, count })}
-                  >
-                    Удалить
-                  </button>
-                )}
-              </span>
-              {errors.length ? (
+              <button
+                type="button"
+                className="setup-fhead-btn"
+                data-field-head={field.key}
+                aria-expanded={open}
+                aria-label={`${field.title}, ${index + 1} из ${fields.length}. Alt и стрелка — подвинуть`}
+                onKeyDown={(event) => onHeadKey(event, index, field.key)}
+                onClick={() => setOpenKey(open ? null : field.key)}
+              >
+                <span className="setup-ftitle">{field.title}</span>
+                <span className="setup-ftype">{TYPE_WORDS[field.type] ?? field.type}</span>
+                <span className="setup-fnotes">
+                  {notes.map((note) => (
+                    <span key={note.text} className={note.fail ? "fin-fail" : undefined} {...tip(note.tip)}>
+                      {note.text}
+                    </span>
+                  ))}
+                </span>
+                <span className="setup-fcount setup-num">{count || "—"}</span>
+                <span className="setup-fchev" aria-hidden="true">
+                  <ChevronRightIcon size={14} />
+                </span>
+              </button>
+              {errors.length && !open ? (
                 <span className="setup-field-note setup-error" role="alert">
                   {errors[0]}
                 </span>
+              ) : null}
+
+              {open ? (
+                <div className="setup-fbody">
+                  <div className="setup-brow">
+                    <span className="setup-blabel" {...tip("Так поле подписано в шапке листа, в карточке и в выгрузке. Загрузка Excel узнаёт колонку и по прежним названиям.")}>
+                      Название
+                    </span>
+                    <span className="setup-bvalue">
+                      <InlineText
+                        value={field.title}
+                        label="Название поля"
+                        trace={action.trace(`title:${field.key}`)}
+                        error={action.error(`title:${field.key}`)}
+                        onCommit={(next) =>
+                          void action.run(`title:${field.key}`, () => contractsApi.setup.updateField(field.key, { title: next }))
+                        }
+                      />
+                    </span>
+                  </div>
+
+                  <div className="setup-brow">
+                    <span className="setup-blabel" {...tip(TYPE_TIPS[field.type] ?? "Что в поле хранится.")}>
+                      Тип
+                    </span>
+                    <span className="setup-bvalue">
+                      {field.system ? (
+                        <span className="setup-fixed" {...tip("Системное поле: на его типе держатся отборы листов, начисления и долги, поэтому тип не меняется. Нужен другой тип — заведите своё поле внизу списка.")}>
+                          {TYPE_WORDS[field.type] ?? field.type}
+                          <span className="fin-muted"> · системное, тип не меняется</span>
+                        </span>
+                      ) : (
+                        <ChoicePop
+                          value={field.type}
+                          options={CUSTOM_TYPES.map((item) => ({ value: item, label: TYPE_WORDS[item], hint: TYPE_TIPS[item] }))}
+                          label={`Тип поля «${field.title}»`}
+                          disabled={action.busy(`type:${field.key}`)}
+                          onPick={(next) => {
+                            if (count > 0) setAsk({ kind: "type", field, type: next as FieldType, count });
+                            else patch(field, { type: next }, "type");
+                          }}
+                        />
+                      )}
+                    </span>
+                  </div>
+
+                  {field.fill && field.fills && field.fills.length > 1 ? (
+                    <div className="setup-brow">
+                      <span className="setup-blabel" {...tip(FILL_TIP)}>
+                        Заполнение
+                      </span>
+                      <span className="setup-bvalue">
+                        <ChoicePop
+                          value={field.fill}
+                          options={field.fills.map((item) => ({ value: item, label: fillWord(field.type, item) }))}
+                          label={`Как заполняется «${field.title}»`}
+                          disabled={action.busy(`fill:${field.key}`)}
+                          onPick={(next) => patch(field, { fill: next }, "fill")}
+                        />
+                      </span>
+                    </div>
+                  ) : null}
+
+                  <div className="setup-brow">
+                    <span className="setup-blabel" {...tip("Обязательное поле не запрещает сохранить договор: пустое даёт замечание «Не заполнено», и договор виден в «N замечаний».")}>
+                      Обязательное
+                    </span>
+                    <span className="setup-bvalue">
+                      {READ_ONLY.has(field.key) ? (
+                        <span className="fin-muted">считается само — только чтение</span>
+                      ) : (
+                        <span className="setup-pair" role="radiogroup" aria-label={`«${field.title}» обязательное`}>
+                          {[
+                            { on: false, label: "нет" },
+                            { on: true, label: "да — пустое даёт замечание" },
+                          ].map((item) => (
+                            <button
+                              key={String(item.on)}
+                              type="button"
+                              role="radio"
+                              className="setup-toggle"
+                              aria-checked={field.required === item.on}
+                              data-on={field.required === item.on ? "true" : undefined}
+                              disabled={action.busy(`required:${field.key}`)}
+                              onClick={() => field.required !== item.on && patch(field, { required: item.on }, "required")}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="setup-brow">
+                    <span className="setup-blabel" {...tip("Спрятанного поля нет в листе и карточке ни у кого. Значения в договорах остаются — покажете, и они вернутся.")}>
+                      Видно
+                    </span>
+                    <span className="setup-bvalue">
+                      <span className="setup-pair" role="radiogroup" aria-label={`«${field.title}» видно`}>
+                        {[
+                          { hidden: false, label: "в листе и карточке" },
+                          { hidden: true, label: "спрятано" },
+                        ].map((item) => (
+                          <button
+                            key={String(item.hidden)}
+                            type="button"
+                            role="radio"
+                            className="setup-toggle"
+                            aria-checked={field.hidden === item.hidden}
+                            data-on={field.hidden === item.hidden ? "true" : undefined}
+                            disabled={action.busy(`hidden:${field.key}`)}
+                            onClick={() => field.hidden !== item.hidden && patch(field, { hidden: item.hidden }, "hidden")}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </span>
+                    </span>
+                  </div>
+
+                  {list ? (
+                    <div className="setup-fvalues">
+                      <p className="setup-fvalues-title" {...tip("Что можно выбрать в этом поле. Переименование, смысл и сведение двух значений в одно — здесь; договоры следуют сами.")}>
+                        Значения
+                      </p>
+                      <ValuesPane field={field} />
+                    </div>
+                  ) : null}
+
+                  {errors.length ? (
+                    <p className="setup-error" role="alert">
+                      {errors[0]}
+                    </p>
+                  ) : null}
+
+                  {field.system ? null : (
+                    <div className="setup-block-foot">
+                      <button
+                        type="button"
+                        className="fin-link-btn setup-quiet"
+                        {...tip(count ? `Значения в ${inContracts(count)} уйдут вместе с полем в корзину.` : "Поле уйдёт в корзину. Вернуть — из корзины в личном кабинете.")}
+                        disabled={action.busy(`archive:${field.key}`)}
+                        onClick={() => setAsk({ kind: "archive", field, count })}
+                      >
+                        Удалить поле
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : null}
             </div>
           );
@@ -261,7 +383,9 @@ export function FieldsTab() {
           void add();
         }}
       >
-        <span className="setup-add-lead">+ Поле</span>
+        <span className="setup-add-lead" {...tip("Своё поле — колонка, которой нет в системе: «Источник», «Коммент БИС». Встанет в конец списка, в листы — через «Листы» → колонки.")}>
+          + Поле
+        </span>
         <input
           type="text"
           className="setup-input"
@@ -274,7 +398,7 @@ export function FieldsTab() {
           тип{" "}
           <ChoicePop
             value={type}
-            options={CUSTOM_TYPES.map((item) => ({ value: item, label: TYPE_WORDS[item] }))}
+            options={CUSTOM_TYPES.map((item) => ({ value: item, label: TYPE_WORDS[item], hint: TYPE_TIPS[item] }))}
             label="Тип нового поля"
             onPick={(next) => setType(next as FieldType)}
           />
@@ -305,6 +429,7 @@ export function FieldsTab() {
           if (!ask) return;
           const field = ask.field;
           setAsk(null);
+          setOpenKey(null);
           void action.run(`archive:${field.key}`, () => contractsApi.setup.updateField(field.key, { archived: true }));
         }}
       />

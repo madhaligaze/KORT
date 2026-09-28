@@ -98,7 +98,11 @@ function emptyText(me: Me): string {
   return "Договоров пока нет";
 }
 
-export function Registry({ me, onGo }: { me: Me; onGo: (section: string) => void }) {
+/**
+ * `book` — книга листов: `""` — реестр, `oneoff` — «Разовые ЮО». Вкладки —
+ * листы своей книги; поиск, отбор и черновик у каждой книги свои.
+ */
+export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: string) => void; book?: string }) {
   useRegistryBoot(me);
   const phase = useRegistry((s) => s.phase);
   const error = useRegistry((s) => s.error);
@@ -111,22 +115,23 @@ export function Registry({ me, onGo }: { me: Me; onGo: (section: string) => void
   const removed = useRegistry((s) => s.departed);
   const wasIn = useRegistry((s) => s.wasIn);
 
-  // Только листы реестра: «Разовые» — своя книга рядом с заголовком.
+  // Только листы своей книги: у реестра и «Разовых» наборы листов разные.
   const views = useMemo(
-    () => [...(schema?.views ?? [])].filter((view) => inBook(view, "")).sort((a, b) => a.position - b.position),
-    [schema],
+    () => [...(schema?.views ?? [])].filter((view) => inBook(view, book)).sort((a, b) => a.position - b.position),
+    [schema, book],
   );
   const [viewKey, setViewKey] = useState<string>(() => readParam("v") ?? "main");
   const view = views.find((item) => item.key === viewKey) ?? views[0];
   // Поиск, отбор и начатый новый договор переживают перезагрузку
   // (`session-state.tsx`); открытый договор — в адресе (`?id=`).
-  const [query, setQuery] = useSessionState("registry.query", "");
-  const [issuesOnly, setIssuesOnly] = useSessionState("registry.issues", false);
+  const scope = book ? `registry.${book}` : "registry";
+  const [query, setQuery] = useSessionState(`${scope}.query`, "");
+  const [issuesOnly, setIssuesOnly] = useSessionState(`${scope}.issues`, false);
   // Сортировка своя у каждого листа и помнится в браузере. Выбранная здесь
   // привязана к листу, на котором её выбрали; на другом листе — его память.
   const [sortPick, setSortPick] = useState<{ view: string; sort: { key: SortKey; dir: 1 | -1 } | null } | null>(null);
   const [openId, setOpenId] = useState<string | null>(() => readParam("id"));
-  const [draft, setDraft] = useSessionState<{ view?: string; block?: number } | null>("registry.new", null);
+  const [draft, setDraft] = useSessionState<{ view?: string; block?: number } | null>(`${scope}.new`, null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [slowPhase, setSlowPhase] = useState(false);
   const search = useRef<HTMLInputElement>(null);
@@ -149,7 +154,7 @@ export function Registry({ me, onGo }: { me: Me; onGo: (section: string) => void
     setViewKey(key);
     setIssuesOnly(false);
     forgetDeparted();
-    writeParams({ v: key === "main" ? null : key }, false);
+    writeParams({ v: key === (views[0]?.key ?? "main") ? null : key }, false);
   };
 
   const openCard = useCallback((id: string | null) => {
@@ -317,7 +322,10 @@ export function Registry({ me, onGo }: { me: Me; onGo: (section: string) => void
   const menu = [
     { label: "Загрузить Excel", hidden: !canSetup, onSelect: () => onGo("contracts-import") },
     { label: "Настроить реестр", hidden: !canSetup, onSelect: () => onGo("contracts-setup") },
-    { label: "Скачать .xlsx", onSelect: () => (window.location.href = contractsApi.exportUrl()) },
+    {
+      label: "Скачать .xlsx",
+      onSelect: () => (window.location.href = contractsApi.exportUrl(book ? views.map((item) => item.key) : undefined)),
+    },
   ];
 
   if (!all.length && !needle) {
@@ -354,6 +362,7 @@ export function Registry({ me, onGo }: { me: Me; onGo: (section: string) => void
         <ContractCard
           id={null}
           open={!!draft}
+          book={book}
           draftContext={draft ?? undefined}
           onClose={() => setDraft(null)}
           onCreated={(id) => openCard(id)}
@@ -455,6 +464,7 @@ export function Registry({ me, onGo }: { me: Me; onGo: (section: string) => void
       <ContractCard
         id={openId}
         open={!!openId || !!draft}
+        book={book}
         draftContext={draft ?? undefined}
         onClose={() => {
           if (openId) {
@@ -718,6 +728,9 @@ const Row = memo(function Row({
   const roles = roleLabels(contract);
   const phase = phaseOf(schema, contract);
   const issues = contract.issues.filter((issue) => !issue.acknowledged).length;
+  // Отмеченное «Учтено» не горит, но и не пропадает: строка помнит, что
+  // замечание было и его проверили, — открыть и посмотреть можно всегда.
+  const settled = contract.issues.length - issues;
   const billing = String(contract.values.billing ?? "");
   const amount = contract.values.amount;
   const terms = String(contract.values.amount_terms ?? "");
@@ -775,8 +788,12 @@ const Row = memo(function Row({
       </span>
       {departed ? (
         <span className="creg-note">{departed}</span>
+      ) : issues ? (
+        <span className="creg-issues">{`${issues} ${plural(issues, "замечание", "замечания", "замечаний")}`}</span>
       ) : (
-        <span className="creg-issues">{issues ? `${issues} ${plural(issues, "замечание", "замечания", "замечаний")}` : ""}</span>
+        <span className="creg-note" title={contract.readonly ? "Договор другого отдела — открыт на просмотр" : undefined}>
+          {[settled ? "учтено" : "", contract.readonly ? "просмотр" : ""].filter(Boolean).join(" · ")}
+        </span>
       )}
       <span className="creg-meta">
         {[number, own.code, kind, phase !== "active" ? status : ""].filter(Boolean).join(" · ")}

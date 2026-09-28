@@ -1,34 +1,44 @@
 "use client";
 
 /**
- * «Листы»: листы-отборы и их блоки.
+ * «Листы»: листы-отборы реестра и «Разовых».
  *
- * Лист ничего не хранит — он показывает договоры, подходящие под правило
- * одного из своих блоков (`views.py`). Блок без условий у обычного листа не
- * отбирает ничего — новый лист и новый блок пусты, пока не задано условие; у
- * главного листа такой блок держит всё, что не подошло другим блокам
- * (`views.place`), поэтому фраза пустого правила у них разная. Правило, подписи сторон, колонки и
- * подстановки новой строки — у блока; у листа без блоков один блок без
- * названия, и настройка выглядит так же.
+ * Лист ничего не хранит — он показывает договоры, подходящие под его правило
+ * (`views.py`). Лист бывает поделён на части с заголовком — «АГЕНТСКИЙ
+ * ДОГОВОР», «АРЕНДА», «ФИН. ПОМОЩЬ» в «Прочих договорах», как в Excel, откуда
+ * он пришёл; у каждой части своё правило, шапка и подстановки. В данных это
+ * блоки листа.
+ *
+ * 28.09.2026 владелец «понажимал на всё и не понял, как работает»: у каждого
+ * листа стояли «Блоки · + блок» и «Весь лист» — даже у листа без частей, а у
+ * главного листа «+ условие» ничего не меняло (главный держит все договоры).
+ * Теперь:
+ * * лист без частей показывает свои настройки сразу, слова «блок» нет;
+ * * деление на части — отдельной кнопкой «Разделить лист на части» с
+ *   подсказкой, что это и зачем; части появляются, только когда их больше одной;
+ * * у главного листа из одной части правило не редактируется — сказано, что в
+ *   нём все договоры реестра;
+ * * у каждой кнопки и подписи — подсказка при наведении (`tip.tsx`).
  *
  * Правило, в отличие от подписей, не сохраняется на каждый щелчок: условие,
  * у которого ещё не выбрано значение, не отбирает ни одного договора, и
- * недописанное правило на секунду опустошило бы блок у всех, кто сейчас
- * смотрит этот лист. Поэтому правка правила — черновик со своим счётчиком
- * «подходит N», а на сервер уходит по «Применить правило». Подписи,
- * подстановки и название — безвредны и сохраняются сразу.
+ * недописанное правило на секунду опустошило бы лист у всех, кто сейчас его
+ * смотрит. Поэтому правка правила и подсветки — черновик со своим счётчиком
+ * «подходит N», а на сервер уходит по «Применить». Подписи, подстановки и
+ * название — безвредны и сохраняются сразу.
  */
 import { useMemo, useState } from "react";
 
 import { type RegistryView, type ViewBlock, type ViewFilter, contractsApi } from "@/components/finance/api";
-import { viewCounts } from "@/components/finance/contracts/schema";
+import { bookTitle, viewCounts } from "@/components/finance/contracts/schema";
 import { useRegistry } from "@/components/finance/contracts/store";
 import { plural } from "@/components/finance/format";
-import { ArrowDownIcon, ArrowUpIcon } from "@/components/icons";
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon, CloseIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 import { FilterSentence, RuleCount, ruleProblem } from "@/components/finance/contracts/setup/filter-sentence";
 import { InlineText } from "@/components/finance/contracts/setup/inline-text";
-import { ChoicePop, type PopOption } from "@/components/finance/contracts/setup/popover";
+import { ChoicePop, MultiPop, type PopOption } from "@/components/finance/contracts/setup/popover";
+import { tip } from "@/components/finance/contracts/setup/tip";
 import { useSetupAction, type SetupAction } from "@/components/finance/contracts/setup/use-setup-action";
 import { BILLING_WORDS, lowerFirst, slotTitles } from "@/components/finance/contracts/setup/words";
 import { useSessionState } from "@/components/session-state";
@@ -49,13 +59,23 @@ function canon(filter: ViewFilter | null | undefined): string {
 }
 
 /** Книги листов: реестр (карточки и «Таблица») и «Разовые». */
-const BOOKS = [
-  { key: "", title: "Реестр", pick: "в реестр" },
-  { key: "oneoff", title: "Разовые", pick: "в «Разовые»" },
-];
+const BOOK_KEYS = ["", "oneoff"];
 
 function contractsCount(count: number): string {
   return `${count} ${plural(count, "договор", "договора", "договоров")}`;
+}
+
+/** Новая часть или новый лист — с колонками, подписями и выбором того, от чего он начат. */
+function blockFrom(base: ViewBlock | undefined, title: string): ViewBlock {
+  return {
+    title,
+    filter: { any: [] },
+    roles: base?.roles ?? {},
+    columns: base?.columns ?? [],
+    defaults: {},
+    ...(base?.choices ? { choices: base.choices } : {}),
+    ...(base?.paint ? { paint: base.paint } : {}),
+  };
 }
 
 export function ViewsTab() {
@@ -73,10 +93,12 @@ export function ViewsTab() {
   // Листы реестра и «Разовых» — разными группами: у каждой книги свой порядок.
   const groups = useMemo(
     () =>
-      BOOKS.map((book) => ({ ...book, views: views.filter((item) => (item.book ?? "") === book.key) })).filter(
-        (group) => group.views.length || group.key === "",
-      ),
-    [views],
+      BOOK_KEYS.map((key) => ({
+        key,
+        title: bookTitle(schema, key),
+        views: views.filter((item) => (item.book ?? "") === key),
+      })).filter((group) => group.views.length || group.key === ""),
+    [views, schema],
   );
 
   if (!schema) return null;
@@ -101,12 +123,9 @@ export function ViewsTab() {
     if (!clean) return;
     const sameBook = views.filter((item) => (item.book ?? "") === newBook);
     const main = sameBook.find((item) => item.main) ?? sameBook[0] ?? views.find((item) => item.main) ?? views[0];
-    const base = main?.blocks[0];
-    // Новый лист получает колонки главного: лист без колонок в таблице был бы
-    // пустой полосой, а собирать 20 колонок заново никто не станет.
-    const blocks: ViewBlock[] = [
-      { title: "", filter: { any: [] }, roles: base?.roles ?? {}, columns: base?.columns ?? [], defaults: {} },
-    ];
+    // Новый лист получает колонки (и выбор, подсветку) главного листа своей
+    // книги: лист без колонок в таблице был бы пустой полосой.
+    const blocks: ViewBlock[] = [blockFrom(main?.blocks[0], "")];
     const made: { view: RegistryView | null } = { view: null };
     const ok = await action.run("add", async () => {
       made.view = await contractsApi.setup.addView({ title: clean, blocks, book: newBook });
@@ -123,45 +142,58 @@ export function ViewsTab() {
         <nav className="setup-side" aria-label="Листы">
           {groups.map((group) => (
             <div key={group.key || "main"} role="group" aria-label={group.title}>
-              {groups.length > 1 ? <p className="setup-side-book">{group.title}</p> : null}
-          {group.views.map((item, index) => (
-            <div key={item.id} className="setup-side-row">
-              <button
-                type="button"
-                className="setup-side-item"
-                aria-current={item.id === view?.id ? "true" : undefined}
-                onClick={() => setCurrent(item.id)}
-              >
-                <span className="setup-side-title">{item.title}</span>
-                <span className="setup-side-count">{counts[item.key] ?? 0}</span>
-              </button>
-              <span className="setup-side-move">
-                <button
-                  type="button"
-                  className="fin-icon-btn setup-move-btn"
-                  aria-label={`Поднять лист «${item.title}»`}
-                  disabled={index === 0 || action.busy(`move:${item.id}`)}
-                  onClick={() => void move(group.views, index, -1)}
+              {groups.length > 1 ? (
+                <p
+                  className="setup-side-book"
+                  {...tip(
+                    group.key
+                      ? "Листы раздела «Разовые» — своя книга с теми же договорами, что в реестре."
+                      : "Листы раздела «Реестр»: вкладки над списком договоров и листы таблицы.",
+                  )}
                 >
-                  <ArrowUpIcon size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="fin-icon-btn setup-move-btn"
-                  aria-label={`Опустить лист «${item.title}»`}
-                  disabled={index === group.views.length - 1 || action.busy(`move:${item.id}`)}
-                  onClick={() => void move(group.views, index, 1)}
-                >
-                  <ArrowDownIcon size={14} />
-                </button>
-              </span>
-              {action.error(`move:${item.id}`) ? (
-                <span className="setup-error setup-side-error" role="alert">
-                  {action.error(`move:${item.id}`)}
-                </span>
+                  {group.title}
+                </p>
               ) : null}
-            </div>
-          ))}
+              {group.views.map((item, index) => (
+                <div key={item.id} className="setup-side-row">
+                  <button
+                    type="button"
+                    className="setup-side-item"
+                    aria-current={item.id === view?.id ? "true" : undefined}
+                    onClick={() => setCurrent(item.id)}
+                  >
+                    <span className="setup-side-title">{item.title}</span>
+                    <span className="setup-side-count">{counts[item.key] ?? 0}</span>
+                  </button>
+                  <span className="setup-side-move">
+                    <button
+                      type="button"
+                      className="fin-icon-btn setup-move-btn"
+                      aria-label={`Поднять лист «${item.title}»`}
+                      {...tip("Левее во вкладках листа и таблицы.")}
+                      disabled={index === 0 || action.busy(`move:${item.id}`)}
+                      onClick={() => void move(group.views, index, -1)}
+                    >
+                      <ArrowUpIcon size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="fin-icon-btn setup-move-btn"
+                      aria-label={`Опустить лист «${item.title}»`}
+                      {...tip("Правее во вкладках листа и таблицы.")}
+                      disabled={index === group.views.length - 1 || action.busy(`move:${item.id}`)}
+                      onClick={() => void move(group.views, index, 1)}
+                    >
+                      <ArrowDownIcon size={14} />
+                    </button>
+                  </span>
+                  {action.error(`move:${item.id}`) ? (
+                    <span className="setup-error setup-side-error" role="alert">
+                      {action.error(`move:${item.id}`)}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
             </div>
           ))}
         </nav>
@@ -180,13 +212,19 @@ export function ViewsTab() {
             aria-label="Название нового листа"
             onChange={(event) => setTitle(event.target.value)}
           />
-          <button type="submit" className="btn-ghost btn-sm" disabled={!title.trim() || action.busy("add")}>
+          <button
+            type="submit"
+            className="btn-ghost btn-sm"
+            {...tip("Новый лист-отбор: он пуст, пока не задано правило «кто в листе». Колонки — как у главного листа.")}
+            disabled={!title.trim() || action.busy("add")}
+          >
             + Лист
           </button>
-          <span className="setup-book-pick" role="group" aria-label="Книга нового листа">
-            {BOOKS.map((book) => (
-              <button key={book.key || "main"} type="button" aria-pressed={newBook === book.key} onClick={() => setNewBook(book.key)}>
-                {book.pick}
+          <span className="setup-book-pick" role="group" aria-label="Куда новый лист">
+            <span className="fin-muted">в</span>
+            {BOOK_KEYS.map((key) => (
+              <button key={key || "main"} type="button" aria-pressed={newBook === key} onClick={() => setNewBook(key)}>
+                {bookTitle(schema, key)}
               </button>
             ))}
           </span>
@@ -206,10 +244,12 @@ export function ViewsTab() {
 
 function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }) {
   const byId = useRegistry((s) => s.byId);
+  const schema = useRegistry((s) => s.schema);
   const action = useSetupAction();
-  const [open, setOpen] = useSessionState<number | null>(`setup.view.${view.key}.open`, view.blocks.length === 1 ? 0 : null);
+  const [open, setOpen] = useSessionState<number | null>(`setup.view.${view.key}.open`, null);
   const [ask, setAsk] = useState<{ kind: "view" } | { kind: "block"; index: number } | null>(null);
   const [newBlock, setNewBlock] = useState<string | null>(null);
+  const single = view.blocks.length === 1;
 
   const blockCounts = useMemo(() => {
     const out: number[] = view.blocks.map(() => 0);
@@ -219,23 +259,56 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
     }
     return out;
   }, [byId, view]);
+  const total = blockCounts.reduce((sum, count) => sum + count, 0);
 
   const saveBlocks = (blocks: ViewBlock[], slot: string) =>
     action.run(slot, () => contractsApi.setup.updateView(view.id, { blocks }));
 
   const addBlock = async () => {
     const clean = (newBlock ?? "").trim();
-    const base = view.blocks[0];
-    const blocks: ViewBlock[] = [
-      ...view.blocks,
-      { title: clean, filter: { any: [] }, roles: base?.roles ?? {}, columns: base?.columns ?? [], defaults: {} },
-    ];
+    const blocks: ViewBlock[] = [...view.blocks, blockFrom(view.blocks[0], clean)];
     const ok = await saveBlocks(blocks, "block-add");
     if (ok) {
       setNewBlock(null);
       setOpen(blocks.length - 1);
     }
   };
+
+  const partForm =
+    newBlock === null ? null : (
+      <form
+        className="setup-inline-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void addBlock();
+        }}
+      >
+        <input
+          type="text"
+          className="setup-input"
+          value={newBlock}
+          autoFocus
+          placeholder="Заголовок части, например «АРЕНДА»"
+          aria-label="Заголовок новой части листа"
+          onChange={(event) => setNewBlock(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              setNewBlock(null);
+            }
+          }}
+        />
+        <button type="submit" className="btn-primary btn-sm" disabled={action.busy("block-add")}>
+          Добавить часть
+        </button>
+        <button type="button" className="fin-link-btn setup-quiet" onClick={() => setNewBlock(null)}>
+          Отмена
+        </button>
+      </form>
+    );
+
+  const splitTip =
+    "Лист можно поделить на части с заголовком — как «Прочие договоры»: «АГЕНТСКИЙ ДОГОВОР», «АРЕНДА», «ФИН. ПОМОЩЬ». В листе части идут друг под другом, у каждой своё правило, своя шапка и своя пустая строка для нового договора.";
 
   return (
     <section className="setup-pane" aria-label={`Лист «${view.title}»`}>
@@ -250,92 +323,104 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
             onCommit={(next) => void action.run("title", () => contractsApi.setup.updateView(view.id, { title: next }))}
           />
         </span>
+        <span className="setup-view-count" {...tip("Сколько договоров сейчас в листе.")}>
+          {contractsCount(total)}
+        </span>
+      </div>
+      <p className="setup-view-kind">
+        <span {...tip(view.book ? "Книга «Разовых»: те же договоры, свои листы." : "Листы реестра: вкладки над списком договоров и листы таблицы.")}>
+          {bookTitle(schema, view.book ?? "")}
+        </span>
         {view.main ? (
-          <span className="annot">главный лист</span>
-        ) : (
-          <button type="button" className="fin-link-btn setup-quiet" onClick={() => setAsk({ kind: "view" })}>
+          <span
+            className="setup-view-main"
+            {...tip("В главном листе все договоры реестра. Его нельзя удалить; если он поделён на части, правила частей только раскладывают договоры по частям.")}
+          >
+            · главный лист
+          </span>
+        ) : null}
+        {view.main ? null : (
+          <button
+            type="button"
+            className="fin-link-btn setup-quiet setup-view-drop"
+            {...tip("Лист уйдёт в корзину. Договоры останутся в реестре и в других листах.")}
+            onClick={() => setAsk({ kind: "view" })}
+          >
             Удалить лист
           </button>
         )}
-      </div>
+      </p>
       {action.error("archive") ? (
         <p className="setup-error" role="alert">
           {action.error("archive")}
         </p>
       ) : null}
 
-      <div className="setup-blocks-head">
-        <span className="setup-blocks-title">Блоки</span>
-        {newBlock === null ? (
-          <button type="button" className="fin-link-btn" onClick={() => setNewBlock("")}>
-            + блок
-          </button>
-        ) : (
-          <form
-            className="setup-inline-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void addBlock();
-            }}
-          >
-            <input
-              type="text"
-              className="setup-input"
-              value={newBlock}
-              autoFocus
-              placeholder="Название блока"
-              aria-label="Название нового блока"
-              onChange={(event) => setNewBlock(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.stopPropagation();
-                  setNewBlock(null);
-                }
-              }}
-            />
-            <button type="submit" className="btn-primary btn-sm" disabled={action.busy("block-add")}>
-              Добавить
-            </button>
-            <button type="button" className="fin-link-btn setup-quiet" onClick={() => setNewBlock(null)}>
-              Отмена
-            </button>
-          </form>
-        )}
-      </div>
+      {single ? (
+        <>
+          <BlockEditor view={view} index={0} block={view.blocks[0]} action={action} saveBlocks={saveBlocks} />
+          <div className="setup-split-line">
+            {newBlock === null ? (
+              <button type="button" className="fin-link-btn" {...tip(splitTip, "Части листа")} onClick={() => setNewBlock("")}>
+                Разделить лист на части
+              </button>
+            ) : (
+              partForm
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="setup-blocks-head">
+            <span className="setup-blocks-title" {...tip(splitTip, "Части листа")}>
+              Части листа · {view.blocks.length}
+            </span>
+            {newBlock === null ? (
+              <button type="button" className="fin-link-btn" {...tip("Ещё одна часть — встанет в листе последней.")} onClick={() => setNewBlock("")}>
+                + часть
+              </button>
+            ) : (
+              partForm
+            )}
+          </div>
+          <div className="setup-blocks">
+            {view.blocks.map((block, index) => (
+              <div key={index} className="setup-block" data-open={open === index ? "true" : undefined}>
+                <button
+                  type="button"
+                  className="setup-block-head"
+                  aria-expanded={open === index}
+                  onClick={() => setOpen(open === index ? null : index)}
+                >
+                  <span className="setup-fchev" aria-hidden="true">
+                    <ChevronRightIcon size={14} />
+                  </span>
+                  <span className="setup-block-name" data-empty={block.title ? undefined : "true"}>
+                    {block.title || "Часть без заголовка"}
+                  </span>
+                  <span className="setup-block-count">{contractsCount(blockCounts[index] ?? 0)}</span>
+                </button>
+                {open === index ? (
+                  <BlockEditor
+                    key={index}
+                    view={view}
+                    index={index}
+                    block={block}
+                    action={action}
+                    saveBlocks={saveBlocks}
+                    onRemove={() => setAsk({ kind: "block", index })}
+                  />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       {action.error("block-add") ? (
         <p className="setup-error" role="alert">
           {action.error("block-add")}
         </p>
       ) : null}
-
-      <div className="setup-blocks">
-        {view.blocks.map((block, index) => (
-          <div key={index} className="setup-block" data-open={open === index ? "true" : undefined}>
-            <button
-              type="button"
-              className="setup-block-head"
-              aria-expanded={open === index}
-              onClick={() => setOpen(open === index ? null : index)}
-            >
-              <span className="setup-block-name" data-empty={block.title ? undefined : "true"}>
-                {block.title || (view.blocks.length === 1 ? "Весь лист" : "Без названия")}
-              </span>
-              <span className="setup-block-count">{contractsCount(blockCounts[index] ?? 0)}</span>
-            </button>
-            {open === index ? (
-              <BlockEditor
-                key={index}
-                view={view}
-                index={index}
-                block={block}
-                action={action}
-                saveBlocks={saveBlocks}
-                onRemove={view.blocks.length > 1 ? () => setAsk({ kind: "block", index }) : undefined}
-              />
-            ) : null}
-          </div>
-        ))}
-      </div>
 
       <ConfirmDialog
         open={ask?.kind === "view"}
@@ -352,12 +437,8 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
       />
       <ConfirmDialog
         open={ask?.kind === "block"}
-        title={
-          ask?.kind === "block"
-            ? `Удалить блок «${view.blocks[ask.index]?.title || "без названия"}»?`
-            : ""
-        }
-        text="Договоры блока останутся в реестре; в этом листе они встанут в другой блок, если подходят под его правило."
+        title={ask?.kind === "block" ? `Удалить часть «${view.blocks[ask.index]?.title || "без заголовка"}»?` : ""}
+        text="Договоры части останутся в реестре; в этом листе они встанут в другую часть, если подходят под её правило."
         confirm="Удалить"
         danger
         onCancel={() => setAsk(null)}
@@ -381,7 +462,7 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
   );
 }
 
-// ── Блок ─────────────────────────────────────────────────────────────────────
+// ── Часть листа ──────────────────────────────────────────────────────────────
 
 type BlockProps = {
   view: RegistryView;
@@ -392,26 +473,32 @@ type BlockProps = {
   onRemove?: () => void;
 };
 
-function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: BlockProps) {
-  const schema = useRegistry((s) => s.schema);
-  const saved = canon(block.filter);
-  // Черновик правила сбрасывается, когда меняется записанное правило: после
-  // «Применить» (черновик и есть записанное) или правки коллеги. Счётчик при
-  // этом не пересоздаётся и поднимает новое число, а не мигает пустотой.
-  // Черновик правила переживает перезагрузку (`session-state.tsx`); записанное
-  // правило поменялось, пока страница перезагружалась, — черновик сбросится
-  // той же проверкой ниже.
-  const [rule, setRule] = useSessionState<{ saved: string; draft: ViewFilter }>(`setup.view.${view.key}.${index}.rule`, () => ({
+/**
+ * Черновик правила: сбрасывается, когда меняется записанное (после
+ * «Применить» или правки коллеги), и переживает перезагрузку страницы.
+ */
+function useRuleDraft(key: string, saved: string) {
+  const [rule, setRule] = useSessionState<{ saved: string; draft: ViewFilter }>(key, () => ({
     saved,
     draft: JSON.parse(saved) as ViewFilter,
   }));
   if (rule.saved !== saved) setRule({ saved, draft: JSON.parse(saved) as ViewFilter });
   const draft = rule.draft;
   const setDraft = (next: ViewFilter) => setRule((value) => ({ ...value, draft: next }));
+  const reset = () => setDraft(JSON.parse(saved) as ViewFilter);
+  return { draft, setDraft, reset, dirty: canon(draft) !== saved };
+}
+
+function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: BlockProps) {
+  const schema = useRegistry((s) => s.schema);
+  const solo = view.blocks.length === 1;
+  const rule = useRuleDraft(`setup.view.${view.key}.${index}.rule`, canon(block.filter));
+  const paintSaved = canon(block.paint?.[0]?.filter);
+  const paint = useRuleDraft(`setup.view.${view.key}.${index}.paint`, paintSaved);
   const [showColumns, setShowColumns] = useState(false);
 
-  const dirty = canon(draft) !== saved;
-  const problem = ruleProblem(draft);
+  const problem = ruleProblem(rule.draft);
+  const paintProblem = ruleProblem(paint.draft);
   const replace = (next: Partial<ViewBlock>) => view.blocks.map((item, i) => (i === index ? { ...item, ...next } : item));
   const slot = (name: string) => `${name}:${index}`;
 
@@ -426,8 +513,8 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
 
   const setRole = (who: Slot, label: string) => {
     const before = roles[who] || "";
-    // Подпись колонки стороны в шапке блока шла за подписью стороны — меняем
-    // её вместе, если человек не переписывал её отдельно.
+    // Подпись колонки стороны в шапке шла за подписью стороны — меняем её
+    // вместе, если человек не переписывал её отдельно.
     const columns = block.columns.map((column) =>
       column.key === who && (!column.label || column.label === before) ? { ...column, label: label || fallback[who] } : column,
     );
@@ -494,76 +581,229 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
     },
   ];
 
+  // Выбор в списках: поля-списки, которые есть в колонках этой части.
+  const listColumns = block.columns
+    .map((column) => schema?.fields.find((field) => field.key === column.key))
+    .filter((field): field is NonNullable<typeof field> => !!field && (field.type === "list" || field.type === "multi_list"));
+  const choices = block.choices ?? {};
+  const setChoices = (key: string, ids: string[] | null) => {
+    const next = { ...choices };
+    if (ids && ids.length) next[key] = ids;
+    else delete next[key];
+    void saveBlocks(replace({ choices: next }), slot("choices"));
+  };
+
   const errors = [
-    "title", "rule", "role-executor", "role-customer", "swap",
+    "title", "rule", "paint", "choices", "role-executor", "role-customer", "swap",
     ...defaultParts.map((part) => `default-${part.key}`),
   ]
     .map((name) => action.error(slot(name)))
     .filter(Boolean);
 
+  const mainAll = view.main && solo;
+
   return (
     <div className="setup-block-body">
+      {solo ? null : (
+        <div className="setup-brow">
+          <span className="setup-blabel" {...tip("Заголовок части — строкой над её шапкой в листе, как в Excel.")}>
+            Заголовок
+          </span>
+          <span className="setup-bvalue">
+            <InlineText
+              value={block.title}
+              allowEmpty
+              placeholder="без заголовка"
+              label="Заголовок части"
+              trace={action.trace(slot("title"))}
+              onCommit={(next) => void saveBlocks(replace({ title: next }), slot("title"))}
+            />
+          </span>
+        </div>
+      )}
+
       <div className="setup-brow">
-        <span className="setup-blabel">Название</span>
+        <span
+          className="setup-blabel"
+          {...tip(
+            mainAll
+              ? "В главном листе — все договоры реестра, правило ему не нужно."
+              : "Какие договоры попадают сюда. Условия в строке — «и», строки между собой — «или». Правило действует после «Применить»; до этого видно, сколько договоров подошло бы.",
+          )}
+        >
+          Кто в листе
+        </span>
         <span className="setup-bvalue">
-          <InlineText
-            value={block.title}
-            allowEmpty
-            placeholder={view.blocks.length === 1 ? "без названия — весь лист" : "без названия"}
-            label="Название блока"
-            trace={action.trace(slot("title"))}
-            onCommit={(next) => void saveBlocks(replace({ title: next }), slot("title"))}
-          />
+          {mainAll ? (
+            <span className="setup-rule-static">Все договоры реестра</span>
+          ) : (
+            <>
+              <FilterSentence
+                value={rule.draft}
+                onChange={rule.setDraft}
+                lead="Договоры, где"
+                {...(view.main
+                  ? { emptyText: "Договоры, которые не подошли другим частям", emptyAdd: "+ условие" }
+                  : { emptyText: "Пока ни одного договора — нужно условие", emptyAdd: "+ условие" })}
+              />
+              <span className="setup-rule-foot">
+                {/* У пустого правила счётчик не нужен: фраза уже говорит, что в
+                    листе ни одного договора или (у главного) все остальные. */}
+                {rule.draft.any.length ? <RuleCount filter={rule.draft} /> : null}
+                {rule.dirty ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-primary btn-sm"
+                      disabled={!!problem || action.busy(slot("rule"))}
+                      onClick={() => void saveBlocks(replace({ filter: rule.draft }), slot("rule"))}
+                    >
+                      Применить правило
+                    </button>
+                    <button type="button" className="fin-link-btn setup-quiet" onClick={rule.reset}>
+                      Вернуть как было
+                    </button>
+                    {problem ? <span className="fin-soft">{problem}</span> : null}
+                  </>
+                ) : null}
+              </span>
+            </>
+          )}
         </span>
       </div>
 
       <div className="setup-brow">
-        <span className="setup-blabel">Правило</span>
+        <span
+          className="setup-blabel"
+          {...tip(
+            "Как условное форматирование в Google Таблицах: строка договора, подходящего под условие, заливается зелёным во всю ширину листа. В «Разовых» так отмечены исполненные.",
+            "Подсветка строк",
+          )}
+        >
+          Подсветка
+        </span>
         <span className="setup-bvalue">
           <FilterSentence
-            value={draft}
-            onChange={setDraft}
-            {...(view.main
-              ? {
-                  emptyText:
-                    view.blocks.length === 1
-                      ? "Показывать все договоры"
-                      : "Показывать договоры, которые не подошли другим блокам",
-                  emptyAdd: "+ условие",
-                }
-              : {})}
+            value={paint.draft}
+            onChange={paint.setDraft}
+            lead="Строка зелёная, где"
+            emptyText="Строки не подсвечиваются"
+            emptyAdd="+ подсветить по условию"
           />
-          <span className="setup-rule-foot">
-            {/* У пустого правила счётчик не нужен: фраза уже говорит, что в
-                блоке — ни одного договора или (у главного листа) все. Сервер
-                на пустое правило отвечает нулём и у главного листа ошибся бы. */}
-            {draft.any.length ? <RuleCount filter={draft} /> : null}
-            {dirty ? (
-              <>
-                <button
-                  type="button"
-                  className="btn-primary btn-sm"
-                  disabled={!!problem || action.busy(slot("rule"))}
-                  onClick={() => void saveBlocks(replace({ filter: draft }), slot("rule"))}
-                >
-                  Применить правило
-                </button>
-                <button
-                  type="button"
-                  className="fin-link-btn setup-quiet"
-                  onClick={() => setDraft(JSON.parse(saved) as ViewFilter)}
-                >
-                  Вернуть как было
-                </button>
-                {problem ? <span className="fin-soft">{problem}</span> : null}
-              </>
+          {paint.dirty ? (
+            <span className="setup-rule-foot">
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                disabled={!!paintProblem || action.busy(slot("paint"))}
+                onClick={() =>
+                  void saveBlocks(
+                    replace({
+                      paint: paint.draft.any.length
+                        ? [{ filter: paint.draft, tone: "done" }, ...(block.paint ?? []).slice(1)]
+                        : (block.paint ?? []).slice(1),
+                    }),
+                    slot("paint"),
+                  )
+                }
+              >
+                Применить подсветку
+              </button>
+              <button type="button" className="fin-link-btn setup-quiet" onClick={paint.reset}>
+                Вернуть как было
+              </button>
+              {paintProblem ? <span className="fin-soft">{paintProblem}</span> : null}
+            </span>
+          ) : null}
+        </span>
+      </div>
+
+      {listColumns.length ? (
+        <div className="setup-brow">
+          <span
+            className="setup-blabel"
+            {...tip(
+              "Что предлагает выпадающий список в этом листе. В «Разовых» статус — только «на исполнении» и «исполнен», хотя в реестре их больше. Значения договоров это не меняет.",
+              "Выбор в списках",
+            )}
+          >
+            Выбор
+          </span>
+          <span className="setup-bvalue setup-choices">
+            {Object.keys(choices).length === 0 ? <span className="fin-muted">во всех списках — все значения</span> : null}
+            {Object.entries(choices).map(([key, ids]) => {
+              const field = schema?.fields.find((item) => item.key === key);
+              const values = schema?.lists[key] ?? [];
+              const labels = ids.map((id) => values.find((item) => item.id === id)?.value).filter(Boolean);
+              return (
+                <span key={key} className="setup-choice">
+                  <span className="fin-soft">{lowerFirst(field?.title ?? key)} — только</span>{" "}
+                  <MultiPop
+                    values={ids}
+                    options={values.map((item) => ({ value: item.id, label: item.value }))}
+                    label={`Выбор «${field?.title ?? key}» в этом листе`}
+                    text={labels.map((label) => `«${label}»`).join(", ") || "ничего"}
+                    onChange={(next) => setChoices(key, next)}
+                    disabled={action.busy(slot("choices"))}
+                  />
+                  <button
+                    type="button"
+                    className="choice-clear choice-clear-inline"
+                    aria-label={`Все значения «${field?.title ?? key}»`}
+                    {...tip("Снять ограничение: список предложит все значения.")}
+                    onClick={() => setChoices(key, null)}
+                  >
+                    <CloseIcon size={12} />
+                  </button>
+                </span>
+              );
+            })}
+            {listColumns.some((field) => !choices[field.key]) ? (
+              <ChoicePop
+                value={null}
+                options={listColumns
+                  .filter((field) => !choices[field.key])
+                  .map((field) => ({ value: field.key, label: field.title }))}
+                text="+ ограничить выбор"
+                label="Какой список ограничить в этом листе"
+                onPick={(key) => setChoices(key, (schema?.lists[key] ?? []).map((item) => item.id))}
+              />
             ) : null}
           </span>
+        </div>
+      ) : null}
+
+      <div className="setup-brow">
+        <span
+          className="setup-blabel"
+          {...tip("Что подставится в договор, заведённый здесь — в пустой строке под листом или кнопкой «Новый договор». Остальное человек заполнит сам.")}
+        >
+          Новая строка
+        </span>
+        <span className="setup-bvalue setup-defaults">
+          {defaultParts.map((part, i) => (
+            <span key={part.key} className="setup-default">
+              {i > 0 ? <span className="fin-muted"> · </span> : null}
+              {part.word}{" "}
+              <ChoicePop
+                value={block.defaults?.[part.key] ?? ""}
+                options={part.options}
+                label={`Новая строка: ${part.word}`}
+                disabled={action.busy(slot(`default-${part.key}`))}
+                onPick={(value) => setDefault(part.key, value)}
+              />
+            </span>
+          ))}
         </span>
       </div>
 
       <div className="setup-brow">
-        <span className="setup-blabel">Стороны</span>
+        <span
+          className="setup-blabel"
+          {...tip("Как подписаны стороны в шапке этого листа. «Поменять местами» — если заказчик идёт первой колонкой, как в «Заказчик ГК».")}
+        >
+          Стороны
+        </span>
         <span className="setup-bvalue setup-sides">
           {order.map((who, i) => (
             <span key={who} className="setup-side-slot">
@@ -584,7 +824,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
             </span>
           ))}
           <span className="setup-sides-tools">
-            {reversed ? <span className="annot">наоборот</span> : null}
+            {reversed ? <span className="fin-muted">заказчик первым</span> : null}
             <button type="button" className="fin-link-btn" disabled={action.busy(slot("swap"))} onClick={swap}>
               Поменять местами
             </button>
@@ -593,31 +833,14 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
       </div>
 
       <div className="setup-brow">
-        <span className="setup-blabel">Новая строка</span>
-        <span className="setup-bvalue setup-defaults">
-          {defaultParts.map((part, i) => (
-            <span key={part.key} className="setup-default">
-              {i > 0 ? <span className="fin-muted"> · </span> : null}
-              {part.word}{" "}
-              <ChoicePop
-                value={block.defaults?.[part.key] ?? ""}
-                options={part.options}
-                label={`Новая строка блока: ${part.word}`}
-                disabled={action.busy(slot(`default-${part.key}`))}
-                onPick={(value) => setDefault(part.key, value)}
-              />
-            </span>
-          ))}
+        <span className="setup-blabel" {...tip("Колонки листа по порядку — как в загруженном Excel. Название колонки может отличаться от названия поля.")}>
+          Колонки
         </span>
-      </div>
-
-      <div className="setup-brow">
-        <span className="setup-blabel">Колонки</span>
         <span className="setup-bvalue">
           <button type="button" className="fin-link-btn" aria-expanded={showColumns} onClick={() => setShowColumns((v) => !v)}>
             {block.columns.length
               ? `${block.columns.length} ${plural(block.columns.length, "колонка", "колонки", "колонок")} · ${showColumns ? "свернуть" : "показать"}`
-              : "колонок нет"}
+              : "как поля реестра"}
           </button>
           {showColumns && block.columns.length ? (
             <ol className="setup-columns">
@@ -646,8 +869,13 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
 
       {onRemove ? (
         <div className="setup-block-foot">
-          <button type="button" className="fin-link-btn setup-quiet" onClick={onRemove}>
-            Удалить блок
+          <button
+            type="button"
+            className="fin-link-btn setup-quiet"
+            {...tip("Часть уйдёт из листа; её договоры встанут в другую часть, если подходят под её правило.")}
+            onClick={onRemove}
+          >
+            Удалить часть
           </button>
         </div>
       ) : null}

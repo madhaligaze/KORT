@@ -122,6 +122,73 @@ export function viewCounts(
   return counts;
 }
 
+/**
+ * Отдел, которым отобраны все листы книги, — его код: «Разовые» с условием
+ * «отдел — ЮО» в каждой группе каждого блока — это «Разовые ЮО». Хоть один
+ * блок без такого условия или отделы разные — пусто.
+ */
+export function bookDepartment(schema: RegistrySchema | null, book: string): string {
+  const views = (schema?.views ?? []).filter((view) => (view.book ?? "") === book);
+  if (!schema || !views.length) return "";
+  let found: string | null = null;
+  for (const view of views) {
+    for (const block of view.blocks) {
+      const groups = block.filter?.any ?? [];
+      if (!groups.length) return "";
+      for (const group of groups) {
+        const hit = group.all.find(
+          (item) => item.field === "department" && item.op === "in" && Array.isArray(item.value) && item.value.length === 1,
+        );
+        const id = hit ? String((hit.value as unknown[])[0]) : null;
+        if (!id || (found !== null && found !== id)) return "";
+        found = id;
+      }
+    }
+  }
+  return found ? departmentText(schema, found) : "";
+}
+
+/** Подпись книги в колонке и заголовке: «Реестр», «Разовые ЮО». */
+export function bookTitle(schema: RegistrySchema | null, book: string): string {
+  if (!book) return "Реестр";
+  const code = bookDepartment(schema, book);
+  return code ? `Разовые ${code}` : "Разовые";
+}
+
+/** Выбор значений поля в блоке листа (`choices`): id значений или `null` — весь список. */
+export function blockChoices(schema: RegistrySchema | null, view: string | undefined, block: number | undefined, field: string): string[] | null {
+  if (!schema || !view) return null;
+  const found = schema.views.find((item) => item.key === view);
+  const ids = found?.blocks[block ?? 0]?.choices?.[field];
+  return ids?.length ? ids : null;
+}
+
+/** Номер договора без «№» и пробелов по краям — для ссылки на него. */
+export function bareNumberOf(contract: Contract): string {
+  return String(contract.values.number ?? "").replace(/^\s*№\s*/, "").trim();
+}
+
+/**
+ * Где договор стоит — «Исполнитель ГК · Разовые ЮО / до 2 мес»: листы, кроме
+ * главного (он держит всё и места не называет), с книгой, если она не реестр.
+ */
+export function placesText(schema: RegistrySchema | null, contract: Contract): string {
+  if (!schema) return "";
+  const names: string[] = [];
+  for (const place of contract.views) {
+    const view = schema.views.find((item) => item.key === place.view);
+    if (!view || view.main) continue;
+    const block = view.blocks.length > 1 ? view.blocks[place.block]?.title?.trim() : "";
+    const book = view.book ? `${bookTitle(schema, view.book)} / ` : "";
+    names.push(`${book}${view.title}${block ? ` / ${block}` : ""}`);
+  }
+  if (!names.length) {
+    const main = schema.views.find((item) => item.main);
+    return main && contract.views.some((place) => place.view === main.key) ? main.title : "";
+  }
+  return names.join(" · ");
+}
+
 export function inView(contract: Contract, view: string): { block: number } | null {
   const place = contract.views.find((item) => item.view === view);
   return place ? { block: place.block } : null;

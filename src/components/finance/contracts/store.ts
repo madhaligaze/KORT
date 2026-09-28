@@ -220,13 +220,59 @@ function loadAll(schema: RegistrySchema, all: ContractsAll): void {
   });
 }
 
+/**
+ * Отпечаток того, что решает принадлежность договоров листам: правила и
+ * подсветка блоков. Принадлежность считает сервер и присылает с договорами,
+ * поэтому смена правила — повод перечитать договоры, а не только схему.
+ *
+ * До 28.09.2026 после «Применить правило» перечитывалась одна схема: лист
+ * перестраивался под новые блоки, а договоры стояли по старому правилу до
+ * перезагрузки страницы — правило выглядело неработающим.
+ */
+function placementKey(schema: RegistrySchema | null): string {
+  if (!schema) return "";
+  return JSON.stringify(
+    [...schema.views]
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map((view) => [view.key, view.main, view.book ?? "", view.blocks.map((block) => [block.filter, block.paint ?? null])]),
+  );
+}
+
 export async function reloadSchema(): Promise<void> {
   try {
     const schema = await contractsApi.schema();
+    const moved = state.phase === "ready" && placementKey(state.schema) !== placementKey(schema);
     emit({ schema, schemaRev: schema.schema_rev });
+    if (moved) await reloadAll();
   } catch {
     /* следующий опрос попробует снова */
   }
+}
+
+let schemaLoading: Promise<void> | null = null;
+
+/**
+ * Только схема — колонке разделов: подпись «Разовые ЮО» берётся из правила
+ * книги, а грузить ради неё все договоры незачем. Полное чтение (`boot`)
+ * схему не сбрасывает, а перечитывает.
+ */
+export function ensureSchema(company: string, me: string | null): Promise<void> {
+  if (state.company === company && (state.schema || schemaLoading)) return schemaLoading ?? Promise.resolve();
+  if (state.company !== company) {
+    state = { ...EMPTY, company, me };
+    listeners.forEach((listener) => listener());
+  }
+  schemaLoading = (async () => {
+    try {
+      const schema = await contractsApi.schema();
+      if (state.company === company && !state.schema) emit({ schema, schemaRev: schema.schema_rev });
+    } catch {
+      /* подпись останется общей */
+    } finally {
+      schemaLoading = null;
+    }
+  })();
+  return schemaLoading;
 }
 
 /** Перечитать всё — после загрузки Excel или сведения значений. */

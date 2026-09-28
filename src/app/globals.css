@@ -243,8 +243,10 @@ body {
   color: var(--text-primary);
 }
 
-/* Пометка в фигурных скобках. Скобки — псевдоэлементы, в тексте их нет:
-   скринридер читает «Разделы», а не «фигурная скобка, Разделы».           */
+/* Пометка — тихая моноширинная подпись («главный лист», «спорный»). До
+   28.09.2026 она стояла в фигурных скобках-псевдоэлементах; владелец назвал
+   их «непонятными скобками функций» — в учёте скобки читались как код, а не
+   как подпись. Скобок больше нет, моноширинный шрифт и тон остались.      */
 .annot {
   display: inline-flex;
   align-items: baseline;
@@ -258,8 +260,6 @@ body {
   letter-spacing: 0;
   color: var(--text-secondary);
 }
-.annot::before { content: "{"; color: var(--text-muted); }
-.annot::after  { content: "}"; color: var(--text-muted); }
 
 /* Подпись поля и колонки. Была моноширинным капслоком с разрядкой — самая
    узнаваемая примета сгенерированного интерфейса. Теперь это обычная
@@ -2157,33 +2157,32 @@ label.auth-row-label { cursor: pointer; }
   .fin-section-title { display: none; }
 }
 
-/* ─── Виды реестра у заголовка: «Реестр · Таблица · Разовые» ───
-   Выбранный вид — заголовок раздела, соседние — рядом, мельче и плотнее.
-   Состояние — размер и вес, не цвет и не плашка (правило индикаторов).
+/* ─── Реестр и его виды: «Реестр   Карточки · Таблица» ───
+   Заголовок — реестр («Реестр», «Разовые ЮО»), рядом — виды. Выбранный вид —
+   весом и чертой под словом, не цветом и не плашкой (правило индикаторов).
    Порядок постоянный: переключение не переставляет слова местами. */
-.fin-title-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 1.25rem; row-gap: 0.25rem; }
-.fin-title-alt {
-  padding: 0;
+.fin-reg-title { justify-content: flex-start; align-items: baseline; column-gap: 2rem; }
+.fin-views { display: flex; align-items: baseline; gap: 1.25rem; }
+.fin-view {
+  padding: 0.2rem 0;
   border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: none;
   font: inherit;
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  font-size: 0.9375rem;
+  font-weight: 450;
+  letter-spacing: -0.01em;
   color: var(--fin-text-soft);
   cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-underline-offset: 0.25em;
-  transition: color var(--dur-fast) var(--ease-out), text-decoration-color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
-.fin-title-alt:hover { color: var(--fin-text); text-decoration-color: currentColor; }
-.fin-title-alt:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 3px; border-radius: 4px; }
+.fin-view:hover { color: var(--fin-text); }
+.fin-view[aria-current="page"] { font-weight: 650; color: var(--fin-text); border-bottom-color: currentColor; }
+.fin-view:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 3px; }
 /* Узкое окно: заголовков нет — виды встают своим рядом под лентой разделов. */
 .fin-modes { display: none; }
 @media (max-width: 767.98px) {
-  .fin-title-row { display: none; }
   .fin-modes { display: flex; gap: 1rem; padding: 0.5rem 0 0.75rem; }
   .fin-mode {
     padding: 0.25rem 0;
@@ -2490,9 +2489,32 @@ label.auth-row-label { cursor: pointer; }
 
 /* ─── Лист Univer: общий корень всех таблиц (src/components/univer/sheet.tsx) ───
    Во весь экран лист уходит сам, из корня: раздел, в котором он стоит, про
-   это ничего не знает. Кнопка «На весь экран» — вкладка ленты Univer с её же
-   классами, своих стилей у неё нет. */
+   это ничего не знает. Лента — одной строкой без вкладок; над ней по центру
+   только «На весь экран» — словом, без плашки, выбранное — чертой снизу. */
 .usheet { position: relative; width: 100%; height: 100%; }
+.usheet [data-u-comp="ribbon-header-menu"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.25rem;
+}
+.usheet-full-slot { display: contents; }
+.usheet-full {
+  padding: 0.2rem 0.1rem;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--fin-text-soft, var(--text-secondary));
+  cursor: pointer;
+  transition: color var(--dur-fast, 0.15s) ease-out, border-color var(--dur-fast, 0.15s) ease-out;
+}
+.usheet-full:hover { color: var(--fin-text, var(--text-primary)); border-bottom-color: currentColor; }
+.usheet-full[aria-pressed="true"] { color: var(--fin-text, var(--text-primary)); border-bottom-color: currentColor; }
+.usheet-full:focus-visible { outline: 2px solid var(--fin-text, var(--text-primary)); outline-offset: 2px; }
 /* Пока на странице лист, жест тачпада вбок не листает историю браузера:
    докрутили таблицу до края — Chrome уводил на прошлую страницу. Колесо над
    листом гасит `UniverSheet`; это правило — для остатка жеста, начатого у края. */
@@ -2591,6 +2613,11 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   --fin-flash-hex:     #eceade;
   --fin-fail-hex:      #c2331f;
   --fin-fail-bg-hex:   #f7e3dc;
+  /* Строка «исполнен» в листе «Разовых» — как условное форматирование книги
+     юротдела (там #93C47D), тоном тише под бумагу листа. */
+  --fin-done-hex:      #c3dcb2;
+  /* Уголок заметки ячейки (флажок «учтено») — тушью, не жёлтым Univer. */
+  --fin-mark-hex:      #6b6a60;
   --z-fin-card:        90;
   --z-fin-pop:         100;
   --z-fin-confirm:     110;
@@ -2606,6 +2633,8 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   --fin-flash-hex:     #232521;
   --fin-fail-hex:      #ff6f5e;
   --fin-fail-bg-hex:   #2a1a17;
+  --fin-done-hex:      #26361f;
+  --fin-mark-hex:      #9d9a86;
 }
 
 .fin-mono {
@@ -3179,14 +3208,20 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
 .creg-look-reset { flex: none; margin-top: 0.25rem; font-size: 0.8125rem; }
 /* Подсказка ячейки листа реестра — вместо заметки Univer: текст замечания,
    «Учтено» и «Открыть договор». Встаёт под ячейкой (у низа окна — над ней). */
+/* Слой встаёт вплотную к ячейке, а видимая плашка — с отступом внутри слоя:
+   прозрачная полоса сверху — мостик, по которому мышь идёт от ячейки к
+   «Учтено», не задевая соседних ячеек (подсказка раньше гасла на полпути). */
 .creg-hint {
   position: fixed;
   z-index: 60;
+  padding: 6px 0;
+  max-width: min(400px, calc(100vw - 24px));
+}
+.creg-hint-body {
   display: grid;
-  gap: 0.4rem;
-  max-width: min(380px, calc(100vw - 24px));
+  gap: 0.45rem;
   padding: 0.6rem 0.75rem;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid var(--fin-line);
   background: var(--fin-plate);
   color: var(--fin-text);
@@ -3194,6 +3229,17 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
   font-size: 0.8125rem;
   line-height: 1.4;
 }
+.creg-hint-text { margin: 0; color: var(--fin-text-soft); }
+.creg-hint-issue { display: grid; gap: 0.2rem; }
+.creg-hint-issue:not([data-ack="true"]) > .creg-hint-line > span { color: var(--fin-fail); }
+.creg-hint-flag {
+  margin-right: 0.45rem;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.6875rem;
+  color: var(--fin-text-soft);
+}
+.creg-hint .issue-others { margin: 0; }
 .creg-hint-line { display: flex; align-items: baseline; gap: 0.75rem; justify-content: space-between; }
 .creg-hint-ack {
   flex: none;
@@ -3303,6 +3349,21 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
 .fin-head-person-icon:hover { background: var(--fin-neutral-soft); }
 
 .fin-denied { padding: 1.5rem 0.25rem; font-size: 0.9375rem; color: var(--fin-text-soft); }
+
+/* Сотрудник без единого раздела: главный экран, колонка пустая, на месте
+   раздела — отказ словами. Тушью, без цвета: это не авария, а ожидание права. */
+.fin-nosections { display: grid; gap: 0.5rem; justify-items: start; max-width: 36rem; padding: 0.5rem 0.25rem 2rem; }
+.fin-nosections-line { margin: 0; font-size: 1.125rem; color: var(--fin-text); }
+.fin-nosections-sub { margin: 0 0 0.5rem; font-size: 0.875rem; color: var(--fin-text-soft); }
+.fin-nosections .fin-link-btn { font-size: 0.875rem; }
+.fin-nav-empty { display: flex; align-items: center; min-height: 2.25rem; padding: 0 0.5rem; font-size: 0.8125rem; color: var(--text-muted); overflow: hidden; }
+
+/* Карточка договора другого отдела — строка под сторонами. */
+.card-readonly { margin: 0.75rem 0 0; font-size: 0.8125rem; color: var(--fin-text-soft); }
+/* Договоры, о которых замечание («номер уже есть у …»): ссылки под текстом. */
+.issue-others { display: grid; gap: 0.15rem; margin-top: 0.25rem; }
+.issue-other { font-size: 0.8125rem; color: var(--fin-text); }
+.card-issue .issue-others { color: var(--fin-text); }
 
 /* Кабинет отдаёт себе плиту целиком: колонки разделов нет. */
 .fin-plate[data-cabinet="true"] { display: block; }
@@ -3494,81 +3555,6 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
   .cab-line { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; padding: 0.5rem 0; }
   .cab-line-label { font-size: 0.75rem; }
 }
-
-/* ─── Списки: сеансы, сотрудники ─── */
-.cab-list { display: grid; }
-.cab-row {
-  display: grid;
-  grid-template-columns: minmax(12rem, 1.2fr) minmax(7rem, 0.8fr) minmax(8rem, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-  min-height: var(--fin-row-h);
-  padding: 0 0.5rem;
-  margin: 0 -0.5rem;
-  border-bottom: 1px solid var(--fin-line);
-  font-size: 0.875rem;
-  color: var(--fin-text);
-  text-align: left;
-}
-/* `font: inherit` сбрасывал и кегль `.cab-row`: имя и должность выходили
-   16px рядом с телефоном в 12px. Кегль строки — после сброса. */
-button.cab-row { width: calc(100% + 1rem); background: none; border-left: none; border-right: none; border-top: none; font: inherit; font-size: 0.875rem; cursor: pointer; }
-button.cab-row:hover { background: var(--fin-hover); }
-button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offset: -2px; }
-.cab-row-main { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cab-row-note { font-size: 0.8125rem; }
-.cab-row-act { display: inline-flex; justify-content: flex-end; }
-.cab-session-ip { font-size: 0.75rem; }
-.cab-list-foot { justify-self: start; margin-top: 0.75rem; }
-/* Каждая строка — своя сетка, поэтому колонки заданы шириной, а не `auto`:
-   иначе длинный статус («просит сбросить пароль · 14:02») сдвигал бы
-   должность и телефон в своей строке, и столбцы расходились. */
-.cab-person { grid-template-columns: minmax(12rem, 1.3fr) minmax(7rem, 0.8fr) 11rem 15rem; }
-.cab-session { grid-template-columns: minmax(12rem, 1.2fr) 9rem minmax(10rem, 1fr) 8rem; }
-/* Во «Всех» — колонка отдела. Только на широком: в телефонной карточке
-   своей клетки у неё нет. */
-@media (min-width: 760px) {
-  .cab-person[data-dept="true"] { grid-template-columns: minmax(12rem, 1.3fr) 4.5rem minmax(7rem, 0.8fr) 11rem 15rem; }
-}
-/* 760–1100: полная сетка шире колонки (856px при 728 доступных на 800), и
-   «Доступ» уходил за правый край плиты — плита обрезает, прокрутки вбок нет,
-   поэтому снаружи дефект не виден. Узкие колонки, длинный статус — с «…». */
-@media (min-width: 760px) and (max-width: 1099.98px) {
-  .cab-person { grid-template-columns: minmax(10rem, 1.3fr) minmax(6rem, 0.8fr) 9.5rem 11rem; column-gap: 0.75rem; }
-  .cab-person[data-dept="true"] { grid-template-columns: minmax(9rem, 1.3fr) 3.5rem minmax(6rem, 0.8fr) 9.5rem 11rem; }
-}
-.cab-person-job, .cab-person-phone, .cab-person-dept { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fin-text-soft); }
-.cab-person-status { overflow: hidden; text-overflow: ellipsis; }
-.cab-person-phone { font-size: 0.75rem; }
-.cab-person-status { font-size: 0.8125rem; text-align: right; white-space: nowrap; }
-.cab-person-status[data-tone="strong"] { font-weight: 600; }
-.cab-person[data-request="true"] { background: var(--fin-selected); }
-@media (max-width: 759.98px) {
-  .cab-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "main status" "job phone";
-    gap: 0.125rem 0.75rem;
-    padding-block: 0.5rem;
-  }
-  .cab-row-main { grid-area: main; }
-  .cab-person-status { grid-area: status; }
-  .cab-person-job { grid-area: job; font-size: 0.8125rem; }
-  .cab-person-phone { grid-area: phone; text-align: right; }
-  .cab-session { grid-template-areas: "main act" "ip note"; }
-  .cab-session .cab-row-act { grid-area: act; }
-  .cab-session .cab-session-ip { grid-area: ip; }
-  .cab-session .cab-row-note { grid-area: note; text-align: right; }
-}
-
-.cab-error { margin: 0.75rem 0 0; font-size: 0.8125rem; }
-.cab-wait, .cab-empty { padding: 1.25rem 0.25rem; margin: 0; font-size: 0.875rem; color: var(--fin-text-soft); }
-.cab-note { margin: 1rem 0 0; font-size: 0.8125rem; }
-.cab-admin-line { margin: 0.5rem 0; font-size: 0.9375rem; color: var(--fin-text); }
-
-/* ─── Сотрудники ─── */
-.cab-people-bar {
-  display: flex;
-  flex-wrap: wrap;
 /* «Изменить / Добавить» — только в листе профиля, ниже. */
 .cab-line-act { display: none; }
 
@@ -3644,6 +3630,101 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
   .cab-fields { grid-template-columns: minmax(0, 1fr); }
   .cab-fields > .cab-line { min-height: 68px; padding: 0.625rem 0.875rem 0.75rem; gap: 0.25rem 0.75rem; }
 }
+
+/* ─── Списки: сеансы, сотрудники ─── */
+.cab-list { display: grid; }
+.cab-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.2fr) minmax(7rem, 0.8fr) minmax(8rem, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: var(--fin-row-h);
+  padding: 0 0.5rem;
+  margin: 0 -0.5rem;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.875rem;
+  color: var(--fin-text);
+  text-align: left;
+}
+/* `font: inherit` сбрасывал и кегль `.cab-row`: имя и должность выходили
+   16px рядом с телефоном в 12px. Кегль строки — после сброса. */
+button.cab-row { width: calc(100% + 1rem); background: none; border-left: none; border-right: none; border-top: none; font: inherit; font-size: 0.875rem; cursor: pointer; }
+button.cab-row:hover { background: var(--fin-hover); }
+button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offset: -2px; }
+.cab-row-main { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cab-row-note { font-size: 0.8125rem; }
+.cab-row-act { display: inline-flex; justify-content: flex-end; }
+.cab-session-ip { font-size: 0.75rem; }
+.cab-list-foot { justify-self: start; margin-top: 0.75rem; }
+/* Каждая строка — своя сетка, поэтому колонки заданы шириной, а не `auto`:
+   иначе длинный статус («просит сбросить пароль · 14:02») сдвигал бы
+   должность и телефон в своей строке, и столбцы расходились. */
+.cab-person { grid-template-columns: minmax(12rem, 1.3fr) minmax(7rem, 0.8fr) 11rem 15rem; }
+.cab-session { grid-template-columns: minmax(12rem, 1.2fr) 9rem minmax(10rem, 1fr) 8rem; }
+/* Во «Всех» — колонка отдела. Только на широком: в телефонной карточке
+   своей клетки у неё нет. */
+@media (min-width: 760px) {
+  .cab-person[data-dept="true"] { grid-template-columns: minmax(12rem, 1.3fr) 4.5rem minmax(7rem, 0.8fr) 11rem 15rem; }
+}
+/* 760–1100: полная сетка шире колонки (856px при 728 доступных на 800), и
+   «Доступ» уходил за правый край плиты — плита обрезает, прокрутки вбок нет,
+   поэтому снаружи дефект не виден. Узкие колонки, длинный статус — с «…». */
+@media (min-width: 760px) and (max-width: 1099.98px) {
+  .cab-person { grid-template-columns: minmax(10rem, 1.3fr) minmax(6rem, 0.8fr) 9.5rem 11rem; column-gap: 0.75rem; }
+  .cab-person[data-dept="true"] { grid-template-columns: minmax(9rem, 1.3fr) 3.5rem minmax(6rem, 0.8fr) 9.5rem 11rem; }
+}
+.cab-person-job, .cab-person-phone, .cab-person-dept { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fin-text-soft); }
+.cab-person-status { overflow: hidden; text-overflow: ellipsis; }
+.cab-person-phone { font-size: 0.75rem; }
+.cab-person-dept { font-size: 0.8125rem; }
+/* Пустая клетка — тихий прочерк: две колонки ярких «—» у тридцати человек
+   без должности и номера читались как данные. */
+.cab-person [data-empty="true"] { color: var(--text-muted); }
+.cab-person-self { font-weight: 400; color: var(--fin-text-soft); }
+.cab-person-status { font-size: 0.8125rem; text-align: right; white-space: nowrap; }
+.cab-person-status[data-tone="strong"] { font-weight: 600; }
+.cab-person-status[data-tone="quiet"] { color: var(--fin-text-soft); }
+.cab-person[data-request="true"] { background: var(--fin-selected); }
+
+/* Шапка колонок — подпись, как у реестра (`.creg-head`). У сотрудников
+   прилипает под шапкой приложения: список длинный. */
+.cab-list-head { min-height: 2.25rem; }
+.cab-list-head .eyebrow { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cab-people .cab-list-head {
+  position: sticky;
+  top: var(--fin-head-h, 0px);
+  z-index: 2;
+  background: var(--fin-plate);
+}
+@media (max-width: 759.98px) {
+  .cab-list-head, .cab-person-dept { display: none; }
+}
+@media (max-width: 759.98px) {
+  .cab-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "main status" "job phone";
+    gap: 0.125rem 0.75rem;
+    padding-block: 0.5rem;
+  }
+  .cab-row-main { grid-area: main; }
+  .cab-person-status { grid-area: status; }
+  .cab-person-job { grid-area: job; font-size: 0.8125rem; }
+  .cab-person-phone { grid-area: phone; text-align: right; }
+  .cab-session { grid-template-areas: "main act" "ip note"; }
+  .cab-session .cab-row-act { grid-area: act; }
+  .cab-session .cab-session-ip { grid-area: ip; }
+  .cab-session .cab-row-note { grid-area: note; text-align: right; }
+}
+
+.cab-error { margin: 0.75rem 0 0; font-size: 0.8125rem; }
+.cab-wait, .cab-empty { padding: 1.25rem 0.25rem; margin: 0; font-size: 0.875rem; color: var(--fin-text-soft); }
+.cab-note { margin: 1rem 0 0; font-size: 0.8125rem; }
+.cab-admin-line { margin: 0.5rem 0; font-size: 0.9375rem; color: var(--fin-text); }
+
+/* ─── Сотрудники ─── */
+.cab-people-bar {
+  display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem 1rem;
@@ -3704,29 +3785,9 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
 }
 .cab-add-grid { display: grid; grid-template-columns: minmax(12rem, 1.4fr) minmax(12rem, 1fr) minmax(8rem, 0.8fr) minmax(8rem, 0.9fr); gap: 0.75rem; }
 @media (max-width: 899.98px) { .cab-add-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-.cab-person-dept { font-size: 0.8125rem; }
-/* Пустая клетка — тихий прочерк: две колонки ярких «—» у тридцати человек
-   без должности и номера читались как данные. */
-.cab-person [data-empty="true"] { color: var(--text-muted); }
-.cab-person-self { font-weight: 400; color: var(--fin-text-soft); }
 @media (max-width: 559.98px) { .cab-add-grid { grid-template-columns: minmax(0, 1fr); } }
 .cab-add-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
-.cab-person-status[data-tone="quiet"] { color: var(--fin-text-soft); }
 .cab-add-actions { display: inline-flex; gap: 0.5rem; margin-left: auto; }
-
-/* Шапка колонок — подпись, как у реестра (`.creg-head`). У сотрудников
-   прилипает под шапкой приложения: список длинный. */
-.cab-list-head { min-height: 2.25rem; }
-.cab-list-head .eyebrow { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cab-people .cab-list-head {
-  position: sticky;
-  top: var(--fin-head-h, 0px);
-  z-index: 2;
-  background: var(--fin-plate);
-}
-@media (max-width: 759.98px) {
-  .cab-list-head, .cab-person-dept { display: none; }
-}
 .cab-add-dept { grid-template-columns: 8rem minmax(0, 1fr) auto; align-items: end; }
 @media (max-width: 559.98px) { .cab-add-dept { grid-template-columns: minmax(0, 1fr); } }
 .cab-add-dept .cab-error { grid-column: 1 / -1; }

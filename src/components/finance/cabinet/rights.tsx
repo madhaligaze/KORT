@@ -121,6 +121,7 @@ export function RightsMatrix({
   const [catalog, setCatalog] = useState<AccessCatalog | null>(null);
   const [data, setData] = useState<SubjectAccess | null>(null);
   const [entities, setEntities] = useState<OwnEntity[]>([]);
+  const [departments, setDepartments] = useState<{ id: string; code: string; title: string }[]>([]);
   const [error, setError] = useState("");
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [fieldsOpen, setFieldsOpen] = useState(false);
@@ -139,6 +140,7 @@ export function RightsMatrix({
         setCatalog(nextCatalog);
         setData(nextData);
         setEntities(schema?.own_entities ?? []);
+        setDepartments(schema?.departments ?? []);
       })
       .catch((exc) => alive && setError(exc instanceof Error ? exc.message : "Права не прочитались"));
     return () => {
@@ -231,7 +233,10 @@ export function RightsMatrix({
 
   const setScope = (next: ContractScope) => {
     const level = own.contracts?.level ?? (person ? dept.contracts?.level : undefined) ?? "view";
-    void save("contracts", { level, scope: { rows: scope.rows ?? "all", entities: scope.entities ?? [], ...next } });
+    void save("contracts", {
+      level,
+      scope: { rows: scope.rows ?? "all", entities: scope.entities ?? [], departments: scope.departments ?? [], ...next },
+    });
   };
 
   const renderRow = (resource: string, title: string, levels: AccessLevel[], words = LEVEL_WORDS, note?: string) => {
@@ -338,6 +343,47 @@ export function RightsMatrix({
                       <span className="cab-line-error fin-wait">Отдела нет — договоров своего отдела не увидит</span>
                     ) : null}
                   </div>
+                  {(scope.rows ?? "all") !== "all" && departments.length ? (
+                    // Другие отделы — только просмотр (28.09.2026): юристу ЮО
+                    // показать договоры НО, не давая их править. Правку такого
+                    // договора сервер не примет, лист и карточка её не предложат.
+                    <div className="cab-right cab-right-sub-row">
+                      <span className="cab-right-title">
+                        Ещё видит отделы
+                        <span className="cab-right-sub fin-soft">только просмотр</span>
+                      </span>
+                      <span className="cab-entity-list">
+                        {departments
+                          // Свой отдел не предлагается: его договоры и так видны.
+                          .filter((department) =>
+                            person ? data.subject.department?.id !== department.id : data.subject.id !== department.id,
+                          )
+                          .map((department) => {
+                            const on = scope.departments?.includes(department.id) ?? false;
+                            return (
+                              <button
+                                key={department.id}
+                                type="button"
+                                className="cab-toggle"
+                                aria-pressed={on}
+                                title={department.title && department.title !== department.code ? department.title : undefined}
+                                disabled={readOnly || scopeInherited || rows.contracts?.sending}
+                                onClick={() => {
+                                  const current = scope.departments ?? [];
+                                  setScope({
+                                    departments: on
+                                      ? current.filter((item) => item !== department.id)
+                                      : [...current, department.id],
+                                  });
+                                }}
+                              >
+                                {department.code || department.title}
+                              </button>
+                            );
+                          })}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="cab-right cab-right-sub-row">
                     <span className="cab-right-title">Какими юрлицами</span>
                     <span className="cab-entities">

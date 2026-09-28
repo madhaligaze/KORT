@@ -338,6 +338,18 @@ export function ContractGridIcon(props: IconProps) {
   );
 }
 
+/** «Разовые» — лист с печатью: разовая услуга, исполненная и закрытая. */
+export function OneoffIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M13 3H6v18h6.5M13 3l4 4v5.5M13 3v4h4" />
+      <path d="M8.5 10.5h5M8.5 13.5h3" />
+      <circle cx="17" cy="17.5" r="3.5" />
+      <path d="m15.5 17.6 1.1 1.1 1.9-2.1" />
+    </Svg>
+  );
+}
+
 export function SearchIcon(props: IconProps) {
   return (
     <Svg {...props}>

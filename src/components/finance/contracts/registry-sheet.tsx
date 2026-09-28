@@ -22,6 +22,7 @@ import { createPortal } from "react-dom";
 
 import { type ChangeMode as ChangeModeValue, contractsApi } from "@/components/finance/api";
 import { ChangeMode } from "@/components/finance/contracts/change-mode";
+import { OtherContracts } from "@/components/finance/contracts/contract-card";
 import {
   RegistryBinding,
   buildRegistry,
@@ -61,8 +62,8 @@ type Props = {
 
 type Note = { text: string; fail: boolean; at: number };
 
-/** Строки заметки ячейки разделены переводом строки (`sheet-adapter`, `render`). */
-const NEWLINE = String.fromCharCode(10);
+/** Сколько подсказка ждёт мышь, ушедшую с ячейки, прежде чем погаснуть. */
+const HIDE_DELAY = 420;
 
 function stillAsking(group: AskGroup): { id: string; key: string }[] {
   const edits = getRegistry().edits;
@@ -87,6 +88,16 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
   const [acking, setAcking] = useState("");
   const [ackError, setAckError] = useState("");
   const hintBox = useRef<HTMLDivElement>(null);
+  const hideTimer = useRef(0);
+  /** Мышь над подсказкой: Univer в это время ячейку не видит и шлёт «спрятать». */
+  const overHint = useRef(false);
+  const scheduleHide = useCallback((delay: number) => {
+    window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => {
+      if (!overHint.current) setHint(null);
+    }, delay);
+  }, []);
+  useEffect(() => () => window.clearTimeout(hideTimer.current), []);
   const [keeper, setKeeper] = useState<LookKeeper | null>(null);
   const [lookEmpty, setLookEmpty] = useState(true);
 
@@ -173,21 +184,31 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
           },
           rebuild: () => setGeneration((value) => value + 1),
           hint: (at) => {
-            setAckError("");
+            // Univer прячет заметку, как только мышь ушла с ячейки, — а по
+            // дороге к «Учтено» она уходит всегда. Раньше подсказка гасла в
+            // тот же миг, и кнопку приходилось ловить (28.09.2026). Теперь
+            // прятание ждёт: успела мышь дойти до подсказки — она остаётся.
             if (!at) {
-              setHint(null);
+              scheduleHide(HIDE_DELAY);
               return;
             }
             const found = binding.current?.hintAt(at.sheet, at.row, at.col) ?? null;
+            if (!found && overHint.current) return;
+            window.clearTimeout(hideTimer.current);
+            setAckError("");
             setHint(found);
             const rect = found ? binding.current?.cellRectAt(at.sheet, at.row, at.col) : null;
             if (!rect?.visible) {
               setHintSpot(null);
               return;
             }
-            // Под ячейкой; у нижнего края окна — над ней.
-            const above = rect.bottom + 180 > window.innerHeight;
-            setHintSpot({ left: Math.round(rect.left), top: Math.round(above ? rect.top - 6 : rect.bottom + 6), above });
+            // Вплотную под ячейкой (у нижнего края окна — над ней): щели,
+            // через которую мышь проходила бы по соседней ячейке, нет.
+            const above = rect.bottom + 220 > window.innerHeight;
+            // У правого края окна подсказка сжималась в столбик — сдвигаем
+            // её влево настолько, чтобы влезла во всю ширину (400px).
+            const left = Math.max(8, Math.min(rect.left, window.innerWidth - 412));
+            setHintSpot({ left: Math.round(left), top: Math.round(above ? rect.top : rect.bottom), above });
           },
         },
         box.current,
@@ -213,7 +234,7 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
         if (binding.current === next) binding.current = null;
       };
     },
-    [built, box, book],
+    [built, box, book, scheduleHide],
   );
 
   useEffect(() => {
@@ -350,25 +371,34 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
     };
   }, [hint, box]);
 
-  const acknowledge = async (id: string, code: string) => {
+  /**
+   * «Учтено» / «Снять отметку». Подсказка не закрывается: замечание в ней
+   * остаётся с пометкой «учтено» — видно, что отмечено и о чём, а уголок
+   * ячейки остаётся флажком (`sheet-adapter`, `inkMarkers`).
+   */
+  const acknowledge = async (id: string, code: string, on: boolean) => {
     setAcking(code);
     setAckError("");
     try {
-      put(await contractsApi.acknowledge(id, code, true));
-      setHint((current) => {
-        if (!current) return current;
-        const issues = current.issues.filter((issue) => issue.code !== code);
-        const text = current.text
-          .split(NEWLINE)
-          .filter((line) => !current.issues.some((issue) => issue.code === code && issue.text === line))
-          .join(NEWLINE);
-        return text.trim() ? { ...current, issues, text } : null;
-      });
+      put(await contractsApi.acknowledge(id, code, on));
+      setHint((current) =>
+        current
+          ? {
+              ...current,
+              issues: current.issues.map((issue) => (issue.code === code ? { ...issue, acknowledged: on } : issue)),
+            }
+          : current,
+      );
     } catch (exc) {
       setAckError(exc instanceof Error ? exc.message : "Отметка не сохранилась");
     } finally {
       setAcking("");
     }
+  };
+  const openFromHint = (id: string, ctx?: { view: string; block: number }) => {
+    overHint.current = false;
+    setHint(null);
+    onOpenRef.current(id, ctx);
   };
 
   const count = ask ? stillAsking(ask).length : 0;
@@ -464,45 +494,69 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
               className="creg-hint"
               role="dialog"
               aria-label="Подсказка ячейки"
+              data-above={hintSpot.above ? "true" : undefined}
               style={{
                 left: hintSpot.left,
                 top: hintSpot.top,
                 transform: hintSpot.above ? "translateY(-100%)" : undefined,
               }}
+              onPointerEnter={() => {
+                overHint.current = true;
+                window.clearTimeout(hideTimer.current);
+              }}
+              onPointerLeave={() => {
+                overHint.current = false;
+                scheduleHide(HIDE_DELAY);
+              }}
             >
-              {hint.text.split(NEWLINE).map((line, index) => {
-                const issue = hint.issues.find((item) => item.text === line);
-                return (
-                  <div key={`${index}-${line}`} className="creg-hint-line">
-                    <span>{line}</span>
-                    {issue && hint.id && state.schema?.access.edit ? (
-                      <button
-                        type="button"
-                        className="creg-hint-ack"
-                        disabled={acking === issue.code}
-                        onClick={() => void acknowledge(hint.id as string, issue.code)}
-                        title="Проверено: так и должно быть — замечание перестанет гореть"
-                      >
-                        {acking === issue.code ? "…" : "Учтено"}
-                      </button>
-                    ) : null}
-                  </div>
-                );
-              })}
-              {ackError ? <p className="creg-hint-fail">{ackError}</p> : null}
-              {hint.id ? (
-                <button
-                  type="button"
-                  className="fin-link-btn creg-hint-open"
-                  onClick={() => {
-                    const id = hint.id as string;
-                    setHint(null);
-                    onOpenRef.current(id, { view: hint.sheet, block: hint.block });
-                  }}
-                >
-                  Открыть договор
-                </button>
-              ) : null}
+              <div className="creg-hint-body">
+                {hint.lines.map((line, index) => (
+                  <p key={`${index}-${line}`} className="creg-hint-text">
+                    {line}
+                  </p>
+                ))}
+                {hint.issues.map((issue) => {
+                  const canAck = Boolean(hint.id && state.schema?.access.edit && !state.byId.get(hint.id)?.readonly);
+                  return (
+                    <div key={issue.code} className="creg-hint-issue" data-ack={issue.acknowledged ? "true" : undefined}>
+                      <div className="creg-hint-line">
+                        <span>
+                          {issue.acknowledged ? <span className="creg-hint-flag">учтено</span> : null}
+                          {issue.text}
+                        </span>
+                        {canAck ? (
+                          <button
+                            type="button"
+                            className="creg-hint-ack"
+                            disabled={acking === issue.code}
+                            onClick={() => void acknowledge(hint.id as string, issue.code, !issue.acknowledged)}
+                            title={
+                              issue.acknowledged
+                                ? "Замечание снова загорится"
+                                : "Проверено: так и должно быть — замечание перестанет гореть, флажок в ячейке останется"
+                            }
+                          >
+                            {acking === issue.code ? "…" : issue.acknowledged ? "Снять отметку" : "Учтено"}
+                          </button>
+                        ) : null}
+                      </div>
+                      {issue.others?.length ? (
+                        <OtherContracts ids={issue.others} onOpen={(id) => openFromHint(id)} />
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {ackError ? <p className="creg-hint-fail">{ackError}</p> : null}
+                {hint.id ? (
+                  <button
+                    type="button"
+                    className="fin-link-btn creg-hint-open"
+                    onClick={() => openFromHint(hint.id as string, { view: hint.sheet, block: hint.block })}
+                  >
+                    Открыть договор
+                  </button>
+                ) : null}
+              </div>
             </div>,
             document.body,
           )

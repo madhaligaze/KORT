@@ -38,7 +38,8 @@
  * Счётчик `writing` отличает свои записи от человеческих, чтобы они не ушли
  * обратно на сервер.
  */
-import { IUndoRedoService } from "@univerjs/core";
+import { IUndoRedoService, InterceptorEffectEnum } from "@univerjs/core";
+import { INTERCEPTOR_POINT, SheetInterceptorService } from "@univerjs/preset-sheets-core";
 import { SheetsNotePopupService } from "@univerjs/preset-sheets-note";
 
 import type {
@@ -52,6 +53,7 @@ import type {
   ViewBlock,
 } from "@/components/finance/api";
 import { departmentText, listText } from "@/components/finance/contracts/schema";
+import { STAFF_SHEET, type StaffMatrix, staffMatrix, staffSnapshot } from "@/components/finance/contracts/staff-sheet";
 import {
   create,
   edit,
@@ -135,6 +137,8 @@ export type BlockLayout = {
   headerHeight: number;
   /** Сторона, где у договоров блока стоит наше юрлицо (подстановка блока `own_side`). */
   ownSide: "executor" | "customer" | null;
+  /** Выбор списков в блоке (`choices`): поле → значения; нет — весь список. */
+  choices: Record<string, string[]> | null;
 };
 
 export type ViewLayout = {
@@ -198,6 +202,7 @@ const EMPTY_BLOCK: ViewBlock = {
   defaults: {},
 };
 
+
 export function layoutOf(schema: RegistrySchema, view: RegistryView): ViewLayout {
   const fields = new Map(schema.fields.map((field) => [field.key, field]));
   // Отбор без своих колонок — поля схемы в их порядке (скрытых в листе нет).
@@ -236,7 +241,8 @@ export function layoutOf(schema: RegistrySchema, view: RegistryView): ViewLayout
       : Boolean(title) && title.toLowerCase() !== view.title.trim().toLowerCase();
     const own = block.defaults?.own_side;
     const ownSide = own === "executor" || own === "customer" ? own : null;
-    return { index, title, showTitle, columns, headerHeight: headerHeight(columns), ownSide };
+    const choices = block.choices && Object.keys(block.choices).length ? block.choices : null;
+    return { index, title, showTitle, columns, headerHeight: headerHeight(columns), ownSide, choices };
   });
   const width = Math.max(1, ...blocks.map((block) => block.columns.length));
   const readOnlyCols: number[] = [];
@@ -264,6 +270,7 @@ export function structureKey(schema: RegistrySchema): string {
       layout.blocks.map((block) => [
         block.title,
         block.ownSide,
+        block.choices,
         block.columns.map((column) => [column.key, column.label, column.width, column.readOnly]),
       ]),
     ]),
@@ -399,7 +406,16 @@ function rawOf(column: SheetColumn, cell: unknown): string {
 
 // ── Цвета и стили ────────────────────────────────────────────────────────────
 
-export type Palette = { dark: boolean; flash: string; fail: string; failBg: string };
+export type Palette = {
+  dark: boolean;
+  flash: string;
+  fail: string;
+  failBg: string;
+  done: string;
+  /** Уголок заметки: тушью у учтённого и пояснений, розой у отказа. Холст их не инвертирует. */
+  mark: string;
+  markFail: string;
+};
 
 export function paletteNow(): Palette {
   const dark = isDarkTheme();
@@ -409,6 +425,12 @@ export function paletteNow(): Palette {
     flash: canvas(cssHex("--fin-flash-hex", dark ? "#232521" : "#eceade")),
     fail: canvas(cssHex("--fin-fail-hex", dark ? "#ff6f5e" : "#c2331f")),
     failBg: canvas(cssHex("--fin-fail-bg-hex", dark ? "#2a1a17" : "#f7e3dc")),
+    // Строка «исполнен» — зелёная, как условное форматирование книги
+    // юротдела (#93C47D). Единственный зелёный листа, и он о закрытой работе.
+    done: canvas(cssHex("--fin-done-hex", dark ? "#26361f" : "#c3dcb2")),
+    // Уголок заметки — тушью, а не жёлтым Univer: цвет в листе только у отказа.
+    mark: cssHex("--fin-mark-hex", dark ? "#9d9a86" : "#6b6a60"),
+    markFail: cssHex("--fin-fail-hex", dark ? "#ff6f5e" : "#c2331f"),
   };
 }
 
@@ -416,9 +438,10 @@ type Style = Record<string, unknown>;
 type Part = "title" | "header" | "body" | "empty";
 
 /**
- * Стиль ячейки. Флаги: F — замечание или отказ (единственный цвет листа),
- * M — приглушено (ждёт ответа «опечатка или с даты», договор ушёл),
- * L — вспышка чужой правки, O — строка открытой карточки.
+ * Стиль ячейки. Флаги: F — замечание или отказ, M — приглушено (ждёт ответа
+ * «опечатка или с даты», договор ушёл), L — вспышка чужой правки, O — строка
+ * открытой карточки, G — строка подсвечена правилом блока (`paint`, «исполнен»),
+ * R — договор другого отдела, только просмотр.
  */
 function cellStyle(part: Part, column: SheetColumn | null, fmt: Face["fmt"], flags: string, pal: Palette): Style | null {
   if (part === "title") return { bg: { rgb: PAPER.titleBg }, bl: 1, vt: 2 };
@@ -439,6 +462,8 @@ function cellStyle(part: Part, column: SheetColumn | null, fmt: Face["fmt"], fla
   if (fmt === "money") Object.assign(style, { n: { pattern: MONEY_PATTERN }, ht: 3 });
   if (fmt === "whole") Object.assign(style, { n: { pattern: WHOLE_PATTERN }, ht: 3 });
   if (fmt === "date") style.n = { pattern: DATE_PATTERN };
+  if (flags.includes("R")) style.cl = { rgb: PAPER.soft };
+  if (flags.includes("G")) style.bg = { rgb: pal.done };
   if (flags.includes("M")) style.cl = { rgb: PAPER.muted };
   if (flags.includes("F")) {
     style.cl = { rgb: pal.fail };
@@ -639,14 +664,21 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
   const valueCtx: Ctx = { schema, parties: state.parties, people: state.people };
 
   // Замечание ложится на колонку своего поля; поля в блоке нет — на номер.
+  // Отмеченное «Учтено» не горит, но остаётся заметкой: уголок ячейки —
+  // флажок «здесь было и проверено», наведение показывает, что и о ком.
   const issueCols = new Map<number, string[]>();
+  const settledCols = new Map<number, string[]>();
   for (const issue of contract?.issues ?? []) {
-    if (issue.acknowledged) continue;
     const column = issueColumn(block, issue.field);
-    const list = issueCols.get(column) ?? [];
-    list.push(issue.text);
-    issueCols.set(column, list);
+    const target = issue.acknowledged ? settledCols : issueCols;
+    const list = target.get(column) ?? [];
+    list.push(issue.acknowledged ? `Учтено: ${issue.text}` : issue.text);
+    target.set(column, list);
   }
+  // Подсветка строки правилом блока (`paint`) — тон считает сервер.
+  const toned = Boolean(
+    contract && !away && contract.views.some((place) => place.view === layout.key && place.block === slot.block && place.tone),
+  );
 
   const now = Date.now();
   block.columns.forEach((column, index) => {
@@ -681,6 +713,10 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
       const later = ctx.ahead.get(`${id}|${column.key}`);
       if (later) texts.push(later);
     }
+    // Учтённое — на своей колонке, в том числе на «№», если поля в блоке нет.
+    texts.push(...(settledCols.get(index) ?? []));
+    if (toned) mark += "G";
+    if (contract?.readonly) mark += "R";
     if (away && !mark.includes("M")) mark += "M";
     if ((ctx.flashUntil.get(flashKey(layout.key, id, index)) ?? 0) > now) mark += "L";
     flags[index] = mark;
@@ -698,14 +734,18 @@ function issueColumn(block: BlockLayout, field: string): number {
   return column;
 }
 
-/** Что говорит подсказка ячейки: её текст и замечания, которые можно отметить «Учтено». */
+/**
+ * Что говорит подсказка ячейки: строки заметки, которые не замечания
+ * (отказ правки, «с даты …», «ушёл в …»), и замечания колонки — горящие и
+ * учтённые, с договорами, о которых они.
+ */
 export type CellHint = {
   sheet: string;
   row: number;
   col: number;
   id: string | null;
   block: number;
-  text: string;
+  lines: string[];
   issues: ContractIssue[];
 };
 
@@ -719,7 +759,7 @@ type CellData = { v?: string | number; t?: number; s?: Style | string; custom?: 
 const styleMemo = new Map<string, Style | null>();
 
 function styleOf(part: Part, spec: SheetColumn | null, fmt: Face["fmt"], flags: string, pal: Palette): { key: string; style: Style | null } {
-  const key = `${pal.flash}${pal.fail}${pal.failBg}|${part}|${spec?.kind ?? ""}|${spec?.readOnly ? 1 : 0}|${fmt}|${flags}`;
+  const key = `${pal.flash}${pal.fail}${pal.failBg}${pal.done}|${part}|${spec?.kind ?? ""}|${spec?.readOnly ? 1 : 0}|${fmt}|${flags}`;
   let style = styleMemo.get(key);
   if (style === undefined) {
     style = cellStyle(part, spec, fmt, flags, pal);
@@ -804,14 +844,20 @@ export type Choices = { values: string[]; closed: boolean };
  * задана (`ownSide` — «Заказчик ГК»: наше ТОО в колонке заказчика), — на неё;
  * иначе — на сторону, закрытую настройкой на наши юрлица.
  */
-export function choicesOf(column: SheetColumn, state: RegistryState, ownSide: BlockLayout["ownSide"] = null): Choices | null {
+export function choicesOf(
+  column: SheetColumn,
+  state: RegistryState,
+  ownSide: BlockLayout["ownSide"] = null,
+  only: readonly string[] | null = null,
+): Choices | null {
   const field = column.field;
   const schema = state.schema;
   if (!field || !schema || column.readOnly) return null;
   let values: string[] = [];
   switch (column.kind) {
     case "list":
-      values = (schema.lists[column.key] ?? []).map((item) => item.value);
+      // Выбор, ограниченный блоком (`choices`): в «Разовых» статус — два значения.
+      values = (schema.lists[column.key] ?? []).filter((item) => !only || only.includes(item.id)).map((item) => item.value);
       break;
     case "department":
       values = schema.departments.map((item) => item.code);
@@ -841,7 +887,7 @@ export function choicesOf(column: SheetColumn, state: RegistryState, ownSide: Bl
   const unique = [...new Set(values.map((item) => item.trim()).filter(Boolean))];
   if (!unique.length) return null;
   const closed =
-    column.kind === "choice" || column.kind === "bool" || column.kind === "party" || field.fill === "list";
+    column.kind === "choice" || column.kind === "bool" || column.kind === "party" || field.fill === "list" || Boolean(only);
   return { values: unique, closed };
 }
 
@@ -925,7 +971,7 @@ function rulesOf(model: SheetModel, state: RegistryState, extra?: ReadonlyMap<st
   for (const [block, { top, bottom }] of blockRows(model)) {
     const layout = model.layout.blocks[block];
     layout.columns.forEach((column, index) => {
-      const choices = choicesOf(column, state, layout.ownSide);
+      const choices = choicesOf(column, state, layout.ownSide, layout.choices?.[column.key] ?? null);
       if (!choices) return;
       const ranges: Range[] =
         (column.kind === "party" && !layout.ownSide) || column.kind === "people" || column.field?.type === "multi_list"
@@ -995,6 +1041,8 @@ export type Built = {
   rules: Map<string, Map<string, string>>;
   /** Книга листов (`""` — реестр, `oneoff` — «Разовые»); `state` уже урезан по ней. */
   book: string;
+  /** Лист «По сотрудникам» у «Разовых» (`staff-sheet.ts`); у реестра — нет. */
+  staff: StaffMatrix | null;
 };
 
 /**
@@ -1122,6 +1170,10 @@ export function buildRegistry(whole: RegistryState, pal: Palette, book = ""): Bu
     rules.set(layout.key, new Map(specs.map((spec) => [spec.uid, spec.sig])));
   }
 
+  // «Разовые»: сводки по сотрудникам — последним листом книги, как у юротдела.
+  const staff = book === "oneoff" && layouts.length ? staffMatrix(state, book) : null;
+  if (staff) sheets[STAFF_SHEET] = staffSnapshot(staff);
+
   const unitId = `creg-${Date.now().toString(36)}`;
   return {
     unitId,
@@ -1130,11 +1182,12 @@ export function buildRegistry(whole: RegistryState, pal: Palette, book = ""): Bu
     first: layouts[0]?.key ?? "",
     rules,
     book,
+    staff,
     snapshot: {
       id: unitId,
       name: "Реестр договоров",
       locale: "ruRU",
-      sheetOrder: layouts.map((layout) => layout.key),
+      sheetOrder: [...layouts.map((layout) => layout.key), ...(staff ? [STAFF_SHEET] : [])],
       styles,
       sheets,
       resources: [
@@ -1233,6 +1286,9 @@ export class RegistryBinding {
   private readonly book: string;
   /** Личный вид листа — его команды оформления правкой не считаются. */
   private look: LookKeeper | null = null;
+  /** Лист «По сотрудникам» (у «Разовых»): что в нём сейчас и сколько в нём строк. */
+  private staff: StaffMatrix | null;
+  private staffRows = 0;
 
   constructor(
     private readonly api: UniverApi,
@@ -1245,6 +1301,35 @@ export class RegistryBinding {
     this.unitId = built.unitId;
     this.rules = built.rules;
     this.book = built.book;
+    this.staff = built.staff;
+    this.staffRows = built.staff ? built.staff.rows + 40 : 0;
+  }
+
+  /**
+   * Сводки по сотрудникам — по хранилищу: правка ответственного, суммы,
+   * статуса или пришедшая сводка оплат меняют цифры. Переписываются только
+   * значения, и только если они разошлись с листом.
+   */
+  private syncStaff(): void {
+    if (!this.staff || !this.alive) return;
+    const next = staffMatrix(this.ctx.state, this.book);
+    if (next.sig === this.staff.sig) return;
+    const old = this.staff;
+    const unit = { unitId: this.unitId, subUnitId: STAFF_SHEET };
+    const need = next.rows + 40;
+    if (need > this.staffRows) {
+      this.exec(M.rowCount, { ...unit, rowCount: need });
+      this.staffRows = need;
+    }
+    const clear: Matrix = {};
+    for (let row = 0; row < old.rows; row += 1) {
+      const line: Record<number, null> = {};
+      for (let column = 0; column < old.cols; column += 1) line[column] = null;
+      clear[row] = line;
+    }
+    this.exec(M.setValues, { ...unit, cellValue: clear });
+    this.exec(M.setValues, { ...unit, cellValue: next.cells });
+    this.staff = next;
   }
 
   // ── Жизненный цикл ──
@@ -1312,6 +1397,7 @@ export class RegistryBinding {
       }),
     );
     this.takeOverNotes();
+    this.inkMarkers();
     // Тема приложения сменилась — лист следует за ней.
     if (typeof MutationObserver !== "undefined") {
       const observer = new MutationObserver(() => this.retheme());
@@ -1358,22 +1444,26 @@ export class RegistryBinding {
     const canEdit = Boolean(this.ctx.state.schema?.access.edit);
     const cancel = await guardSheets(
       this.api,
-      [...this.models.values()].map((model) => ({
-        sheetId: model.layout.key,
-        guard: {
-          name: "Реестр договоров",
-          readOnly: !canEdit,
-          allow: {
-            insertRows: false,
-            deleteRows: false,
-            insertColumns: false,
-            deleteColumns: false,
-            sort: model.layout.single,
-            filter: model.layout.single,
+      [
+        ...[...this.models.values()].map((model) => ({
+          sheetId: model.layout.key,
+          guard: {
+            name: "Реестр договоров",
+            readOnly: !canEdit,
+            allow: {
+              insertRows: false,
+              deleteRows: false,
+              insertColumns: false,
+              deleteColumns: false,
+              sort: model.layout.single,
+              filter: model.layout.single,
+            },
+            lockedColumns: model.layout.readOnlyCols,
           },
-          lockedColumns: model.layout.readOnlyCols,
-        },
-      })),
+        })),
+        // Сводка по сотрудникам — формулы, а не данные: только чтение у всех.
+        ...(this.staff ? [{ sheetId: STAFF_SHEET, guard: { name: "По сотрудникам", readOnly: true } }] : []),
+      ],
       () => this.alive,
     );
     this.disposers.push(cancel);
@@ -1633,7 +1723,7 @@ export class RegistryBinding {
     const layout = model.layout.blocks[block];
     const spec = layout?.columns[column];
     if (!spec) return null;
-    const choices = choicesOf(spec, this.ctx.state, layout.ownSide);
+    const choices = choicesOf(spec, this.ctx.state, layout.ownSide, layout.choices?.[spec.key] ?? null);
     if (!choices) return null;
     if (skipRow(model, row, spec, layout, this.ctx.state)) return null;
     return { spec, choices, block };
@@ -1669,6 +1759,7 @@ export class RegistryBinding {
     const prev = this.ctx.state;
     if (next === prev) return;
     this.ctx.state = next;
+    this.syncStaff();
     for (const [id, contract] of prev.byId) if (!next.byId.has(id)) this.ctx.lastSeen.set(id, contract);
     // Словари хранилище пересобирает на каждом ответе; пересверять весь лист
     // стоит, только если чьё-то имя правда поменялось.
@@ -2017,6 +2108,11 @@ export class RegistryBinding {
     if (!contract || contract.deleted) {
       restore.push(row);
       return "Договор убран — правка не записана";
+    }
+    if (contract.readonly) {
+      // Договор другого отдела: сервер правку не примет — лист её и не держит.
+      restore.push(row);
+      return "Договор другого отдела — открыт вам только на просмотр";
     }
     const block = model.layout.blocks[slot.block];
     const state = model.rows[row];
@@ -2402,6 +2498,44 @@ export class RegistryBinding {
     }
   }
 
+  /**
+   * Уголок заметки — флажок ячейки. Univer рисует его жёлтым (`#FFBD37`) у
+   * любой заметки, и учтённое замечание горело бы цветом, как несделанное.
+   * Здесь уголок тушью; розой — только там, где ячейка сама в отказе (F).
+   * Перехватчик ставится после заметок (приоритет ниже) и трогает только
+   * ячейки своей книги.
+   */
+  private inkMarkers(): void {
+    type Cell = { markers?: { tr?: { color: string; size: number } } } & Record<string, unknown>;
+    try {
+      const service = this.api._injector.get(SheetInterceptorService) as {
+        intercept: (point: unknown, spec: Record<string, unknown>) => { dispose?: () => void } | (() => void);
+      };
+      const disposable = service.intercept(INTERCEPTOR_POINT.CELL_CONTENT, {
+        effect: InterceptorEffectEnum.Style,
+        priority: 99,
+        handler: (
+          cell: Cell | null,
+          pos: { unitId: string; subUnitId: string; row: number; col: number },
+          next: (value: Cell | null) => unknown,
+        ) => {
+          const corner = cell?.markers?.tr;
+          if (!cell || !corner || pos.unitId !== this.unitId) return next(cell);
+          const marks = this.models.get(pos.subUnitId)?.rows[pos.row]?.marks[pos.col] ?? "";
+          const color = marks.includes("F") ? this.ctx.pal.markFail : this.ctx.pal.mark;
+          if (corner.color === color) return next(cell);
+          return next({ ...cell, markers: { ...cell.markers, tr: { ...corner, color } } });
+        },
+      });
+      this.disposers.push(() => {
+        if (typeof disposable === "function") disposable();
+        else disposable?.dispose?.();
+      });
+    } catch (exc) {
+      console.warn("уголки заметок остались цветом Univer:", exc);
+    }
+  }
+
   /** Подсказка ячейки: текст заметки и замечания её колонки. `null` — заметки нет. */
   hintAt(sheet: string, row: number, col: number): CellHint | null {
     const model = this.models.get(sheet);
@@ -2411,10 +2545,10 @@ export class RegistryBinding {
     const id = (slot.kind === "row" || slot.kind === "gone") && slot.id ? slot.id : null;
     const contract = id ? this.ctx.state.byId.get(id) : undefined;
     const block = model.layout.blocks[slot.block];
-    const issues = block
-      ? (contract?.issues ?? []).filter((issue) => !issue.acknowledged && issueColumn(block, issue.field) === col)
-      : [];
-    return { sheet, row, col, id, block: slot.block, text, issues };
+    const issues = block ? (contract?.issues ?? []).filter((issue) => issueColumn(block, issue.field) === col) : [];
+    const own = new Set(issues.flatMap((issue) => [issue.text, `Учтено: ${issue.text}`]));
+    const lines = text.split("\n").filter((line) => line.trim() && !own.has(line));
+    return { sheet, row, col, id, block: slot.block, lines, issues };
   }
 
   /** Где ячейка на экране (подсказка встаёт рядом). */
@@ -2446,14 +2580,21 @@ export class RegistryBinding {
   private retheme(): void {
     if (!this.alive) return;
     const pal = paletteNow();
-    if (pal.dark === this.ctx.pal.dark && pal.fail === this.ctx.pal.fail && pal.flash === this.ctx.pal.flash) return;
+    if (
+      pal.dark === this.ctx.pal.dark &&
+      pal.fail === this.ctx.pal.fail &&
+      pal.flash === this.ctx.pal.flash &&
+      pal.done === this.ctx.pal.done
+    ) {
+      return;
+    }
     this.ctx.pal = pal;
     // Холст перекрашивает корень листов; цвета токенов (отказ, вспышка,
-    // строка карточки) зашиты в ячейки — переписываем только их.
+    // строка карточки, подсветка) зашиты в ячейки — переписываем только их.
     for (const model of this.models.values()) {
       const rows: number[] = [];
       model.rows.forEach((state, row) => {
-        if (state?.marks.some((mark) => /[FLO]/.test(mark))) rows.push(row);
+        if (state?.marks.some((mark) => /[FLOG]/.test(mark))) rows.push(row);
       });
       if (rows.length) this.paint(model, rows, "force");
     }

@@ -140,55 +140,106 @@
 }
 .setup-input:focus { outline: none; border-color: var(--fin-text); }
 
-/* ─── Поля ─── */
+/* ─── Поля (со списками внутри) ───
+   Закрытая строка — название, тип, что особенного, сколько заполнено.
+   Раскрытие — всё о поле строками «подпись · значение», как у листа. */
 .setup-fields { max-width: 1040px; }
-.setup-fields-head,
-.setup-field {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) 7.5rem 11rem 7.5rem 5.5rem 4.5rem;
-  grid-template-areas: "move title type fill req hide drop";
-  align-items: center;
-  column-gap: 0.75rem;
+.setup-fhead,
+.setup-frow { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; column-gap: 0.5rem; }
+/* Шапка повторяет сетку кнопки строки: название · тип · особое · заполнено · стрелка. */
+.setup-fhead {
+  grid-template-columns: 64px minmax(0, 1fr) 8rem minmax(0, 1.1fr) 6rem 1.25rem;
+  min-height: 2rem;
   padding: 0 0.25rem;
-}
-.setup-fields-head { min-height: 2rem; border-bottom: 1px solid var(--fin-line); }
-.setup-field {
-  min-height: var(--fin-row-h);
-  padding-block: 0.25rem;
   border-bottom: 1px solid var(--fin-line);
-  font-size: 0.875rem;
 }
-.setup-field:hover { background: var(--fin-hover); }
-.setup-field[data-hidden="true"] .setup-inline-value { color: var(--fin-text-soft); }
-.setup-field-move { grid-area: move; display: inline-flex; gap: 2px; }
-.setup-move-btn { width: 34px; height: 34px; color: var(--fin-text-soft); }
+.setup-frow { padding: 0 0.25rem; border-bottom: 1px solid var(--fin-line); font-size: 0.875rem; }
+.setup-frow[data-open="true"] { background: var(--fin-hover); }
+.setup-frow > .setup-field-note { grid-column: 2; }
+.setup-fhead-btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8rem minmax(0, 1.1fr) 6rem 1.25rem;
+  align-items: center;
+  column-gap: 0.5rem;
+  min-width: 0;
+  min-height: var(--fin-row-h);
+  padding: 0.25rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--fin-text);
+  text-align: left;
+  cursor: pointer;
+}
+.setup-fhead-btn:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 2px; }
+.setup-frow:hover:not([data-open="true"]) { background: var(--fin-hover); }
+.setup-ftitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 450; }
+.setup-frow[data-open="true"] .setup-ftitle { font-weight: 600; }
+.setup-frow[data-hidden="true"] .setup-ftitle { color: var(--fin-text-soft); }
+.setup-ftype { font-size: 0.8125rem; color: var(--fin-text-soft); white-space: nowrap; }
+.setup-fnotes { display: flex; flex-wrap: wrap; gap: 0.15rem 0.75rem; min-width: 0; font-size: 0.75rem; color: var(--fin-text-soft); }
+.setup-fcount { font-size: 0.8125rem; color: var(--text-muted); }
+.setup-fchev { display: inline-flex; justify-content: center; color: var(--text-muted); transition: transform var(--dur-fast, 0.15s) ease-out; }
+[aria-expanded="true"] > .setup-fchev,
+[aria-expanded="true"] .setup-fchev { transform: rotate(90deg); color: var(--fin-text); }
+.setup-fbody { grid-column: 2; padding: 0.25rem 0 1rem; }
+.setup-fixed { font-size: 0.875rem; }
+.setup-pair { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.setup-fvalues { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--fin-line); }
+.setup-fvalues-title { margin: 0 0 0.25rem; font-size: 0.75rem; font-weight: 500; color: var(--text-muted); }
+.setup-field-move { display: inline-flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease-out; }
+.setup-frow:hover .setup-field-move,
+.setup-frow:has(:focus-visible) .setup-field-move,
+.setup-frow[data-open="true"] .setup-field-move { opacity: 1; }
+@media (hover: none) { .setup-field-move { opacity: 1; } }
+.setup-move-btn { width: 30px; height: 30px; color: var(--fin-text-soft); }
 .setup-move-btn:hover:not(:disabled) { color: var(--fin-text); }
-.setup-field-title { grid-area: title; display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
-.setup-field-title .setup-inline { flex: 1 1 auto; }
-.setup-field-flag { flex: none; font-size: 0.75rem; color: var(--text-muted); }
-.setup-field-type { grid-area: type; min-width: 0; }
-.setup-field-kind { font-size: 0.8125rem; color: var(--text-muted); white-space: nowrap; }
-.setup-field-fill { grid-area: fill; min-width: 0; font-size: 0.8125rem; }
-.setup-field-req { grid-area: req; }
-.setup-field-req .setup-field-kind { grid-area: auto; }
-.setup-field-hide { grid-area: hide; font-size: 0.8125rem; }
-.setup-field-drop { grid-area: drop; font-size: 0.8125rem; text-align: right; }
-.setup-field-note { grid-column: 2 / -1; padding-bottom: 0.375rem; font-size: 0.75rem; color: var(--fin-text-soft); }
+.setup-field-note { padding-bottom: 0.375rem; font-size: 0.75rem; color: var(--fin-text-soft); }
 .setup-field-note.setup-error { color: var(--fin-fail); margin: 0; }
 @container (max-width: 719px) {
-  .setup-fields-head { display: none; }
-  .setup-field {
-    /* Колонки фиксированной ширины: у каждой строки своя сетка, и с «auto»
-       «Спрятать» стоял то под способом заполнения, то левее — по тексту строки. */
-    grid-template-columns: 72px minmax(0, 1fr) 5.5rem 4.5rem;
+  .setup-fhead { display: none; }
+  .setup-fhead-btn {
+    grid-template-columns: minmax(0, 1fr) auto 1.25rem;
     grid-template-areas:
-      "move title title title"
-      "move type fill fill"
-      "move req hide drop";
+      "title count chev"
+      "type  type  type"
+      "notes notes notes";
     row-gap: 0.125rem;
     padding-block: 0.5rem;
   }
+  .setup-ftitle { grid-area: title; }
+  .setup-ftype { grid-area: type; }
+  .setup-fnotes { grid-area: notes; }
+  .setup-fcount { grid-area: count; }
+  .setup-fchev { grid-area: chev; }
+  .setup-fbody { grid-column: 1 / -1; }
 }
+
+/* ─── Подсказка при наведении (`tip.tsx`) ───
+   Как у Windows на файле: плашка рядом с кнопкой после задержки. Тень — как у
+   всплывающих списков, цвета нет: это пояснение, не состояние. */
+.setup-tip {
+  position: fixed;
+  z-index: var(--z-fin-pop, 100);
+  display: grid;
+  gap: 0.2rem;
+  max-width: 300px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--fin-line);
+  border-radius: 6px;
+  background: var(--fin-plate, var(--fin-card-bg));
+  color: var(--fin-text);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  pointer-events: none;
+  animation: setup-tip-in 0.14s ease-out;
+}
+.setup-tip-title { font-size: 0.75rem; font-weight: 600; }
+@keyframes setup-tip-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .setup-tip { animation: none; } }
+[data-tip] { cursor: help; }
+button[data-tip], label[data-tip], [data-tip] input, [data-tip] button { cursor: pointer; }
 
 /* ─── Два столбца: списки и листы ─── */
 .setup-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
@@ -331,9 +382,17 @@
 .setup-merge-clear { margin-left: auto; font-size: 0.8125rem; }
 .setup-merge-error { flex-basis: 100%; }
 
-/* ─── Лист и его блоки ─── */
-.setup-view-head { display: flex; align-items: center; gap: 1rem; padding-bottom: 0.25rem; font-size: 0.8125rem; }
+/* ─── Лист и его части ─── */
+.setup-view-head { display: flex; align-items: baseline; gap: 1rem; padding-bottom: 0.125rem; font-size: 0.8125rem; }
 .setup-view-title { flex: 1 1 auto; min-width: 0; }
+.setup-view-count { flex: none; font-size: 0.8125rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.setup-view-kind { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; margin: 0 0 0.75rem; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.setup-view-drop { margin-left: auto; }
+.setup-split-line { padding: 0.75rem 0 0.25rem; border-top: 1px solid var(--fin-line); font-size: 0.875rem; }
+.setup-rule-static { font-size: 0.9375rem; }
+.setup-choices { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1.25rem; }
+.setup-choice { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem; }
+.setup-block-head .setup-fchev { flex: none; margin-right: -0.5rem; }
 .setup-blocks-head {
   display: flex;
   flex-wrap: wrap;

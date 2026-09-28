@@ -142,23 +142,60 @@ const LOOK_MENU = new Set([
   "sheet.command.set-text-rotation",
 ]);
 
+/**
+ * «Сортировка и фильтр» — одной кнопкой ленты (28.09.2026: «фильтры и
+ * сортировку в одно поле объединить»). У Univer это четыре пункта: сортировка
+ * выпадающим списком, фильтр, «очистить», «пересчитать». Свои пункты зовут те
+ * же команды Univer — права листа (сортировка закрыта на листе с частями) они
+ * проверяют так же, — а прежние прячутся.
+ */
+const SORT_FILTER_ID = "kort.sort-filter";
+const SORT_FILTER_ITEMS: { id: string; title: string; action: string }[] = [
+  { id: "kort.sort-filter.filter", title: "Фильтр — включить или снять", action: "sheet.command.smart-toggle-filter" },
+  { id: "kort.sort-filter.clear", title: "Сбросить условия фильтра", action: "sheet.command.clear-filter-criteria" },
+  { id: "kort.sort-filter.asc", title: "Сортировать по возрастанию", action: "sheet.command.sort-range-asc-ext" },
+  { id: "kort.sort-filter.desc", title: "Сортировать по убыванию", action: "sheet.command.sort-range-desc-ext" },
+  { id: "kort.sort-filter.custom", title: "Сортировать по нескольким колонкам…", action: "sheet.command.sort-range-custom" },
+];
+/** Прежние пункты сортировки и фильтра — их заменяет «Сортировка и фильтр». */
+const SORT_FILTER_ORIGINALS = [
+  "sheet.command.smart-toggle-filter",
+  "sheet.command.clear-filter-criteria",
+  "sheet.command.re-calc-filter",
+  "sheet.menu.sheets-sort",
+];
+
 /** Пункты ленты, которые остаются у листа без оформления (`formatting={false}`). */
 const DATA_ONLY_MENU = new Set([
   "univer.command.undo",
   "univer.command.redo",
   "base-ui.operation.toggle-shortcut-panel",
   "ui.operation.open-find-dialog",
-  "sheet.command.smart-toggle-filter",
-  "sheet.command.clear-filter-criteria",
-  "sheet.command.re-calc-filter",
-  "sheet.menu.sheets-sort",
-  "sheet.command.sort-range-asc",
-  "sheet.command.sort-range-asc-ext",
-  "sheet.command.sort-range-desc",
-  "sheet.command.sort-range-desc-ext",
-  "sheet.command.sort-range-custom",
+  SORT_FILTER_ID,
+  ...SORT_FILTER_ITEMS.map((item) => item.id),
 ]);
 const RIBBON_TABS = ["ribbon.start", "ribbon.insert", "ribbon.formulas", "ribbon.data", "ribbon.view", "ribbon.others"];
+
+/**
+ * Собрать «Сортировка и фильтр» и спрятать прежние пункты. Подпись — словами,
+ * без значка: четыре значка воронок и стрелок читались загадкой.
+ */
+function mergeSortFilter(univerAPI: UniverApi): void {
+  try {
+    let submenu = univerAPI.createSubmenu({ id: SORT_FILTER_ID, title: "Сортировка и фильтр", tooltip: "Сортировка и фильтр", order: 0 });
+    SORT_FILTER_ITEMS.forEach((item, index) => {
+      if (index === 2) submenu = submenu.addSeparator();
+      submenu = submenu.addSubmenu(univerAPI.createMenu({ id: item.id, title: item.title, action: item.action, order: index }));
+    });
+    submenu.appendTo("ribbon.data.organization");
+    const config = univerAPI._injector.get(IConfigService);
+    config.setConfig("menu", Object.fromEntries(SORT_FILTER_ORIGINALS.map((id) => [id, { hidden: true }])), { merge: true });
+    univerAPI._injector.get(IMenuManagerService).appendRootMenu({});
+  } catch (exc) {
+    // Не собралось — останутся прежние кнопки Univer, это неудобство, не поломка.
+    console.warn("«Сортировка и фильтр» не собралась:", exc);
+  }
+}
 
 /**
  * Спрятать в ленте всё, кроме работы с данными.
@@ -184,7 +221,8 @@ function keepDataOnly(univerAPI: UniverApi, extra: ReadonlySet<string> = new Set
       const walk = (nodes: Node[] | undefined, allowed: boolean) => {
         for (const node of nodes ?? []) {
           const id = node.item?.id;
-          const ok = allowed || (id ? DATA_ONLY_MENU.has(id) || extra.has(id) : false);
+          const ok =
+          allowed || (id ? (DATA_ONLY_MENU.has(id) || extra.has(id)) && !SORT_FILTER_ORIGINALS.includes(id) : false);
           if (id && !ok && !hidden[id]) fresh[id] = hidden[id] = { hidden: true };
           if (node.children) walk(node.children, ok);
         }
@@ -223,10 +261,10 @@ const RENDERED = 2;
  * * **тема** — лист идёт за `data-theme` приложения и за системной темой
  *   («Как в системе»); тёмный класс Univer снимается при уходе, иначе
  *   следующий светлый лист получил бы тёмную ленту;
- * * **«На весь экран»** — вкладкой прямо в ряду вкладок ленты, с классами
- *   соседней вкладки Univer: шрифт, отступы, наведение и тёмная тема у неё
- *   те же, что у «Начало» и «Вставки». Esc сворачивает; страница под листом
- *   не прокручивается;
+ * * **лента** — одной строкой без вкладок (`ribbonType: "simple"`),
+ *   сортировка и фильтр — одной кнопкой «Сортировка и фильтр»;
+ * * **«На весь экран»** — по центру строки над лентой, своей кнопкой (не
+ *   вкладкой Univer). Esc сворачивает; страница под листом не прокручивается;
  * * **скорость прокрутки** — `speed.ts`: ячейка считается один раз на кадр,
  *   а не семь-восемь, и без лишних разборов строк;
  * * **выпадающие списки** — `lists.ts`: раздел ставит правило `listRule`, а
@@ -237,38 +275,18 @@ const FULL_TEXT = "На весь экран";
 const COLLAPSE_TEXT = "Свернуть";
 
 /**
- * Ряд вкладок ленты: `role="tablist"` шапки Univer. Прежний признак «три и
- * больше кнопок» не находил ряд у листа без оформления — там вкладок две
- * («Начало», «Данные»), и «На весь экран» пропадала. Он остаётся запасным для
- * версии без роли.
+ * Строка над лентой (`ribbon-header-menu` Univer). С лентой `simple` вкладок
+ * в ней нет, и она пуста — туда по центру встаёт «На весь экран». Запасной
+ * путь — ряд вкладок (`role="tablist"`), если лента когда-нибудь вернётся к
+ * вкладкам.
  */
 function findTabRow(root: HTMLElement): HTMLElement | null {
   const header = root.querySelector("header");
   if (!header) return null;
-  const list = header.querySelector<HTMLElement>('[role="tablist"]');
-  if (list) return list;
-  for (const node of Array.from(header.querySelectorAll<HTMLElement>("div"))) {
-    const buttons = Array.from(node.children).filter((child) => child.tagName === "BUTTON");
-    if (buttons.length >= 3) return node;
-  }
-  return null;
-}
-
-/** Классы вкладки, которая сейчас не выбрана: у выбранной свои цвет и вес. */
-function idleTabClass(row: HTMLElement): string {
-  const buttons = Array.from(row.children).filter(
-    (child): child is HTMLButtonElement => child instanceof HTMLButtonElement && !child.dataset.usheetFull,
+  return (
+    header.querySelector<HTMLElement>('[data-u-comp="ribbon-header-menu"]') ??
+    header.querySelector<HTMLElement>('[role="tablist"]')
   );
-  // По роли вкладки, а не по толщине шрифта: пока шрифт не догрузился, вес у
-  // всех вкладок одинаковый, и «На весь экран» брала классы выбранной —
-  // синюю заливку «Начала».
-  const idle =
-    buttons.find((button) => button.getAttribute("aria-selected") === "false") ??
-    (buttons.some((button) => button.hasAttribute("aria-selected"))
-      ? undefined
-      : buttons.find((button) => Number(getComputedStyle(button).fontWeight) < 600));
-  // Невыбранной вкладки ещё нет — подождать, а не взять классы выбранной.
-  return idle?.className ?? "";
 }
 
 /**
@@ -308,8 +326,8 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
   const listArrowRef = useRef(listArrow);
   listArrowRef.current = listArrow;
   const listsRef = useRef<ListWatch | null>(null);
-  /** Узел в ряду вкладок ленты, куда порталом встаёт «На весь экран». */
-  const [tabSlot, setTabSlot] = useState<{ host: HTMLElement; className: string } | null>(null);
+  /** Узел в строке над лентой, куда порталом встаёт «На весь экран». */
+  const [tabSlot, setTabSlot] = useState<{ host: HTMLElement } | null>(null);
   // Через ref, чтобы обработчик, пересозданный родителем, не пересоздавал
   // книгу: эффект ниже монтируется один раз и живёт до размонтирования.
   const onReadyRef = useRef(onReady);
@@ -357,7 +375,10 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
         ),
       },
       presets: [
-        UniverSheetsCorePreset({ container: containerRef.current }),
+        // Лента одной строкой, без вкладок «Начало» и «Данные» (28.09.2026):
+        // у листов продукта пунктов немного, а вкладки прятали половину их
+        // за щелчком. Над лентой по центру — только «На весь экран».
+        UniverSheetsCorePreset({ container: containerRef.current, ribbonType: "simple" }),
         UniverSheetsSortPreset(),
         UniverSheetsFilterPreset(),
         UniverSheetsConditionalFormattingPreset(),
@@ -388,6 +409,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
     const stopSpeed = speedUp(univerAPI);
     // Меню плагинов листа заводятся вместе с книгой — урезать ленту можно
     // только после неё.
+    mergeSortFilter(univerAPI);
     const stopTrim =
       formatting === true ? null : keepDataOnly(univerAPI, formatting === "look" ? LOOK_MENU : undefined);
     // `onReady` берётся из пропа по той же причине, что и `data`: компонент
@@ -508,23 +530,18 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
       // Лист уже снят со страницы и ждёт размонтирования — не трогать.
       if (!root.isConnected) return;
       // Дешёвая проверка первой: Univer меняет DOM листа постоянно (редактор
-      // ячейки, всплывающие списки), а узел на месте почти всегда. Классы
-      // пересчитываются и тогда: вкладки ленты дорисовываются после первой
-      // вставки, и класс, взятый с одной лишь выбранной «Начало», оставлял
-      // «На весь экран» синей навсегда.
+      // ячейки, всплывающие списки), а узел на месте почти всегда.
       const placed = host?.isConnected && host.parentElement?.firstElementChild === host;
       const row = placed ? (host?.parentElement ?? null) : findTabRow(root);
       if (!row) return;
       if (!host) {
         host = document.createElement("span");
-        host.style.display = "contents";
+        host.className = "usheet-full-slot";
         host.dataset.usheetSlot = "true";
       }
       if (row.firstChild !== host) row.insertBefore(host, row.firstChild);
-      const className = idleTabClass(row);
-      if (!className) return;
-      const slot = { host, className };
-      setTabSlot((current) => (current?.host === slot.host && current.className === slot.className ? current : slot));
+      const slot = { host };
+      setTabSlot((current) => (current?.host === slot.host ? current : slot));
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(attach);
@@ -576,7 +593,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
             <button
               type="button"
               data-usheet-full="true"
-              className={tabSlot.className}
+              className="usheet-full"
               aria-pressed={full}
               onClick={(event) => {
                 setFull((was) => !was);

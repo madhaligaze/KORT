@@ -30,6 +30,7 @@ import {
   RepeatIcon,
   ScaleIcon,
   ListIcon,
+  OneoffIcon,
   RefreshIcon,
   TableIcon,
   TargetIcon,
@@ -71,7 +72,8 @@ import { PlanActualReport } from "@/components/finance/plan-actual";
 import { DictionariesPanel } from "@/components/finance/dictionaries-panel";
 import { Registry, useRegistryBoot } from "@/components/finance/contracts/registry-cards";
 import { ContractCard } from "@/components/finance/contracts/contract-card";
-import { boot, ensureSummary } from "@/components/finance/contracts/store";
+import { bookTitle } from "@/components/finance/contracts/schema";
+import { boot, ensureSchema, ensureSummary, useRegistry } from "@/components/finance/contracts/store";
 import { OneoffStaff, SummaryLine } from "@/components/finance/contracts/oneoff";
 import { RegistryImport } from "@/components/finance/contracts/import/registry-import";
 import { RegistrySetup } from "@/components/finance/contracts/setup/registry-setup";
@@ -113,20 +115,20 @@ function SheetScreen({ me }: { me: Me }) {
   return (
     <>
       <RegistrySheet onOpenCard={open} openId={openId} />
-      <ContractCard id={openId} open={!!openId} dock="bottom" onClose={() => open(null)} onCreated={(id) => open(id)} />
+      <ContractCard id={openId} open={!!openId} dock="bottom" book="" onClose={() => open(null)} onCreated={(id) => open(id)} />
     </>
   );
 }
 
 /**
- * «Разовые»: листы книги `oneoff` (те же договоры вида «Разовая услуга») и
- * сводка по сотрудникам — как книга юротдела BBC «Разовые». Карточка — та же,
- * что у «Таблицы».
+ * «Разовые · Таблица»: листы книги `oneoff` (договоры ЮО вида «Разовая
+ * услуга») — как книга юротдела BBC «Разовые». Сводки по сотрудникам — своим
+ * листом в той же книге (`staff-sheet.ts`), как «Сводка по сотрудникам» у
+ * юротдела. Карточка — та же, что у «Таблицы» реестра.
  */
 function OneoffScreen({ me, onGo }: { me: Me; onGo: (section: string) => void }) {
   useRegistryBoot(me);
   const [openId, setOpenId] = useState<string | null>(() => readParam("id"));
-  const [staff, setStaff] = useSessionState("oneoff.staff", false);
   const open = useCallback((id: string | null) => {
     setOpenId(id);
     writeParams({ id }, id !== null);
@@ -136,7 +138,29 @@ function OneoffScreen({ me, onGo }: { me: Me; onGo: (section: string) => void })
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  // Сводка по сотрудникам считает остатки — сводка нужна и без листа.
+  // Сводка по сотрудникам считает остатки — сводка нужна и без её колонок.
+  useEffect(() => {
+    void ensureSummary();
+  }, []);
+  return (
+    <>
+      <div className="creg-oneoff-top">
+        <SummaryLine onSetup={isAdmin(me) ? () => onGo("contracts-setup") : undefined} />
+      </div>
+      <RegistrySheet book="oneoff" onOpenCard={open} openId={openId} />
+      <ContractCard id={openId} open={!!openId} dock="bottom" book="oneoff" onClose={() => open(null)} onCreated={(id) => open(id)} />
+    </>
+  );
+}
+
+/**
+ * «Разовые · Карточки»: те же листы книги `oneoff` строками, как «Реестр», и
+ * сводка по сотрудникам — таблицами, как было до листа (28.09.2026: «в
+ * карточном виде пускай остаётся как есть»).
+ */
+function OneoffCardsScreen({ me, onGo }: { me: Me; onGo: (section: string) => void }) {
+  useRegistryBoot(me);
+  const [staff, setStaff] = useSessionState("oneoff.staff", false);
   useEffect(() => {
     void ensureSummary();
   }, []);
@@ -145,12 +169,30 @@ function OneoffScreen({ me, onGo }: { me: Me; onGo: (section: string) => void })
       <div className="creg-oneoff-top">
         <SummaryLine onSetup={isAdmin(me) ? () => onGo("contracts-setup") : undefined} />
         <button type="button" className="fin-link-btn" aria-pressed={staff} onClick={() => setStaff((value) => !value)}>
-          {staff ? "Листы" : "По сотрудникам"}
+          {staff ? "Договоры" : "По сотрудникам"}
         </button>
       </div>
-      {staff ? <OneoffStaff /> : <RegistrySheet book="oneoff" onOpenCard={open} openId={openId} />}
-      <ContractCard id={openId} open={!!openId} dock="bottom" onClose={() => open(null)} onCreated={(id) => open(id)} />
+      {staff ? <OneoffStaff /> : <Registry me={me} onGo={onGo} book="oneoff" />}
     </>
+  );
+}
+
+/**
+ * Сотрудник, которому ещё не открыли ни одного раздела, стоит на главном
+ * экране, а не в кабинете (28.09.2026): колонка пустая, на месте раздела —
+ * отказ словами и кто его снимает.
+ */
+function NoSections({ onCabinet }: { onCabinet: () => void }) {
+  return (
+    <div className="fin-nosections" role="status">
+      <p className="fin-nosections-line">Вам пока не открыт ни один раздел.</p>
+      <p className="fin-nosections-sub">
+        Доступ даёт владелец или администратор компании — открытый раздел появится здесь сам.
+      </p>
+      <button type="button" className="fin-link-btn" onClick={onCabinet}>
+        Личный кабинет
+      </button>
+    </div>
   );
 }
 
@@ -168,6 +210,7 @@ type Section =
   | "contracts"
   | "contracts-sheet"
   | "contracts-oneoff"
+  | "contracts-oneoff-cards"
   | "contracts-import"
   | "contracts-setup"
   | "journal"
@@ -219,11 +262,15 @@ const GROUPS: { title: string; items: SectionItem[] }[] = [
     // Договоры — первыми: колонка идёт в порядке цепочки учёта, от договора к
     // деньгам и отчётам (план, «Картина целиком»).
     title: "Договоры",
-    // Один пункт на реестр: карточки, таблица и разовые — виды одних и тех же
-    // договоров, переключаются рядом с заголовком (`REGISTRY_MODES`). Два
-    // пункта «Реестр» и «Реестр · таблица» засоряли колонку и читались как
-    // два разных реестра.
-    items: [{ key: "contracts", title: "Реестр", icon: ContractIcon, resource: "contracts" }],
+    // Пункт на реестр, а не на вид: карточки и таблица — виды одних и тех же
+    // договоров, переключаются у заголовка (`REGISTRIES`). «Разовые ЮО» —
+    // свой реестр со своими листами (28.09.2026: разделить «Реестр ·
+    // Таблица · Разовые» на два пункта). Подпись второго — из правила книги
+    // («отдел — ЮО»), см. `bookTitle`.
+    items: [
+      { key: "contracts", title: "Реестр", icon: ContractIcon, resource: "contracts" },
+      { key: "contracts-oneoff-cards", title: "Разовые", icon: OneoffIcon, resource: "contracts" },
+    ],
   },
   {
     title: "Учёт",
@@ -268,7 +315,7 @@ const GROUPS: { title: string; items: SectionItem[] }[] = [
  * своё видит каждый, а вкладки людей решают права `people` и `audit`.
  */
 const HIDDEN_SECTIONS: SectionItem[] = [
-  { key: "contracts-sheet", title: "Таблица", icon: ContractGridIcon, resource: "contracts" },
+  { key: "contracts-sheet", title: "Реестр", icon: ContractGridIcon, resource: "contracts" },
   { key: "contracts-oneoff", title: "Разовые", icon: ContractGridIcon, resource: "contracts" },
   { key: "contracts-import", title: "Загрузка реестра", icon: UploadIcon, resource: "contracts" },
   { key: "contracts-setup", title: "Настроить реестр", icon: BookIcon, resource: "contracts" },
@@ -279,20 +326,64 @@ const SECTIONS: SectionItem[] = GROUPS.flatMap((group) => group.items);
 const ALL_SECTIONS: SectionItem[] = [...SECTIONS, ...HIDDEN_SECTIONS];
 
 /**
- * Виды реестра — переключатель у заголовка, а не пункты колонки. Порядок
- * постоянный: выбранный вид — крупный заголовок, остальные — мельче рядом.
- * Состояние передаёт размер и вес, не цвет (правило индикаторов).
+ * Реестры и их виды. Реестр — пункт колонки и заголовок раздела, вид —
+ * «Карточки · Таблица» рядом с заголовком. Выбранный вид — весом и чертой
+ * под словом, не цветом и не плашкой (правило индикаторов). Порядок видов
+ * постоянный: переключение не переставляет слова.
  */
-const REGISTRY_MODES: { key: Section; title: string }[] = [
-  { key: "contracts", title: "Реестр" },
-  { key: "contracts-sheet", title: "Таблица" },
-  { key: "contracts-oneoff", title: "Разовые" },
+type Registry = { nav: Section; book: string; modes: { key: Section; title: string }[] };
+const REGISTRIES: Registry[] = [
+  {
+    nav: "contracts",
+    book: "",
+    modes: [
+      { key: "contracts", title: "Карточки" },
+      { key: "contracts-sheet", title: "Таблица" },
+    ],
+  },
+  {
+    nav: "contracts-oneoff-cards",
+    book: "oneoff",
+    modes: [
+      { key: "contracts-oneoff-cards", title: "Карточки" },
+      { key: "contracts-oneoff", title: "Таблица" },
+    ],
+  },
 ];
-const REGISTRY_MODE_KEYS = new Set<Section>(REGISTRY_MODES.map((mode) => mode.key));
+const REGISTRY_MODE_KEYS = new Set<Section>(REGISTRIES.flatMap((registry) => registry.modes.map((mode) => mode.key)));
 
-/** Пункт колонки, который горит для раздела: у видов реестра — «Реестр». */
+function registryOf(section: Section): Registry | undefined {
+  return REGISTRIES.find((registry) => registry.modes.some((mode) => mode.key === section));
+}
+
+/** Пункт колонки, который горит для раздела: у вида реестра — его реестр. */
 function navKey(section: Section): Section {
-  return REGISTRY_MODE_KEYS.has(section) ? "contracts" : section;
+  return registryOf(section)?.nav ?? section;
+}
+
+/**
+ * Последний вид каждого реестра: «Разовые ЮО» в колонке ведут туда, где
+ * человек работал, — в таблицу, если он в ней, а не каждый раз в карточки.
+ */
+const MODE_KEY = "fin_registry_mode";
+
+function readMode(nav: Section): Section | null {
+  try {
+    const value = localStorage.getItem(`${MODE_KEY}:${nav}`);
+    return REGISTRIES.find((registry) => registry.nav === nav)?.modes.find((mode) => mode.key === value)?.key ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMode(section: Section): void {
+  const registry = registryOf(section);
+  if (!registry) return;
+  try {
+    localStorage.setItem(`${MODE_KEY}:${registry.nav}`, section);
+  } catch {
+    /* вид не запомнится — откроются карточки */
+  }
 }
 /** Загрузка и настройка реестра меняют шаблон компании — владелец и администратор. */
 const ADMIN_SECTIONS = new Set<Section>(["contracts-import", "contracts-setup"]);
@@ -303,6 +394,7 @@ const ADMIN_SECTIONS = new Set<Section>(["contracts-import", "contracts-setup"])
  * загрузки — узкой строкой, остальное — шириной таблиц и отчётов.
  */
 const FULL_SECTIONS = new Set<Section>(["table", "contracts-sheet", "contracts-oneoff"]);
+// «Разовые · Карточки» — строки реестра шириной данных, как «Реестр».
 const FORM_SECTIONS = new Set<Section>([
   "import",
   "sheets",
@@ -334,8 +426,7 @@ function readLast(): Section | null {
     const value = localStorage.getItem(LAST_KEY);
     return (
       (SECTIONS.find((item) => item.key === value)?.key as Section | undefined) ??
-      REGISTRY_MODES.find((mode) => mode.key === value)?.key ??
-      null
+      (REGISTRY_MODE_KEYS.has(value as Section) ? (value as Section) : null)
     );
   } catch {
     return null;
@@ -415,21 +506,58 @@ export function FinanceClient() {
       item.key === "me" || (ADMIN_SECTIONS.has(item.key) ? isAdmin(me) : can(me, item.resource)),
     [me],
   );
+  /**
+   * Подпись «Разовые ЮО» — из правила книги, поэтому колонке нужна схема
+   * реестра. Одна схема, без договоров: человек может и не открывать реестр.
+   */
+  const seesContracts = can(me, "contracts");
+  const companyKey = me?.company?.id ?? null;
+  const userKey = me?.user?.id ?? null;
+  useEffect(() => {
+    if (companyKey && seesContracts) void ensureSchema(companyKey, userKey);
+  }, [companyKey, userKey, seesContracts]);
+  const registrySchema = useRegistry((s) => s.schema);
+  const oneoffTitle = bookTitle(registrySchema, "oneoff");
+  const titleOf = useCallback(
+    (item: SectionItem): string =>
+      item.key === "contracts-oneoff-cards" || item.key === "contracts-oneoff" ? oneoffTitle : item.title,
+    [oneoffTitle],
+  );
   const groups = useMemo(
-    () => GROUPS.map((group) => ({ ...group, items: group.items.filter(visible) })).filter((g) => g.items.length),
-    [visible],
+    () =>
+      GROUPS.map((group) => ({
+        ...group,
+        items: group.items.filter(visible).map((item) => ({ ...item, title: titleOf(item) })),
+      })).filter((g) => g.items.length),
+    [visible, titleOf],
   );
   const [last, setLast] = useState<Section | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- хранилище читается только в браузере
     setLast(readLast());
   }, []);
-  /** Без раздела в адресе — последний открытый, иначе первый в колонке. */
-  const lastItem = last ? ALL_SECTIONS.find((item) => item.key === last) : undefined;
-  const home: Section = lastItem && visible(lastItem) ? lastItem.key : (groups[0]?.items[0]?.key ?? "me");
-  const hasSections = groups.length > 0;
-  const section: Section = picked ?? home;
-  const sectionItem = ALL_SECTIONS.find((item) => item.key === section);
+  /**
+   * Без раздела в адресе — последний открытый, иначе первый в колонке.
+   *
+   * Разделов нет (сотрудник, которому ещё ничего не открыли) — всё равно
+   * главный экран, а не кабинет: пустая колонка и предупреждение на месте
+   * раздела (`NoSections`). Право, выданное, пока человек смотрит, открывает
+   * раздел само: `me` перечитывается раз в 20 с.
+   */
+  const { home, section, sectionItem, hasSections, registry } = useMemo(() => {
+    const lastItem = last ? ALL_SECTIONS.find((item) => item.key === last) : undefined;
+    const firstKey = groups[0]?.items[0]?.key ?? null;
+    const homeKey: Section | null = lastItem && visible(lastItem) ? lastItem.key : firstKey;
+    const current: Section | null = picked ?? homeKey;
+    const baseItem = current ? ALL_SECTIONS.find((item) => item.key === current) : undefined;
+    return {
+      home: homeKey,
+      section: current,
+      sectionItem: baseItem ? { ...baseItem, title: titleOf(baseItem) } : undefined,
+      hasSections: groups.length > 0,
+      registry: current ? registryOf(current) : undefined,
+    };
+  }, [last, groups, visible, picked, titleOf]);
   const allowed = sectionItem ? visible(sectionItem) : false;
   const money = canAny(me, MONEY_RESOURCES);
   /**
@@ -442,23 +570,23 @@ export function FinanceClient() {
     const key = (ALL_SECTIONS.find((item) => item.key === next)?.key ?? "journal") as Section;
     setSectionState(key);
     writeLast(key);
+    writeMode(key);
     // Запись открытого договора, лист и вкладки кабинета принадлежат своему
     // экрану — при смене раздела они уходят из адреса.
     writeParams({ s: key, id: null, v: null, t: null, d: null }, true);
   }, []);
-  /**
-   * Без единого раздела человек стоит в кабинете, и кабинет закреплён: право,
-   * выданное, пока он читает «Разделов пока не открыто», не выдёргивает экран
-   * из-под него, а возвращает «К учёту».
-   */
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- закрепить кабинет, пока открывать нечего
-    if (me && picked === null && !hasSections) setSectionState("me");
-  }, [me, picked, hasSections]);
+  /** Пункт колонки: у реестра — вид, в котором человек работал последним. */
+  const openNav = useCallback(
+    (key: Section) => {
+      const found = REGISTRIES.find((item) => item.nav === key);
+      setSection(found ? (readMode(key) ?? key) : key);
+    },
+    [setSection],
+  );
   /** Откуда пришли в кабинет — туда и возвращает «← К учёту». */
   const [cameFrom, setCameFrom] = useState<Section | null>(null);
   const openCabinet = useCallback(() => {
-    if (section !== "me") setCameFrom(section);
+    if (section && section !== "me") setCameFrom(section);
     setSection("me");
   }, [section, setSection]);
   const openContract = useCallback((id: string) => {
@@ -684,6 +812,7 @@ export function FinanceClient() {
 
   const content = useMemo(() => {
     if (!me) return null;
+    if (!section) return <NoSections onCabinet={() => setSection("me")} />;
     if (!allowed) {
       return (
         <p className="fin-denied">
@@ -693,11 +822,13 @@ export function FinanceClient() {
     }
     switch (section) {
       case "contracts":
-        return <Registry me={me} onGo={setSection} />;
+        return <Registry me={me} onGo={setSection} book="" />;
       case "contracts-sheet":
         return <SheetScreen me={me} />;
       case "contracts-oneoff":
         return <OneoffScreen me={me} onGo={setSection} />;
+      case "contracts-oneoff-cards":
+        return <OneoffCardsScreen me={me} onGo={setSection} />;
       case "contracts-import":
         return (
           <RegistryImport
@@ -910,7 +1041,15 @@ export function FinanceClient() {
                 setMe(next);
                 reload();
               }}
-              onBack={() => setSection(cameFrom && cameFrom !== "me" && visible(ALL_SECTIONS.find((item) => item.key === cameFrom)!) ? cameFrom : home)}
+              onBack={() => {
+                const back = cameFrom && cameFrom !== "me" && visible(ALL_SECTIONS.find((item) => item.key === cameFrom)!) ? cameFrom : home;
+                if (back) setSection(back);
+                else {
+                  // Разделов нет — назад на главный экран с предупреждением.
+                  setSectionState(null);
+                  writeParams({ s: null, id: null, v: null, t: null, d: null }, true);
+                }
+              }}
               onLogout={async () => {
                 await financeApi.logout().catch(() => undefined);
                 // Компьютер бывает общим: черновики вышедшего не ждут следующего.
@@ -919,6 +1058,12 @@ export function FinanceClient() {
                 dropAllSessions();
                 forgetLooks();
                 setAuthNotice("");
+                // Выходят из кабинета, и раздел «кабинет» оставался выбранным:
+                // следующий вход — свой или чужой — открывался кабинетом, а не
+                // главным экраном (28.09.2026). Раздел и адрес — с чистого листа.
+                setSectionState(null);
+                setCameFrom(null);
+                writeParams({ s: null, id: null, v: null, t: null, d: null }, false);
                 setMe(null);
                 window.setTimeout(dropAllSessions, 300);
               }}
@@ -944,6 +1089,16 @@ export function FinanceClient() {
               Подпись не прячется display'ем: свёрнутая колонка её обрезает
               шириной, поэтому переход плавный, а не мигающий. */}
           <nav className="fin-nav" aria-label="Разделы финансов">
+            {hasSections ? null : (
+              // Пустая колонка говорит, почему она пустая: без строки её
+              // принимали за недогрузившуюся страницу.
+              <div className="fin-nav-group">
+                <span className="fin-nav-head">Разделы</span>
+                <span className="fin-nav-empty">
+                  <span className="fin-nav-text">Пока не открыты</span>
+                </span>
+              </div>
+            )}
             {groups.map((group) => (
               <div key={group.title} className="fin-nav-group">
                 <span className="fin-nav-head">{group.title}</span>
@@ -952,9 +1107,9 @@ export function FinanceClient() {
                     key={item.key}
                     type="button"
                     className="fin-nav-item"
-                    data-on={navKey(section) === item.key}
+                    data-on={section ? navKey(section) === item.key : false}
                     title={item.title}
-                    onClick={() => setSection(item.key)}
+                    onClick={() => openNav(item.key)}
                   >
                     <span className="fin-nav-ico">
                       <item.icon size={17} />
@@ -1050,7 +1205,7 @@ export function FinanceClient() {
           </div>
         </aside>
 
-        <main className="fin-body min-w-0" data-measure={measureOf(section)}>
+        <main className="fin-body min-w-0" data-measure={section ? measureOf(section) : "data"}>
           {/* Заголовок раздела. Пока разделы были лентой вкладок, лента и была
               верхом страницы; когда она ушла в колонку, содержимое упёрлось в
               край плиты, и страница читалась обрезанной. */}
@@ -1059,23 +1214,39 @@ export function FinanceClient() {
               надписи, и сменить её текст на месте React уже не сможет. Ключи
               у соседей разные: одинаковые (оба `section`) React в сборке не
               различал, и старые заголовки не удалялись — копились над новыми. */}
-          {REGISTRY_MODE_KEYS.has(section) ? (
-            // Виды реестра: выбранный — заголовком, соседние — рядом, мельче.
-            // На узком окне заголовков нет (там лента разделов) — виды
-            // встают своим рядом под лентой (`fin-modes` ниже).
-            <nav className="fin-title-row" aria-label="Вид реестра">
-              {REGISTRY_MODES.map((mode) =>
-                mode.key === section ? (
-                  <SplitReveal key={`title-${section}`} as="h1" className="fin-section-title" duration={0.9}>
-                    {mode.title}
-                  </SplitReveal>
-                ) : (
-                  <button key={mode.key} type="button" className="fin-title-alt" onClick={() => setSection(mode.key)}>
+          {!section ? (
+            <SplitReveal key="title-none" as="h1" className="fin-section-title" duration={0.9}>
+              Нет доступа
+            </SplitReveal>
+          ) : registry ? (
+            // Реестр — заголовком, его виды — рядом: «Карточки · Таблица».
+            // Заголовок не пересобирается при смене вида (ключ — реестр и его
+            // подпись): буквы поднимаются, только когда сменился сам реестр.
+            // На узком окне заголовков нет — виды встают своим рядом под
+            // лентой разделов (`fin-modes` ниже).
+            <div className="fin-title-bar fin-reg-title">
+              <SplitReveal
+                key={`title-${registry.nav}-${sectionItem?.title ?? ""}`}
+                as="h1"
+                className="fin-section-title"
+                duration={0.9}
+              >
+                {registry.book ? oneoffTitle : "Реестр"}
+              </SplitReveal>
+              <nav className="fin-views" aria-label="Вид реестра">
+                {registry.modes.map((mode) => (
+                  <button
+                    key={mode.key}
+                    type="button"
+                    className="fin-view"
+                    aria-current={mode.key === section ? "page" : undefined}
+                    onClick={() => setSection(mode.key)}
+                  >
                     {mode.title}
                   </button>
-                ),
-              )}
-            </nav>
+                ))}
+              </nav>
+            </div>
           ) : operationActions ? (
             // Журнал: справа от заголовка — новая операция.
             <div className="fin-title-bar">
@@ -1096,8 +1267,8 @@ export function FinanceClient() {
                 key={item.key}
                 type="button"
                 className="fin-tab"
-                data-on={navKey(section) === item.key}
-                onClick={() => setSection(item.key)}
+                data-on={section ? navKey(section) === item.key : false}
+                onClick={() => openNav(item.key)}
               >
                 {item.title}
               </button>
@@ -1105,9 +1276,9 @@ export function FinanceClient() {
           </nav>
           {/* На узком окне заголовка нет — кнопки встают своим рядом под лентой. */}
           {operationActions ? <div className="fin-ops-row">{operationActions}</div> : null}
-          {REGISTRY_MODE_KEYS.has(section) ? (
+          {registry ? (
             <nav className="fin-modes" aria-label="Вид реестра">
-              {REGISTRY_MODES.map((mode) => (
+              {registry.modes.map((mode) => (
                 <button
                   key={mode.key}
                   type="button"

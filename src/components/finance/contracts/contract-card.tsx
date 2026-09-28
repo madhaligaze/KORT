@@ -9,7 +9,7 @@
  * Новый договор заводится на сервере по первому заполненному полю — до этого
  * его нет нигде, кроме карточки, и закрытая пустая карточка ничего не оставляет.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import {
   type Amendment,
@@ -21,14 +21,16 @@ import {
   contractsApi,
 } from "@/components/finance/api";
 import { ArrowDownIcon, ArrowUpIcon, CloseIcon } from "@/components/icons";
-import { InlineField } from "@/components/finance/contracts/field-editor";
+import { type CardScope, CardScopeContext, InlineField } from "@/components/finance/contracts/field-editor";
 import {
   CARD_ORDER,
   OWN_BLOCKS,
   WIDE_FIELDS,
+  bareNumberOf,
   counterpartTitle,
   economicText,
   fieldOf,
+  placesText,
   provenanceWord,
   roleLabels,
 } from "@/components/finance/contracts/schema";
@@ -54,15 +56,43 @@ type Props = {
   dock?: "center" | "bottom";
   /** Новый договор из отбора с блоком: подстановки блока ставит сервер. */
   draftContext?: { view?: string; block?: number };
+  /**
+   * Книга, из которой открыта карточка (`""` — реестр, `oneoff` — «Разовые»):
+   * выбор списков берётся из блока листа этой книги, где стоит договор.
+   */
+  book?: string;
   onClose: () => void;
   onCreated: (id: string) => void;
+  /** Открыть другой договор (из замечания «номер уже есть у …»); нет — как `onCreated`. */
+  onOpen?: (id: string) => void;
   onPrev?: () => void;
   onNext?: () => void;
 };
 
-export function ContractCard({ id, open, dock = "center", draftContext, onClose, onCreated, onPrev, onNext }: Props) {
+export function ContractCard({
+  id,
+  open,
+  dock = "center",
+  draftContext,
+  book,
+  onClose,
+  onCreated,
+  onOpen,
+  onPrev,
+  onNext,
+}: Props) {
   const contract = useRegistry((s) => (id ? s.byId.get(id) : undefined));
   const schema = useRegistry((s) => s.schema);
+  const scope = useMemo<CardScope>(() => {
+    const readonly = Boolean(contract?.readonly);
+    if (book === undefined || !schema) return { choices: null, readonly };
+    const own = schema.views.filter((view) => (view.book ?? "") === book).sort((a, b) => a.position - b.position);
+    const place =
+      contract?.views.find((item) => own.some((view) => view.key === item.view)) ??
+      (draftContext?.view ? { view: draftContext.view, block: draftContext.block ?? 0 } : null);
+    const view = own.find((item) => item.key === place?.view) ?? own[0];
+    return { choices: view?.blocks[place?.block ?? 0]?.choices ?? null, readonly };
+  }, [book, schema, contract, draftContext]);
   const parties = useRegistry((s) => s.parties);
   const edits = useRegistry((s) => (id ? s.edits.get(id) : undefined));
   const online = useRegistry((s) => s.live.online);
@@ -107,6 +137,7 @@ export function ContractCard({ id, open, dock = "center", draftContext, onClose,
 
   return (
     <CardLayer open={open} onClose={onClose} dock={dock} label={number ? `Договор ${number}` : "Новый договор"}>
+      <CardScopeContext.Provider value={scope}>
       <div className="card-top">
         <button type="button" className="fin-icon-btn" aria-label="Закрыть" onClick={onClose}>
           <CloseIcon size={16} />
@@ -134,7 +165,7 @@ export function ContractCard({ id, open, dock = "center", draftContext, onClose,
             {
               label: "Удалить договор",
               danger: true,
-              hidden: !contract || !schema?.access.edit,
+              hidden: !contract || !schema?.access.edit || scope.readonly,
               onSelect: () => setConfirmRemove(true),
             },
           ]}
@@ -146,8 +177,9 @@ export function ContractCard({ id, open, dock = "center", draftContext, onClose,
           {title || "Новый договор"}
         </h2>
         {contract ? <PartiesLine contractId={contract.id} /> : null}
+        {scope.readonly ? <p className="card-readonly">Договор другого отдела — открыт вам только на просмотр</p> : null}
         {draftError ? <p className="ifield-error">{draftError}</p> : null}
-        {contract ? <Issues contractId={contract.id} /> : null}
+        {contract ? <Issues contractId={contract.id} onOpen={onOpen ?? onCreated} /> : null}
 
         <div className="card-grid">
           {fields.map((field) => {
@@ -199,6 +231,7 @@ export function ContractCard({ id, open, dock = "center", draftContext, onClose,
           }
         }}
       />
+      </CardScopeContext.Provider>
     </CardLayer>
   );
 }
@@ -260,6 +293,7 @@ function EndDate({ field, contractId }: { field: RegistryField; contractId: stri
   const contract = useRegistry((s) => (contractId ? s.byId.get(contractId) : undefined));
   const kindField = fieldOf(schema, "end_kind");
   const kind = String(contract?.values.end_kind ?? "");
+  const locked = useContext(CardScopeContext).readonly;
   return (
     <div className="ifield">
       <InlineField contractId={contractId} field={field} label="Окончание" />
@@ -275,7 +309,7 @@ function EndDate({ field, contractId }: { field: RegistryField; contractId: stri
                 className="fin-link-btn"
                 style={{ fontWeight: kind === choice.value ? 600 : 400, color: kind === choice.value ? "var(--fin-text)" : undefined }}
                 aria-pressed={kind === choice.value}
-                disabled={!kindField.editable}
+                disabled={!kindField.editable || locked}
                 onClick={() => {
                   if (contractId) editField(contractId, "end_kind", choice.value);
                 }}
@@ -325,9 +359,9 @@ function PartiesLine({ contractId }: { contractId: string }) {
   );
 }
 
-function Issues({ contractId }: { contractId: string }) {
+function Issues({ contractId, onOpen }: { contractId: string; onOpen: (id: string) => void }) {
   const contract = useRegistry((s) => s.byId.get(contractId));
-  const canEdit = useRegistry((s) => !!s.schema?.access.edit);
+  const canEdit = useRegistry((s) => !!s.schema?.access.edit) && !contract?.readonly;
   const [busy, setBusy] = useState("");
   if (!contract || !contract.issues.length) return null;
   const acknowledge = async (code: string, on: boolean) => {
@@ -342,7 +376,10 @@ function Issues({ contractId }: { contractId: string }) {
     <div className="card-issues" role="list">
       {contract.issues.map((issue) => (
         <div key={issue.code} className="card-issue" role="listitem" data-ack={issue.acknowledged ? "true" : undefined}>
-          <span>{issue.text}</span>
+          <span>
+            {issue.acknowledged ? <span className="annot">учтено</span> : null} {issue.text}
+            {issue.others?.length ? <OtherContracts ids={issue.others} onOpen={onOpen} /> : null}
+          </span>
           {canEdit ? (
             <button
               type="button"
@@ -350,12 +387,42 @@ function Issues({ contractId }: { contractId: string }) {
               disabled={busy === issue.code}
               onClick={() => acknowledge(issue.code, !issue.acknowledged)}
             >
-              {issue.acknowledged ? "учтено · снять отметку" : "Учтено"}
+              {issue.acknowledged ? "Снять отметку" : "Учтено"}
             </button>
           ) : null}
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Договоры, о которых замечание («номер уже есть у …»): номер, сторона, где
+ * стоит — и открыть. Договор, который человеку не открыт (другой отдел),
+ * только называется: его строки у человека нет.
+ */
+export function OtherContracts({ ids, onOpen }: { ids: string[]; onOpen: (id: string) => void }) {
+  const byId = useRegistry((s) => s.byId);
+  const parties = useRegistry((s) => s.parties);
+  const schema = useRegistry((s) => s.schema);
+  const shown = ids.map((id) => byId.get(id)).filter((item): item is NonNullable<typeof item> => !!item && !item.deleted);
+  const hidden = ids.length - shown.length;
+  return (
+    <span className="issue-others">
+      {shown.map((other) => (
+        <span key={other.id} className="issue-other">
+          <button type="button" className="fin-link-btn" onClick={() => onOpen(other.id)}>
+            {bareNumberOf(other) || "без номера"} · {counterpartTitle(other, parties) || "—"}
+          </button>
+          <span className="fin-muted"> {placesText(schema, other)}</span>
+        </span>
+      ))}
+      {hidden ? (
+        <span className="issue-other fin-muted">
+          ещё {hidden} — {hidden === 1 ? "договор вам не открыт" : "договоры вам не открыты"}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -434,6 +501,7 @@ function effectWord(effect: string): string {
 function SourceText({ contractId, seq }: { contractId: string; seq: number }) {
   const schema = useRegistry((s) => s.schema);
   const contract = useRegistry((s) => s.byId.get(contractId));
+  const locked = useContext(CardScopeContext).readonly;
   // Разобранные куски принадлежат версии договора, из которой их разобрали:
   // договор поменялся — куски устарели сами, без эффекта-сброса.
   const version = `${contractId}:${seq}`;
@@ -464,7 +532,7 @@ function SourceText({ contractId, seq }: { contractId: string; seq: number }) {
     <Section
       title="Соглашения в файле"
       end={
-        text && schema?.access.edit ? (
+        text && schema?.access.edit && !locked ? (
           <button type="button" className="fin-link-btn" onClick={parse}>
             Разобрать
           </button>
@@ -677,7 +745,8 @@ const PAYMENT_ACTIONS: Record<PaymentItem["how"], { label: string; action: "link
  */
 function Payments({ contractId, seq }: { contractId: string; seq: number }) {
   const schema = useRegistry((s) => s.schema);
-  const canEdit = Boolean(schema?.access.edit);
+  const locked = useContext(CardScopeContext).readonly;
+  const canEdit = Boolean(schema?.access.edit) && !locked;
   const visible = Boolean(schema?.fields.some((field) => field.key === "paid"));
   const [data, setData] = useState<{ id: string; value: ContractPayments } | null>(null);
   // Снятые «не по этому договору» остаются строкой с «Вернуть», пока карточка открыта.

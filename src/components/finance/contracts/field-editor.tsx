@@ -9,7 +9,7 @@
  * Сторона и сумма существующего договора спрашивают «опечатка или с даты»
  * прямо под полем; пока нет ответа, новое значение стоит приглушённым.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { type Party, type RegistryField, type RegistrySchema, contractsApi } from "@/components/finance/api";
 import { ChangeMode } from "@/components/finance/contracts/change-mode";
@@ -27,6 +27,14 @@ import {
 } from "@/components/finance/contracts/store";
 import { contractMoney, formatDay, middleEllipsis, parseDay, shortName } from "@/components/finance/format";
 import { useSessionDrop, useSessionState } from "@/components/session-state";
+
+/**
+ * Откуда открыта карточка: что предлагает выбор списков в этом листе
+ * (`choices` блока — в «Разовых» статус только «на исполнении» и «исполнен»)
+ * и открыт ли договор на правку (`readonly` — договор другого отдела).
+ */
+export type CardScope = { choices: Record<string, string[]> | null; readonly: boolean };
+export const CardScopeContext = createContext<CardScope>({ choices: null, readonly: false });
 
 type Props = {
   contractId: string | null;
@@ -98,7 +106,9 @@ export function InlineField({ contractId, field, label, labelNote, wide, suffix,
   const stored = contract?.values[field.key];
   const value = edit && edit.state !== "conflict" ? edit.value : stored;
   const text = display(field, value, { schema, parties, people });
-  const readOnly = !field.editable;
+  const scope = useContext(CardScopeContext);
+  const readOnly = !field.editable || scope.readonly;
+  const lockedTitle = scope.readonly ? "Договор другого отдела — только просмотр" : "Нет права правки";
 
   // Прочерк «сохранено» гаснет сам: включается в кадре анимации после ответа,
   // выключается через 0,7 с — оба раза из таймера, а не посреди эффекта.
@@ -161,7 +171,7 @@ export function InlineField({ contractId, field, label, labelNote, wide, suffix,
           className="ifield-value fin-mono"
           style={{ flex: 1, fontSize: "0.8125rem" }}
           data-readonly={readOnly ? "true" : undefined}
-          title={readOnly ? "Нет права правки" : value}
+          title={readOnly ? lockedTitle : value}
           onClick={() => !readOnly && setEditing(true)}
         >
           {middleEllipsis(value)}
@@ -179,7 +189,7 @@ export function InlineField({ contractId, field, label, labelNote, wide, suffix,
         data-empty={text ? undefined : "true"}
         data-pending={edit?.state === "asking" ? "true" : undefined}
         data-readonly={readOnly ? "true" : undefined}
-        title={readOnly ? "Нет права правки" : undefined}
+        title={readOnly ? lockedTitle : undefined}
         onClick={() => !readOnly && setEditing(true)}
         aria-label={`${label ?? field.title}: ${text || "пусто"}`}
       >
@@ -268,6 +278,9 @@ function Editor({
   // Напечатано почти то же, что уже есть в списке, — сначала вопрос.
   const [twin, setTwin] = useState<{ text: string; option: ComboOption } | null>(null);
   const canSetup = Boolean(schema?.access.setup);
+  // Выбор, ограниченный листом (`choices` блока): только эти значения и без
+  // «добавить своё» — лист «Разовых» знает два статуса, и третий ему не нужен.
+  const only = useContext(CardScopeContext).choices?.[field.key] ?? null;
   // Сбой «добавить в список» показывается под полем, а выбор остаётся открытым.
   const guarded = (run: () => Promise<void>) => {
     setFailure("");
@@ -309,7 +322,9 @@ function Editor({
   if (field.type === "list" || field.type === "department" || field.type === "choice" || field.type === "bool") {
     let options: ComboOption[] = [];
     if (field.type === "list") {
-      options = (schema?.lists[field.key] ?? []).map((item) => ({ id: item.id, label: item.value }));
+      options = (schema?.lists[field.key] ?? [])
+        .filter((item) => !only || only.includes(item.id))
+        .map((item) => ({ id: item.id, label: item.value }));
     } else if (field.type === "department") {
       options = (schema?.departments ?? []).map((item) => ({ id: item.id, label: item.code, hint: item.title !== item.code ? item.title : undefined }));
     } else if (field.type === "choice") {
@@ -349,7 +364,7 @@ function Editor({
         <Combo
           options={options}
           placeholder={placeholder}
-          allowCreate={listy && (!closed || canSetup)}
+          allowCreate={listy && !only && (!closed || canSetup)}
           createLabel={closed ? (text) => `+ Добавить «${text}» в список` : undefined}
           emptyText={
             closed

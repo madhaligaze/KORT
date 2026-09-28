@@ -67,6 +67,8 @@ export type Me = {
   contracts_scope?: {
     rows: "all" | "department" | "own";
     entities: string[];
+    /** Отделы, договоры которых видны вдобавок к своим, — только просмотр. */
+    departments?: string[];
     fields: Record<string, AccessLevel>;
   };
   /** Открытые просьбы к администраторам — «N запросов» в раме. */
@@ -1016,12 +1018,19 @@ export type ListValue = {
 export type FilterCondition = { field: string; op: string; value: unknown };
 export type ViewFilter = { any: { all: FilterCondition[] }[] };
 
+/** Тон подсветки строки: `done` — «сделано» (строка «исполнен» в «Разовых»). */
+export type RowTone = "done";
+
 export type ViewBlock = {
   title: string;
   filter: ViewFilter;
   roles: { executor?: string; customer?: string; order?: ("executor" | "customer")[] };
   columns: { key: string; label: string; width?: number | null }[];
   defaults: Record<string, string>;
+  /** Что предлагает выбор списка в этом блоке: поле → значения. Нет ключа — весь список. */
+  choices?: Record<string, string[]>;
+  /** Подсветка строки по правилу — условное форматирование листа. */
+  paint?: { filter: ViewFilter; tone: RowTone }[];
 };
 
 export type RegistryView = {
@@ -1095,7 +1104,15 @@ export type SummaryEntry = {
   candidates?: string[];
 };
 
-export type ContractIssue = { code: string; field: string; text: string; ref: string; acknowledged: boolean };
+export type ContractIssue = {
+  code: string;
+  field: string;
+  text: string;
+  ref: string;
+  acknowledged: boolean;
+  /** Договоры, о которых замечание («номер уже есть у …»). */
+  others?: string[];
+};
 
 export type Contract = {
   id: string;
@@ -1104,8 +1121,11 @@ export type Contract = {
   values: Record<string, unknown>;
   provenance: Record<string, string>;
   issues: ContractIssue[];
-  views: { view: string; block: number }[];
+  /** Листы и блоки договора; `tone` — подсветка строки в блоке (считает сервер). */
+  views: { view: string; block: number; tone?: RowTone }[];
   roles?: { executor?: string; customer?: string };
+  /** Договор «другого отдела»: виден, но не правится. */
+  readonly?: boolean;
   file_snapshot: { paid?: string; remaining?: string; as_of?: string; file?: string };
   position: number;
   source: string;
@@ -1390,7 +1410,12 @@ export type AccessCatalog = {
   row_scopes: ("all" | "department" | "own")[];
 };
 
-export type ContractScope = { rows?: "all" | "department" | "own"; entities?: string[] };
+export type ContractScope = {
+  rows?: "all" | "department" | "own";
+  entities?: string[];
+  /** Отделы «только просмотр» вдобавок к своим договорам. */
+  departments?: string[];
+};
 export type Grant = { level: AccessLevel; scope?: ContractScope };
 
 /** Права субъекта. У человека ещё права отдела и итог — для колонок «Отдел» и «Итог». */
@@ -1507,7 +1532,8 @@ export const peopleApi = {
     endOtherSessions: () => request<{ closed: number }>("/auth/sessions/end-others", { method: "POST" }),
     changePassword: (body: { old_password: string; new_password: string }) =>
       request<{ ok: boolean; sessions_closed: number }>("/auth/password", { method: "POST", body: JSON.stringify(body) }),
-    /** Свои ФИО и телефон — только владельцу и администратору. */
+    /** Свои ФИО и телефон — только владельцу и администратору. Ответ — не
+     *  `Me`: после правки `me` перечитывают через `financeApi.me()`. */
     profile: (data: { full_name?: string; phone?: string }) =>
       request<{ id: string; full_name: string; phone: string }>("/auth/profile", {
         method: "PATCH",

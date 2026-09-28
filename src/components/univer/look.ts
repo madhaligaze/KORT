@@ -435,7 +435,12 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
     });
 
   return {
-    busy: () => depth > 0 || restoring,
+    // `applying` — вид накладывается на собранный лист. Без него раздел
+    // принимал наложение за правку: реестр при каждом открытии откатывал
+    // шапку (заливка колонки задевает и её) и писал под листом «Шапку листа
+    // задаёт настройка реестра — здесь она не правится» — оформление
+    // выглядело запрещённым (28.09.2026).
+    busy: () => depth > 0 || restoring || applying,
     apply,
     empty: isEmpty,
     reset: async () => {

@@ -24,19 +24,39 @@ import { boot, holdLive, useRegistry } from "@/components/finance/contracts/stor
 import { gsap, prefersReducedMotion } from "@/components/motion/gsap";
 import { EntitiesTab } from "@/components/finance/contracts/setup/entities-tab";
 import { FieldsTab } from "@/components/finance/contracts/setup/fields-tab";
-import { ListsTab } from "@/components/finance/contracts/setup/lists-tab";
 import { SummaryTab } from "@/components/finance/contracts/setup/summary-tab";
+import { TipLayer, tip } from "@/components/finance/contracts/setup/tip";
 import { ViewsTab } from "@/components/finance/contracts/setup/views-tab";
 import { useSessionState } from "@/components/session-state";
 
-type Tab = "fields" | "lists" | "views" | "entities" | "summary";
+type Tab = "fields" | "views" | "entities" | "summary";
 
-const TABS: { key: Tab; title: string }[] = [
-  { key: "fields", title: "Поля" },
-  { key: "lists", title: "Списки" },
-  { key: "views", title: "Листы" },
-  { key: "entities", title: "Наши юрлица" },
-  { key: "summary", title: "Сводка оплат" },
+/**
+ * Вкладки — по тому, что человек настраивает: колонки договора (со списками
+ * значений внутри), листы, свои юрлица, откуда оплата. «Списки» отдельной
+ * вкладкой были вторым входом в те же поля (28.09.2026 — объединены).
+ */
+const TABS: { key: Tab; title: string; tip: string }[] = [
+  {
+    key: "fields",
+    title: "Поля",
+    tip: "Колонки договора: название, тип, как заполнять, обязательность — и значения списков (статусы, виды, предметы).",
+  },
+  {
+    key: "views",
+    title: "Листы",
+    tip: "Листы реестра и «Разовых»: какие договоры попадают в лист, какие колонки в нём, что подставлять в новую строку и какие строки подсвечивать.",
+  },
+  {
+    key: "entities",
+    title: "Наши юрлица",
+    tip: "Юрлица группы: по ним договор понимает, какая сторона наша, а какая — клиент.",
+  },
+  {
+    key: "summary",
+    title: "Сводка оплат",
+    tip: "Книга Google, из которой «Разовые» берут «Оплачено» — по номеру договора и клиенту.",
+  },
 ];
 
 
@@ -52,6 +72,7 @@ export function RegistrySetup({ onBack }: { onBack: () => void }) {
   const [stored, setTab] = useSessionState<Tab>("setup.tab", "fields");
   const tab: Tab = TABS.some((item) => item.key === stored) ? stored : "fields";
   const [slow, setSlow] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
 
   // Счётчики «в договорах» и число договоров блока считаются по хранилищу;
   // опрос держит их свежими, пока экран открыт.
@@ -113,12 +134,12 @@ export function RegistrySetup({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="setup-root">
+    <div className="setup-root" ref={root}>
+      <TipLayer root={root} />
       {top}
       <Tabs active={tab} onSelect={choose} />
       <div className="setup-body" role="tabpanel" id={`setup-panel-${tab}`} aria-labelledby={`setup-tab-${tab}`}>
         {tab === "fields" ? <FieldsTab /> : null}
-        {tab === "lists" ? <ListsTab /> : null}
         {tab === "views" ? <ViewsTab /> : null}
         {tab === "entities" ? <EntitiesTab /> : null}
         {tab === "summary" ? <SummaryTab /> : null}
@@ -174,6 +195,7 @@ function Tabs({ active, onSelect }: { active: Tab; onSelect: (tab: Tab) => void 
             aria-controls={`setup-panel-${item.key}`}
             tabIndex={item.key === active ? 0 : -1}
             className="creg-tab"
+            {...tip(item.tip)}
             onClick={() => onSelect(item.key)}
           >
             {item.title}
