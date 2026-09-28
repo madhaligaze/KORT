@@ -2213,6 +2213,9 @@ label.auth-row-label { cursor: pointer; }
 .creg-staff-scroll { overflow-x: auto; }
 .creg-staff-table { min-width: 36rem; }
 .creg-staff-table tfoot td { font-weight: 600; border-top: 1px solid var(--fin-line); }
+/* «5 договоров на нескольких ответственных — в строке каждого, в итоге один
+   раз»: почему строки в сумме больше итога. Факт с числом, а не пояснение. */
+.creg-staff-note { margin: -0.25rem 0 0; font-size: 0.8125rem; color: var(--fin-text-soft); }
 .creg-staff-table th.fin-num, .creg-staff-table td.fin-num { text-align: right; }
 
 /* Значок раздела в тёмной шапке: своя плашка, без синей заливки. */
@@ -3205,6 +3208,9 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
 .creg-sheet-note.fin-fail { color: var(--fin-fail); }
 .creg-sheet-foot { display: flex; align-items: flex-start; gap: 1rem; }
 .creg-sheet-foot .creg-sheet-note { flex: 1; }
+/* «Отбор по «Статус»: видно 21 из 90 · Показать все» — фильтр в шапке листа.
+   Цветом текста, а не акцентом: это состояние, а не отказ. */
+.creg-sheet-filter { flex: 0 1 auto; margin: 0.25rem 0 0.5rem; font-size: 0.8125rem; color: var(--fin-text); font-variant-numeric: tabular-nums; }
 .creg-look-reset { flex: none; margin-top: 0.25rem; font-size: 0.8125rem; }
 /* Подсказка ячейки листа реестра — вместо заметки Univer: текст замечания,
    «Учтено» и «Открыть договор». Встаёт под ячейкой (у низа окна — над ней). */

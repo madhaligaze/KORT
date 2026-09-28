@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { RESOURCE_TITLES, can, isAdmin, levelOf } from "@/components/finance/access";
+import { RESOURCE_TITLES, can, isAdmin, isOwner, levelOf } from "@/components/finance/access";
 import { type Department, type Me, financeApi, peopleApi } from "@/components/finance/api";
 import { EditLine } from "@/components/finance/cabinet/edit-line";
 import { plural } from "@/components/finance/format";
@@ -68,9 +68,27 @@ export function ProfileTab({
     await refresh();
   };
   const email = me.user?.email ?? "";
+  // Название компании правит только владелец (сервер: `PATCH /auth/company`).
+  // До 29.09.2026 строки не было, и «ТОО "BBC тест"», набранное при
+  // регистрации, стояло в шапке и в каждом приглашении сотруднику навсегда.
+  const owner = isOwner(me);
+  const saveCompany = async (title: string) => {
+    await financeApi.renameCompany(title);
+    await refresh();
+  };
 
   return (
     <div className="cab-fields">
+      {me.company ? (
+        <EditLine
+          label="Компания"
+          wide
+          value={me.company.title}
+          editable={owner}
+          placeholder={owner ? "Название, как в документах" : "задаёт владелец"}
+          onSave={saveCompany}
+        />
+      ) : null}
       <EditLine
         label="ФИО"
         value={name}

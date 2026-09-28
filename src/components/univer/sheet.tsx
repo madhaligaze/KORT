@@ -23,8 +23,8 @@ import UniverPresetSheetsThreadCommentRuRU from "@univerjs/preset-sheets-thread-
 import { UniverSheetsDrawingPreset } from "@univerjs/presets/preset-sheets-drawing";
 import UniverPresetSheetsDrawingRuRU from "@univerjs/presets/preset-sheets-drawing/locales/ru-RU";
 import { createUniver, LocaleType, mergeLocales } from "@univerjs/presets";
-import { IConfigService } from "@univerjs/core";
-import { IMenuManagerService } from "@univerjs/preset-sheets-core";
+import { CommandType, ICommandService, IConfigService } from "@univerjs/core";
+import { IMenuManagerService, MenuItemType } from "@univerjs/preset-sheets-core";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -115,6 +115,12 @@ type Props = {
    * перезагрузку страницы (`place.ts`). Без имени лист открывается с начала.
    */
   session?: string;
+  /**
+   * Пункт «Сортировка и фильтр» выбран: раздел может сделать своё и вернуть
+   * `true` (реестр ставит фильтр на строки договоров и объясняет, почему на
+   * листе из частей сортировки нет). `false` — команда Univer как есть.
+   */
+  onSortFilter?: (command: string) => boolean;
 };
 
 /**
@@ -148,11 +154,16 @@ const LOOK_MENU = new Set([
  * выпадающим списком, фильтр, «очистить», «пересчитать». Свои пункты зовут те
  * же команды Univer — права листа (сортировка закрыта на листе с частями) они
  * проверяют так же, — а прежние прячутся.
+ *
+ * Пункты — со своими id и действием-функцией. До 29.09.2026 действием была
+ * строка с id команды Univer, фасад брал его же id пункта меню, и прятание
+ * «прежних» (`SORT_FILTER_ORIGINALS`) прятало и эти: список раскрывался
+ * пустым, и фильтр было не включить ничем, кроме Ctrl+Shift+L.
  */
 const SORT_FILTER_ID = "kort.sort-filter";
 const SORT_FILTER_ITEMS: { id: string; title: string; action: string }[] = [
-  { id: "kort.sort-filter.filter", title: "Фильтр — включить или снять", action: "sheet.command.smart-toggle-filter" },
-  { id: "kort.sort-filter.clear", title: "Сбросить условия фильтра", action: "sheet.command.clear-filter-criteria" },
+  { id: "kort.sort-filter.filter", title: "Фильтр в шапке — показать или убрать", action: "sheet.command.smart-toggle-filter" },
+  { id: "kort.sort-filter.clear", title: "Показать все строки — сбросить отбор", action: "sheet.command.clear-filter-criteria" },
   { id: "kort.sort-filter.asc", title: "Сортировать по возрастанию", action: "sheet.command.sort-range-asc-ext" },
   { id: "kort.sort-filter.desc", title: "Сортировать по убыванию", action: "sheet.command.sort-range-desc-ext" },
   { id: "kort.sort-filter.custom", title: "Сортировать по нескольким колонкам…", action: "sheet.command.sort-range-custom" },
@@ -180,17 +191,54 @@ const RIBBON_TABS = ["ribbon.start", "ribbon.insert", "ribbon.formulas", "ribbon
  * Собрать «Сортировка и фильтр» и спрятать прежние пункты. Подпись — словами,
  * без значка: четыре значка воронок и стрелок читались загадкой.
  */
-function mergeSortFilter(univerAPI: UniverApi): void {
+function mergeSortFilter(univerAPI: UniverApi, intercept: (command: string) => boolean): void {
   try {
-    let submenu = univerAPI.createSubmenu({ id: SORT_FILTER_ID, title: "Сортировка и фильтр", tooltip: "Сортировка и фильтр", order: 0 });
+    const injector = univerAPI._injector;
+    const commands = injector.get(ICommandService);
+    // Меню — прямо в службу меню, плоским списком, а не фасадом
+    // `createSubmenu`: фасад Univer 0.25 всегда кладёт пункты подменю в
+    // «группы» (`…-group-0`), а выпадающий список ленты рисует только прямые
+    // пункты и группы молча пропускает. Отсюда и пустой список до 29.09.2026.
+    // Пункт списка ленты исполняет команду с id самого пункта — её и заводим.
+    const children: Record<string, unknown> = {};
     SORT_FILTER_ITEMS.forEach((item, index) => {
-      if (index === 2) submenu = submenu.addSeparator();
-      submenu = submenu.addSubmenu(univerAPI.createMenu({ id: item.id, title: item.title, action: item.action, order: index }));
+      if (!commands.hasCommand(item.id)) {
+        commands.registerCommand({
+          id: item.id,
+          type: CommandType.COMMAND,
+          handler: () => {
+            // Раздел может сделать своё: у реестра фильтр ставится на строки
+            // договоров, а не на «непрерывный диапазон» вокруг ячейки.
+            if (intercept(item.action)) return true;
+            void univerAPI.executeCommand(item.action);
+            return true;
+          },
+        });
+      }
+      children[item.id] = {
+        order: index,
+        menuItemFactory: () => ({ id: item.id, type: MenuItemType.BUTTON, title: item.title, commandId: item.id }),
+      };
     });
-    submenu.appendTo("ribbon.data.organization");
-    const config = univerAPI._injector.get(IConfigService);
+    const menus = injector.get(IMenuManagerService);
+    // Тот же путь, что у фасадного `appendTo("ribbon.data.organization")`.
+    menus.mergeMenu({
+      "ribbon.data.organization": {
+        [SORT_FILTER_ID]: {
+          order: 0,
+          menuItemFactory: () => ({
+            id: SORT_FILTER_ID,
+            type: MenuItemType.SUBITEMS,
+            title: "Сортировка и фильтр",
+            tooltip: "Сортировка и фильтр",
+          }),
+          ...children,
+        },
+      },
+    });
+    const config = injector.get(IConfigService);
     config.setConfig("menu", Object.fromEntries(SORT_FILTER_ORIGINALS.map((id) => [id, { hidden: true }])), { merge: true });
-    univerAPI._injector.get(IMenuManagerService).appendRootMenu({});
+    menus.appendRootMenu({});
   } catch (exc) {
     // Не собралось — останутся прежние кнопки Univer, это неудобство, не поломка.
     console.warn("«Сортировка и фильтр» не собралась:", exc);
@@ -314,9 +362,11 @@ export function blankWorkbook(name = "Новая таблица"): WorkbookSnaps
 }
 
 export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverSheet(
-  { data, onReady, extras = false, fullscreen = true, listEdit = true, formatting = true, listArrow = true, session, onShown },
+  { data, onReady, extras = false, fullscreen = true, listEdit = true, formatting = true, listArrow = true, session, onShown, onSortFilter },
   ref,
 ) {
+  const onSortFilterRef = useRef(onSortFilter);
+  onSortFilterRef.current = onSortFilter;
   const containerRef = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
   const fullRef = useRef(full);
@@ -409,7 +459,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
     const stopSpeed = speedUp(univerAPI);
     // Меню плагинов листа заводятся вместе с книгой — урезать ленту можно
     // только после неё.
-    mergeSortFilter(univerAPI);
+    mergeSortFilter(univerAPI, (command) => onSortFilterRef.current?.(command) ?? false);
     const stopTrim =
       formatting === true ? null : keepDataOnly(univerAPI, formatting === "look" ? LOOK_MENU : undefined);
     // `onReady` берётся из пропа по той же причине, что и `data`: компонент

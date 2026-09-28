@@ -72,7 +72,11 @@ export function EntitiesTab() {
 
   const setAccountsOf = async (entity: OwnEntity, ids: string[]) => {
     setOptimistic((value) => ({ ...value, [entity.id]: ids }));
-    await action.run(`accounts:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { accounts: ids }));
+    const was = entity.accounts.map((item) => item.id);
+    await action.run(`accounts:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { accounts: ids }), "schema", {
+      text: `Счета «${entity.code || entity.name}» изменены`,
+      revert: () => contractsApi.setup.updateEntity(entity.id, { accounts: was }),
+    });
     setOptimistic((value) => {
       const next = { ...value };
       delete next[entity.id];
@@ -83,7 +87,10 @@ export function EntitiesTab() {
   const add = async () => {
     const clean = name.trim();
     if (!clean) return;
-    const ok = await action.run("add", () => contractsApi.setup.addEntity({ name: clean }));
+    const ok = await action.run("add", () => contractsApi.setup.addEntity({ name: clean }), "schema", (made) => ({
+      text: `«${clean}» — наше юрлицо`,
+      revert: () => contractsApi.setup.updateEntity(made.id, { archived: true }),
+    }));
     if (ok) setName("");
   };
 
@@ -121,7 +128,10 @@ export function EntitiesTab() {
                 label={`Код юрлица «${entity.name}»`}
                 trace={action.trace(`code:${entity.id}`)}
                 onCommit={(next) =>
-                  void action.run(`code:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { code: next }))
+                  void action.run(`code:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { code: next }), "schema", {
+                    text: `Код «${entity.name}»: ${next || "без кода"}`,
+                    revert: () => contractsApi.setup.updateEntity(entity.id, { code: entity.code }),
+                  })
                 }
               />
             </span>
@@ -134,9 +144,10 @@ export function EntitiesTab() {
                 label={`Полное название «${entity.name}»`}
                 trace={action.trace(`full_name:${entity.id}`)}
                 onCommit={(next) =>
-                  void action.run(`full_name:${entity.id}`, () =>
-                    contractsApi.setup.updateEntity(entity.id, { full_name: next }),
-                  )
+                  void action.run(`full_name:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { full_name: next }), "schema", {
+                    text: `Полное название «${entity.name}» изменено`,
+                    revert: () => contractsApi.setup.updateEntity(entity.id, { full_name: entity.full_name }),
+                  })
                 }
               />
             </span>
@@ -157,7 +168,10 @@ export function EntitiesTab() {
                     return;
                   }
                   setBinError((value) => ({ ...value, [entity.id]: "" }));
-                  void action.run(`bin:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { bin: clean }));
+                  void action.run(`bin:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { bin: clean }), "schema", {
+                    text: `БИН «${entity.name}» изменён`,
+                    revert: () => contractsApi.setup.updateEntity(entity.id, { bin: entity.bin }),
+                  });
                 }}
               />
             </span>
@@ -173,9 +187,10 @@ export function EntitiesTab() {
                   disabled={action.busy(`vat:${entity.id}`)}
                   onClick={() => {
                     if (entity.vat_payer === on) return;
-                    void action.run(`vat:${entity.id}`, () =>
-                      contractsApi.setup.updateEntity(entity.id, { vat_payer: on }),
-                    );
+                    void action.run(`vat:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { vat_payer: on }), "schema", {
+                      text: `«${entity.code || entity.name}» ${on ? "— плательщик НДС" : "не платит НДС"}`,
+                      revert: () => contractsApi.setup.updateEntity(entity.id, { vat_payer: !on }),
+                    });
                   }}
                 >
                   {on ? "да" : "нет"}
@@ -268,9 +283,10 @@ export function EntitiesTab() {
           if (!ask) return;
           const { entity } = ask;
           setAsk(null);
-          void action.run(`archive:${entity.id}`, () =>
-            contractsApi.setup.updateEntity(entity.id, { archived: true }),
-          );
+          void action.run(`archive:${entity.id}`, () => contractsApi.setup.updateEntity(entity.id, { archived: true }), "schema", {
+            text: `«${entity.code || entity.name}» больше не наше юрлицо`,
+            revert: () => contractsApi.setup.updateEntity(entity.id, { archived: false }),
+          });
         }}
       />
     </div>

@@ -16,13 +16,48 @@ import { useCallback, useRef, useState } from "react";
 
 import { FinanceApiError } from "@/components/finance/api";
 import { reloadAll, reloadSchema } from "@/components/finance/contracts/store";
+import { noticeUndo, pushUndo, takeUndo } from "@/components/finance/contracts/setup/undo";
 
 export type TraceState = "sending" | "done" | "failed" | undefined;
+
+/**
+ * Как вернуть правку (`setup/undo.ts`): что сделано словами и обратный
+ * запрос. Функцией — когда обратное зависит от ответа (у добавленного поля
+ * ключ выдаёт сервер).
+ */
+export type UndoSpec = { text: string; revert: () => Promise<unknown>; after?: "schema" | "all" };
 
 export function errorText(exc: unknown): string {
   if (exc instanceof FinanceApiError) return exc.message;
   if (exc instanceof TypeError) return "Нет связи с сервером — изменение не сохранено";
   return exc instanceof Error && exc.message ? exc.message : "Изменение не сохранилось";
+}
+
+async function reload(after: "schema" | "all"): Promise<void> {
+  if (after === "all") {
+    try {
+      await reloadAll();
+      return;
+    } catch {
+      /* реестр целиком не перечитался — хотя бы схема */
+    }
+  }
+  await reloadSchema();
+}
+
+/** Вернуть последнюю правку настройки — «Вернуть» и Ctrl+Z. */
+export async function revertLast(): Promise<boolean> {
+  const entry = takeUndo();
+  if (!entry) return false;
+  try {
+    await entry.revert();
+    await reload(entry.after);
+    noticeUndo({ kind: "reverted", entry });
+    return true;
+  } catch (exc) {
+    noticeUndo({ kind: "failed", entry, error: errorText(exc) });
+    return false;
+  }
 }
 
 export function useSetupAction() {
@@ -43,9 +78,17 @@ export function useSetupAction() {
   /**
    * `after`: что перечитать. Сведение значений меняет сами договоры, поэтому
    * там — всё; остальное меняет только схему.
+   *
+   * `undo`: как вернуть правку. Без него правка не отменяется (сведение двух
+   * значений в одно — обратного у него нет, об этом говорит вопрос до него).
    */
   const run = useCallback(
-    async (key: string, work: () => Promise<unknown>, after: "schema" | "all" = "schema"): Promise<boolean> => {
+    async <T,>(
+      key: string,
+      work: () => Promise<T>,
+      after: "schema" | "all" = "schema",
+      undo?: UndoSpec | ((result: T) => UndoSpec | null),
+    ): Promise<boolean> => {
       setBusy((value) => ({ ...value, [key]: true }));
       setErrors((value) => {
         if (!(key in value)) return value;
@@ -54,16 +97,10 @@ export function useSetupAction() {
         return next;
       });
       try {
-        await work();
-        if (after === "all") {
-          try {
-            await reloadAll();
-          } catch {
-            await reloadSchema();
-          }
-        } else {
-          await reloadSchema();
-        }
+        const result = await work();
+        await reload(after);
+        const spec = typeof undo === "function" ? undo(result) : undo;
+        if (spec) pushUndo({ text: spec.text, revert: spec.revert, after: spec.after ?? after });
         setDone((value) => ({ ...value, [key]: true }));
         const previous = timers.current.get(key);
         if (previous) clearTimeout(previous);

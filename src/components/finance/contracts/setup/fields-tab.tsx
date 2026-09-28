@@ -23,7 +23,7 @@
  */
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 
-import { type FieldType, type RegistryField, contractsApi } from "@/components/finance/api";
+import { type FieldFill, type FieldType, type RegistryField, contractsApi } from "@/components/finance/api";
 import { useRegistry } from "@/components/finance/contracts/store";
 import { plural } from "@/components/finance/format";
 import { useSessionState } from "@/components/session-state";
@@ -33,7 +33,7 @@ import { InlineText } from "@/components/finance/contracts/setup/inline-text";
 import { ValuesPane, isListField, twins, unmeant } from "@/components/finance/contracts/setup/lists-tab";
 import { ChoicePop } from "@/components/finance/contracts/setup/popover";
 import { tip } from "@/components/finance/contracts/setup/tip";
-import { useSetupAction } from "@/components/finance/contracts/setup/use-setup-action";
+import { type UndoSpec, useSetupAction } from "@/components/finance/contracts/setup/use-setup-action";
 import { CUSTOM_TYPES, TYPE_WORDS, fillWord, hasValue } from "@/components/finance/contracts/setup/words";
 
 const READ_ONLY = new Set(["paid_snapshot", "remaining_snapshot", "paid", "remaining", "summary_paid", "summary_remaining", "age_months"]);
@@ -63,6 +63,19 @@ type Ask =
 
 function inContracts(count: number): string {
   return `${count} ${plural(count, "договоре", "договорах", "договорах")}`;
+}
+
+/** Что сделано с полем — словами строки «Вернуть» (`setup/undo.ts`). */
+function changeText(field: RegistryField, data: Record<string, unknown>): string {
+  const name = `«${field.title}»`;
+  if ("hidden" in data) return data.hidden ? `${name} спрятано — его нет в листе и карточке` : `${name} снова в листе и карточке`;
+  if ("required" in data) return data.required ? `${name} — обязательное` : `${name} — необязательное`;
+  if ("fill" in data) return `${name}: ${fillWord(field.type, data.fill as FieldFill)}`;
+  if ("type" in data) {
+    const next = data.type as FieldType;
+    return `Тип ${name}: ${TYPE_WORDS[field.type] ?? field.type} → ${TYPE_WORDS[next] ?? next}`;
+  }
+  return `${name} изменено`;
 }
 
 export function FieldsTab() {
@@ -109,7 +122,11 @@ export function FieldsTab() {
     if (!field || target < 0 || target >= fields.length) return;
     // Сервер ставит поле «после такого-то»; `null` — в самое начало.
     const after = dir === -1 ? (index >= 2 ? fields[index - 2].key : null) : fields[index + 1].key;
-    void action.run(`move:${field.key}`, () => contractsApi.setup.updateField(field.key, { after }));
+    const back = index >= 1 ? fields[index - 1].key : null;
+    void action.run(`move:${field.key}`, () => contractsApi.setup.updateField(field.key, { after }), "schema", {
+      text: `«${field.title}» ${dir === -1 ? "выше" : "ниже"} в списке`,
+      revert: () => contractsApi.setup.updateField(field.key, { after: back }),
+    });
   };
 
   const onHeadKey = (event: KeyboardEvent<HTMLButtonElement>, index: number, key: string) => {
@@ -119,14 +136,23 @@ export function FieldsTab() {
     move(index, event.key === "ArrowUp" ? -1 : 1);
   };
 
+  /** Правка поля с обратной: прежние значения тех же ключей. */
   const patch = (field: RegistryField, data: Record<string, unknown>, slot: string) => {
-    void action.run(`${slot}:${field.key}`, () => contractsApi.setup.updateField(field.key, data));
+    const previous = Object.fromEntries(Object.keys(data).map((key) => [key, field[key as keyof RegistryField] ?? null]));
+    const undo: UndoSpec = {
+      text: changeText(field, data),
+      revert: () => contractsApi.setup.updateField(field.key, previous),
+    };
+    void action.run(`${slot}:${field.key}`, () => contractsApi.setup.updateField(field.key, data), "schema", undo);
   };
 
   const add = async () => {
     const clean = title.trim();
     if (!clean) return;
-    const ok = await action.run("add", () => contractsApi.setup.addField(clean, type));
+    const ok = await action.run("add", () => contractsApi.setup.addField(clean, type), "schema", (made) => ({
+      text: `Поле «${clean}» добавлено`,
+      revert: () => contractsApi.setup.updateField(made.key, { archived: true }),
+    }));
     if (ok) {
       setTitle("");
       setType("text");
@@ -235,7 +261,10 @@ export function FieldsTab() {
                         trace={action.trace(`title:${field.key}`)}
                         error={action.error(`title:${field.key}`)}
                         onCommit={(next) =>
-                          void action.run(`title:${field.key}`, () => contractsApi.setup.updateField(field.key, { title: next }))
+                          void action.run(`title:${field.key}`, () => contractsApi.setup.updateField(field.key, { title: next }), "schema", {
+                            text: `Поле «${field.title}» теперь «${next}»`,
+                            revert: () => contractsApi.setup.updateField(field.key, { title: field.title }),
+                          })
                         }
                       />
                     </span>
@@ -430,7 +459,10 @@ export function FieldsTab() {
           const field = ask.field;
           setAsk(null);
           setOpenKey(null);
-          void action.run(`archive:${field.key}`, () => contractsApi.setup.updateField(field.key, { archived: true }));
+          void action.run(`archive:${field.key}`, () => contractsApi.setup.updateField(field.key, { archived: true }), "schema", {
+            text: `Поле «${field.title}» удалено в корзину`,
+            revert: () => contractsApi.setup.updateField(field.key, { archived: false }),
+          });
         }}
       />
       <ConfirmDialog

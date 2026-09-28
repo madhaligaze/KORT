@@ -65,6 +65,7 @@ import {
 import { parseDay, plural } from "@/components/finance/format";
 import { type CellRect, cellRect } from "@/components/univer/cell-rect";
 import { HEADER_STYLE, PAPER, ROW_H, fitWidth, headerHeight, sampled } from "@/components/univer/columns";
+import type { FilterKeeper, FilterStatus } from "@/components/univer/filter";
 import { LIST_MUTATION, type ListRange, listRule } from "@/components/univer/lists";
 import type { LookIds, LookKeeper } from "@/components/univer/look";
 import { guardSheets } from "@/components/univer/protect";
@@ -1289,6 +1290,10 @@ export class RegistryBinding {
   /** Лист «По сотрудникам» (у «Разовых»): что в нём сейчас и сколько в нём строк. */
   private staff: StaffMatrix | null;
   private staffRows = 0;
+  /** Фильтр в шапке листов из одного блока (`univer/filter.ts`). */
+  private filter: FilterKeeper | null = null;
+  /** Листы, где фильтр сняли пунктом ленты, — не ставить его снова сами. */
+  private filterOff = new Set<string>();
 
   constructor(
     private readonly api: UniverApi,
@@ -1691,6 +1696,8 @@ export class RegistryBinding {
     // Строки блоков сдвинулись — правила списков встают на новые строки.
     this.syncValidation(model);
     this.clearUndo();
+    // И фильтр: иначе Univer прятал бы строки по старым номерам — чужие договоры.
+    this.placeFilter(model);
   }
 
   // ── Выпадающие списки ──
@@ -2290,6 +2297,8 @@ export class RegistryBinding {
     // Номера строк, заметки и стили — по новому порядку.
     this.paint(model, rows, "force");
     this.clearUndo();
+    // Отобранное — по новым строкам: отбор стоял на номерах до сортировки.
+    this.filter?.recalc(sheet);
   }
 
   // ── Вход на лист, выбор строки, карточка ──
@@ -2390,6 +2399,84 @@ export class RegistryBinding {
     const column: SheetColumn = { key, label: key, width: 0, kind: kindOf(key, field), field, readOnly: false };
     const contract = this.ctx.state.byId.get(id);
     return faceText(faceOf(column, value, contract, { schema, parties: this.ctx.state.parties, people: this.ctx.state.people }));
+  }
+
+  // ── Фильтр в шапке ──
+
+  /**
+   * Фильтр в шапке (`univer/filter.ts`) — на каждом листе из одного блока,
+   * сразу при открытии: воронки в шапке колонок, как «Фильтр» в Excel. Раньше
+   * фильтр включался только пунктом ленты, а пункт раскрывался пустым.
+   *
+   * Диапазон — шапка и строки договоров, без кармана: иначе «(пусто)» в
+   * списке значений значило бы пустую строку для нового договора, и снятая
+   * галочка прятала бы, куда его вписать.
+   */
+  setFilter(filter: FilterKeeper | null): void {
+    this.filter = filter;
+    if (filter) for (const model of this.models.values()) this.placeFilter(model);
+  }
+
+  private placeFilter(model: SheetModel): void {
+    const sheet = model.layout.key;
+    if (!this.filter || !model.layout.single || this.filterOff.has(sheet)) return;
+    const header = model.slots.findIndex((slot) => slot.kind === "header");
+    if (header < 0) return;
+    const pocket = model.slots.findIndex((slot) => slot.kind === "pocket");
+    const last = (pocket < 0 ? model.slots.length : pocket) - 1;
+    const columns = model.layout.blocks[0]?.columns ?? [];
+    this.filter.place(
+      sheet,
+      { startRow: header, endRow: Math.max(header, last), startColumn: 0, endColumn: model.layout.width - 1 },
+      columns.map((column) => column.key),
+      columns.map((column) => column.label),
+    );
+  }
+
+  /** Что отобрано на активном листе — для строки под листом. */
+  filterStatus(): FilterStatus | null {
+    const sheet = this.api.getActiveWorkbook?.()?.getActiveSheet?.()?.getSheetId?.();
+    return sheet && this.filter ? this.filter.status(sheet) : null;
+  }
+
+  /** «Показать все строки» из строки под листом. */
+  clearFilter(): void {
+    const sheet = this.api.getActiveWorkbook?.()?.getActiveSheet?.()?.getSheetId?.();
+    if (sheet) this.filter?.clear(sheet);
+  }
+
+  /**
+   * Пункт «Сортировка и фильтр» ленты. Фильтр реестра — на строках
+   * договоров (не на «непрерывном диапазоне» вокруг ячейки, который Univer
+   * угадал бы вместе с карманом); на листе из частей — объяснение словами
+   * вместо отказа Univer о правах.
+   */
+  sortFilter(command: string): boolean {
+    const sheet = this.api.getActiveWorkbook?.()?.getActiveSheet?.()?.getSheetId?.();
+    const model = sheet ? this.models.get(sheet) : undefined;
+    if (!sheet || !model) return false;
+    if (!model.layout.single) {
+      this.events.note(
+        "На листе из нескольких частей сортировки и фильтра нет — части перемешались бы. Отбирайте на листе из одной части или поиском в «Карточках»",
+        false,
+      );
+      return true;
+    }
+    if (command === "sheet.command.smart-toggle-filter") {
+      if (this.filter?.has(sheet)) {
+        this.filterOff.add(sheet);
+        this.filter.remove(sheet);
+      } else {
+        this.filterOff.delete(sheet);
+        this.placeFilter(model);
+      }
+      return true;
+    }
+    if (command === "sheet.command.clear-filter-criteria") {
+      this.filter?.clear(sheet);
+      return true;
+    }
+    return false;
   }
 
   // ── Личный вид ──

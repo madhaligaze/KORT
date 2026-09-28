@@ -16,7 +16,7 @@
 import { useMemo, useState } from "react";
 
 import type { SummarySource } from "@/components/finance/api";
-import { type Tally, staffTable } from "@/components/finance/contracts/staff";
+import { staffTable } from "@/components/finance/contracts/staff";
 import { ensureSummary, useRegistry } from "@/components/finance/contracts/store";
 import { formatTime, plural } from "@/components/finance/format";
 import { formatMoney } from "@/components/finance/api";
@@ -93,8 +93,11 @@ export function OneoffStaff() {
     [schema, byId, order, people, parties, summary],
   );
   if (!schema || !data) return null;
-  const { rows, months, older, olderOf } = data;
-  const total = (pick: (row: Tally) => number) => rows.reduce((sum, row) => sum + pick(row), 0);
+  const { rows, totals, months, older, olderOf } = data;
+  // Договор на нескольких ответственных — в строке каждого, а в итоге один
+  // раз: иначе строки не сходились бы с итогом без объяснения.
+  const sharedNote = (count: number) =>
+    `${count} ${plural(count, "договор", "договора", "договоров")} на нескольких ответственных — в строке каждого, в итоге один раз`;
 
   return (
     <div className="creg-staff">
@@ -127,13 +130,14 @@ export function OneoffStaff() {
             <tr>
               <td>Итого</td>
               <td className="fin-num" />
-              <td className="fin-num">{total((row) => row.contracts)}</td>
-              <td className="fin-num">{formatMoney(total((row) => row.amount))}</td>
-              <td className="fin-num">{formatMoney(total((row) => row.remaining))}</td>
+              <td className="fin-num">{totals.contracts}</td>
+              <td className="fin-num">{formatMoney(totals.amount)}</td>
+              <td className="fin-num">{formatMoney(totals.remaining)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
+      {totals.shared ? <p className="creg-staff-note">{sharedNote(totals.shared)}</p> : null}
 
       <h2 className="creg-staff-title">На исполнении — по месяцу в сводке</h2>
       <div className="creg-staff-scroll">
@@ -172,8 +176,24 @@ export function OneoffStaff() {
                 </tr>
               ))}
           </tbody>
+          <tfoot>
+            <tr>
+              <td>Итого</td>
+              <td className="fin-num" />
+              <td className="fin-num">{totals.openContracts}</td>
+              <td className="fin-num">{formatMoney(totals.openAmount)}</td>
+              <td className="fin-num">{formatMoney(totals.byMonth.get("") ?? 0)}</td>
+              {older ? <td className="fin-num">{formatMoney(olderOf(totals))}</td> : null}
+              {months.map((month) => (
+                <td key={month} className="fin-num">
+                  {formatMoney(totals.byMonth.get(month) ?? 0)}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
         </table>
       </div>
+      {totals.openShared ? <p className="creg-staff-note">{sharedNote(totals.openShared)}</p> : null}
     </div>
   );
 }

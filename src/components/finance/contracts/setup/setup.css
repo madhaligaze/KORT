@@ -71,20 +71,73 @@
   min-height: 2.5rem;
 }
 
-/* Текстовый переключатель: включённое — плотнее и темнее, выключенное — тише. */
+/*
+ * Переключатель из двух-трёх вариантов — сегменты в волосяной рамке, как
+ * `.fin-chip`. До 29.09.2026 это был голый текст «в листе и карточке ·
+ * спрятано»: выбранное отличалось только весом, и вторая половина читалась
+ * подписью, а не кнопкой — владелец, случайно нажавший «спрятано», не нашёл,
+ * как вернуть. Выбранное — рамкой цвета текста и весом, без заливки.
+ */
 .setup-toggle {
-  background: none;
-  border: none;
-  padding: 0.35rem 0;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--fin-line);
+  border-radius: 0;
   font: inherit;
   font-size: 0.8125rem;
   color: var(--fin-text-soft);
   cursor: pointer;
   white-space: nowrap;
 }
-.setup-toggle:is([aria-pressed="true"], [data-on="true"]) { color: var(--fin-text); font-weight: 500; }
-.setup-toggle:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--fin-dotted); }
+.setup-toggle + .setup-toggle { margin-left: -1px; }
+.setup-toggle:hover:not(:disabled) { color: var(--fin-text); border-color: var(--fin-text-soft); z-index: 1; }
+.setup-toggle:is([aria-pressed="true"], [aria-checked="true"], [data-on="true"]) {
+  color: var(--fin-text);
+  border-color: var(--fin-text);
+  font-weight: 600;
+  z-index: 2;
+  cursor: default;
+}
 .setup-toggle:disabled { opacity: 0.5; cursor: default; }
+
+/* ─── «Вернуть»: последняя правка настройки (undo-line.tsx) ─── */
+.setup-undo {
+  position: fixed;
+  z-index: var(--z-fin-pop);
+  left: 50%;
+  bottom: 16px;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(720px, calc(100vw - 32px));
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  background: var(--fin-card-bg);
+  border: 1px solid var(--fin-text-soft);
+  border-radius: 0;
+  font-size: 0.8125rem;
+  color: var(--fin-text);
+  transition: opacity 0.25s ease-out, translate 0.25s ease-out;
+}
+.setup-undo[data-hidden="true"] { opacity: 0; translate: -50% 8px; pointer-events: none; }
+.setup-undo[data-fail="true"] { color: var(--fin-fail); border-color: var(--fin-fail); }
+.setup-undo-text { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+.setup-undo-btn { flex: none; }
+.setup-undo-key {
+  flex: none;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--fin-line);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  color: var(--fin-text-soft);
+}
+@media (prefers-reduced-motion: reduce) { .setup-undo { transition: none; } }
+@media (hover: none), (max-width: 639.98px) { .setup-undo-key { display: none; } }
 
 /* ─── Всплывающие списки ─── */
 .setup-pop { max-width: min(420px, calc(100vw - 16px)); }
@@ -184,7 +237,7 @@
 [aria-expanded="true"] .setup-fchev { transform: rotate(90deg); color: var(--fin-text); }
 .setup-fbody { grid-column: 2; padding: 0.25rem 0 1rem; }
 .setup-fixed { font-size: 0.875rem; }
-.setup-pair { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.setup-pair { display: inline-flex; flex-wrap: wrap; gap: 0; row-gap: 0.25rem; }
 .setup-fvalues { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--fin-line); }
 .setup-fvalues-title { margin: 0 0 0.25rem; font-size: 0.75rem; font-weight: 500; color: var(--text-muted); }
 .setup-field-move { display: inline-flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease-out; }
@@ -550,7 +603,7 @@ button[data-tip], label[data-tip], [data-tip] input, [data-tip] button { cursor:
 .setup-ename .setup-inline-value { min-height: 1.5rem; padding-block: 0.1rem; font-size: 0.8125rem; }
 .setup-ename .setup-inline-value:not([data-empty="true"]) { color: var(--fin-text-soft); }
 .setup-ebin { grid-area: bin; min-width: 0; }
-.setup-evat { grid-area: vat; display: inline-flex; gap: 0.625rem; }
+.setup-evat { grid-area: vat; display: inline-flex; gap: 0; align-self: center; }
 .setup-eaccounts { grid-area: acc; min-width: 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
 .setup-eaccounts-list { color: var(--fin-text-soft); }
 .setup-eaction { grid-area: action; text-align: right; font-size: 0.8125rem; }

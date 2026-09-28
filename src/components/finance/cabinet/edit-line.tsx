@@ -26,6 +26,8 @@ type Props = {
   placeholder?: string;
   onSave: (next: string) => Promise<unknown>;
   mono?: boolean;
+  /** Во всю ширину листа профиля (`.cab-fields`), а не в одну из двух колонок. */
+  wide?: boolean;
 };
 
 export function EditLine({
@@ -38,6 +40,7 @@ export function EditLine({
   placeholder = "—",
   onSave,
   mono,
+  wide,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -153,6 +156,7 @@ export function EditLine({
   return (
     <div
       className="cab-line"
+      data-wide={wide ? "true" : undefined}
       data-editable={editable ? "true" : undefined}
       data-empty={rest ? undefined : "true"}
       data-editing={editing ? "true" : undefined}

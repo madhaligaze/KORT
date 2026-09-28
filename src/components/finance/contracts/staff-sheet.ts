@@ -12,7 +12,7 @@
 import { HEADER_STYLE, PAPER, ROW_H } from "@/components/univer/columns";
 import { MONEY_PATTERN, WHOLE_PATTERN } from "@/components/univer/sheet-model";
 
-import { type StaffSource, type Tally, staffTable } from "@/components/finance/contracts/staff";
+import { type StaffSource, staffTable } from "@/components/finance/contracts/staff";
 import { plural } from "@/components/finance/format";
 
 /** Ключ листа в книге: не пересекается с ключами листов-отборов (у них нет «__»). */
@@ -62,8 +62,13 @@ export function staffMatrix(source: StaffSource, book = "oneoff"): StaffMatrix {
     put([text("Договоров в книге пока нет")]);
     return { cells, rows: row, cols, sig: JSON.stringify(cells) };
   }
-  const { rows, months, older, olderOf } = table;
-  const total = (pick: (item: Tally) => number, list: Tally[] = rows) => list.reduce((sum, item) => sum + pick(item), 0);
+  const { rows, totals, months, older, olderOf } = table;
+  // Итог — по договорам один раз (`staff.ts`, `totals`), не сумма строк:
+  // договор на двоих стоит в строке каждого.
+  const shared = (count: number) =>
+    count > 0
+      ? text(`${count} ${plural(count, "договор", "договора", "договоров")} на нескольких ответственных — в строке каждого, в итоге один раз`)
+      : null;
 
   put([text(`Все договоры · ${rows.length} ${plural(rows.length, "человек", "человека", "человек")}`, TITLE)]);
   put(["Сотрудник", "Клиентов", "Договоров", "Сумма", "Остаток"].map((label) => text(label, HEADER_STYLE)));
@@ -76,16 +81,14 @@ export function staffMatrix(source: StaffSource, book = "oneoff"): StaffMatrix {
       num(item.remaining, money(item.remaining)),
     ]);
   }
-  const amount = total((item) => item.amount);
-  const remaining = total((item) => item.remaining);
   put([
     text("Итого", TOTAL),
     null,
-    num(total((item) => item.contracts), { ...COUNT, ...TOTAL }),
-    num(amount, { ...money(amount), ...TOTAL }),
-    num(remaining, { ...money(remaining), ...TOTAL }),
+    num(totals.contracts, { ...COUNT, ...TOTAL }),
+    num(totals.amount, { ...money(totals.amount), ...TOTAL }),
+    num(totals.remaining, { ...money(totals.remaining), ...TOTAL }),
   ]);
-  put([]);
+  put([shared(totals.shared)]);
 
   const open = rows.filter((item) => item.openContracts > 0);
   put([text("На исполнении — по месяцу в сводке", TITLE)]);
@@ -110,21 +113,21 @@ export function staffMatrix(source: StaffSource, book = "oneoff"): StaffMatrix {
       }),
     ]);
   }
-  const openAmount = total((item) => item.openAmount, open);
-  const none = total((item) => item.byMonth.get("") ?? 0, open);
-  const early = total(olderOf, open);
+  const none = totals.byMonth.get("") ?? 0;
+  const early = olderOf(totals);
   put([
     text("Итого", TOTAL),
     null,
-    num(total((item) => item.openContracts, open), { ...COUNT, ...TOTAL }),
-    num(openAmount, { ...money(openAmount), ...TOTAL }),
+    num(totals.openContracts, { ...COUNT, ...TOTAL }),
+    num(totals.openAmount, { ...money(totals.openAmount), ...TOTAL }),
     num(none, { ...money(none), ...TOTAL }),
     ...(older ? [num(early, { ...money(early), ...TOTAL })] : []),
     ...months.map((month) => {
-      const value = total((item) => item.byMonth.get(month) ?? 0, open);
+      const value = totals.byMonth.get(month) ?? 0;
       return num(value, { ...money(value), ...TOTAL });
     }),
   ]);
+  put([shared(totals.openShared)]);
   return { cells, rows: row, cols, sig: JSON.stringify(cells) };
 }
 

@@ -26,6 +26,9 @@ import { EntitiesTab } from "@/components/finance/contracts/setup/entities-tab";
 import { FieldsTab } from "@/components/finance/contracts/setup/fields-tab";
 import { SummaryTab } from "@/components/finance/contracts/setup/summary-tab";
 import { TipLayer, tip } from "@/components/finance/contracts/setup/tip";
+import { clearUndo } from "@/components/finance/contracts/setup/undo";
+import { UndoLine } from "@/components/finance/contracts/setup/undo-line";
+import { revertLast } from "@/components/finance/contracts/setup/use-setup-action";
 import { ViewsTab } from "@/components/finance/contracts/setup/views-tab";
 import { useSessionState } from "@/components/session-state";
 
@@ -77,6 +80,24 @@ export function RegistrySetup({ onBack }: { onBack: () => void }) {
   // Счётчики «в договорах» и число договоров блока считаются по хранилищу;
   // опрос держит их свежими, пока экран открыт.
   useEffect(() => holdLive(), []);
+
+  // Ctrl+Z (⌘Z) вне поля ввода — вернуть последнюю правку настройки. В поле
+  // ввода клавиша остаётся браузеру: там она отменяет набранное. Стек отмен
+  // живёт, пока экран открыт (`setup/undo.ts`).
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.code !== "KeyZ") return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      event.preventDefault();
+      void revertLast();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      clearUndo();
+    };
+  }, []);
 
   // «Читаем реестр…» — только если чтение затянулось: на быстрой связи
   // подпись мелькнула бы на кадр и ничего не сказала.
@@ -144,6 +165,7 @@ export function RegistrySetup({ onBack }: { onBack: () => void }) {
         {tab === "entities" ? <EntitiesTab /> : null}
         {tab === "summary" ? <SummaryTab /> : null}
       </div>
+      <UndoLine />
     </div>
   );
 }

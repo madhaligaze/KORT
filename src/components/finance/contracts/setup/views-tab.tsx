@@ -112,10 +112,22 @@ export function ViewsTab() {
     // на единицу — иначе обмен ничего бы не поменял.
     const a = one.position;
     const b = other.position === a ? a + dir : other.position;
-    await action.run(`move:${one.id}`, async () => {
-      await contractsApi.setup.updateView(one.id, { position: b });
-      await contractsApi.setup.updateView(other.id, { position: a });
-    });
+    const otherWas = other.position;
+    await action.run(
+      `move:${one.id}`,
+      async () => {
+        await contractsApi.setup.updateView(one.id, { position: b });
+        await contractsApi.setup.updateView(other.id, { position: a });
+      },
+      "schema",
+      {
+        text: `Лист «${one.title}» ${dir === -1 ? "левее" : "правее"}`,
+        revert: async () => {
+          await contractsApi.setup.updateView(one.id, { position: a });
+          await contractsApi.setup.updateView(other.id, { position: otherWas });
+        },
+      },
+    );
   };
 
   const add = async () => {
@@ -127,9 +139,17 @@ export function ViewsTab() {
     // книги: лист без колонок в таблице был бы пустой полосой.
     const blocks: ViewBlock[] = [blockFrom(main?.blocks[0], "")];
     const made: { view: RegistryView | null } = { view: null };
-    const ok = await action.run("add", async () => {
-      made.view = await contractsApi.setup.addView({ title: clean, blocks, book: newBook });
-    });
+    const ok = await action.run(
+      "add",
+      async () => {
+        made.view = await contractsApi.setup.addView({ title: clean, blocks, book: newBook });
+      },
+      "schema",
+      () =>
+        made.view
+          ? { text: `Лист «${clean}» добавлен`, revert: () => contractsApi.setup.updateView(made.view!.id, { archived: true }) }
+          : null,
+    );
     if (ok) {
       setTitle("");
       if (made.view) setCurrent(made.view.id);
@@ -242,6 +262,23 @@ export function ViewsTab() {
 
 // ── Лист ─────────────────────────────────────────────────────────────────────
 
+/** Что сделано с частями листа — словами строки «Вернуть» (`setup/undo.ts`). */
+function blocksText(title: string, slot: string): string {
+  const name = `«${title}»`;
+  const base = slot.split(":")[0];
+  if (base === "block-add") return `В листе ${name} новая часть`;
+  if (base === "block-remove") return `Из листа ${name} удалена часть`;
+  if (base.startsWith("role-")) return `Подпись стороны в листе ${name} изменена`;
+  if (base === "swap") return `Стороны в листе ${name} поменялись местами`;
+  if (base.startsWith("default-")) return `Подстановка новой строки листа ${name} изменена`;
+  if (base === "choices") return `Выбор в листе ${name} изменён`;
+  if (base === "title") return `Заголовок части листа ${name} изменён`;
+  if (base === "rule") return `Правило листа ${name} изменено`;
+  if (base === "paint") return `Подсветка строк листа ${name} изменена`;
+  if (base.startsWith("col")) return `Колонки листа ${name} изменены`;
+  return `Лист ${name} изменён`;
+}
+
 function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }) {
   const byId = useRegistry((s) => s.byId);
   const schema = useRegistry((s) => s.schema);
@@ -261,8 +298,14 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
   }, [byId, view]);
   const total = blockCounts.reduce((sum, count) => sum + count, 0);
 
-  const saveBlocks = (blocks: ViewBlock[], slot: string) =>
-    action.run(slot, () => contractsApi.setup.updateView(view.id, { blocks }));
+  // Любая правка частей листа возвращается прежними частями целиком.
+  const saveBlocks = (blocks: ViewBlock[], slot: string) => {
+    const previous = view.blocks;
+    return action.run(slot, () => contractsApi.setup.updateView(view.id, { blocks }), "schema", {
+      text: blocksText(view.title, slot),
+      revert: () => contractsApi.setup.updateView(view.id, { blocks: previous }),
+    });
+  };
 
   const addBlock = async () => {
     const clean = (newBlock ?? "").trim();
@@ -320,7 +363,12 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
             strong
             trace={action.trace("title")}
             error={action.error("title")}
-            onCommit={(next) => void action.run("title", () => contractsApi.setup.updateView(view.id, { title: next }))}
+            onCommit={(next) =>
+              void action.run("title", () => contractsApi.setup.updateView(view.id, { title: next }), "schema", {
+                text: `Лист «${view.title}» теперь «${next}»`,
+                revert: () => contractsApi.setup.updateView(view.id, { title: view.title }),
+              })
+            }
           />
         </span>
         <span className="setup-view-count" {...tip("Сколько договоров сейчас в листе.")}>
@@ -431,7 +479,10 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
         onCancel={() => setAsk(null)}
         onConfirm={async () => {
           setAsk(null);
-          const ok = await action.run("archive", () => contractsApi.setup.updateView(view.id, { archived: true }));
+          const ok = await action.run("archive", () => contractsApi.setup.updateView(view.id, { archived: true }), "schema", {
+            text: `Лист «${view.title}» удалён в корзину`,
+            revert: () => contractsApi.setup.updateView(view.id, { archived: false }),
+          });
           if (ok) onGone();
         }}
       />

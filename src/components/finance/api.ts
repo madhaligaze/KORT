@@ -1073,7 +1073,8 @@ export type RegistrySchema = {
   economic_roles: string[];
   status_phases: string[];
   today: string;
-  access: { edit: boolean; setup: boolean };
+  /** `payments` — открыты ли оплаты по выписке (нужен журнал); нет поля — старый сервер, спросить. */
+  access: { edit: boolean; setup: boolean; payments?: boolean };
 };
 
 /** Книга-сводка компании: откуда «Оплачено (сводка)» (`contracts/summary.py`). */

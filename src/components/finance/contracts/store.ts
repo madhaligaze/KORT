@@ -647,6 +647,9 @@ let paymentsClosedFor: string | null = null;
 export function ensurePayments(force = false): Promise<void> {
   const company = state.company;
   if (!company || paymentsClosedFor === company) return Promise.resolve();
+  // Схема уже сказала, что журнал не открыт, — не спрашивать: 403 в консоли
+  // у каждого юриста и лишнее перечитывание прав после него.
+  if (state.schema?.access.payments === false) return Promise.resolve();
   const fresh = state.payments !== null && Date.now() - paymentsAt < PAYMENTS_TTL;
   if (!force && (paymentsLoading || fresh)) return paymentsLoading ?? Promise.resolve();
   paymentsLoading = (async () => {

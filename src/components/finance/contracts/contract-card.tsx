@@ -182,11 +182,8 @@ export function ContractCard({
         {contract ? <Issues contractId={contract.id} onOpen={onOpen ?? onCreated} /> : null}
 
         <div className="card-grid">
-          {fields.map((field) => {
+          {(contract ? fields : draftFields(fields)).map((field) => {
             if (field.hidden || OWN_BLOCKS.has(field.key)) return null;
-            if (!contract && !["type", "executor", "customer", "number", "signed_at", "subject", "amount", "status", "department", "people"].includes(field.key)) {
-              return null;
-            }
             return (
               <FieldSlot
                 key={field.key}
@@ -233,6 +230,20 @@ export function ContractCard({
       />
       </CardScopeContext.Provider>
     </CardLayer>
+  );
+}
+
+/**
+ * Поля нового договора — в том порядке, в каком их переписывают с бумаги:
+ * номер и дата первыми. До 29.09.2026 номер стоял предпоследним, и на
+ * экране 1280×590 его приходилось искать прокруткой, хотя с него юрист и
+ * начинает (он же заводит договор на сервере).
+ */
+const DRAFT_ORDER = ["number", "signed_at", "customer", "executor", "type", "status", "amount", "subject", "department", "people"];
+
+function draftFields(fields: RegistryField[]): RegistryField[] {
+  return DRAFT_ORDER.map((key) => fields.find((field) => field.key === key)).filter(
+    (field): field is RegistryField => Boolean(field),
   );
 }
 
@@ -850,9 +861,46 @@ function Payments({ contractId, seq }: { contractId: string; seq: number }) {
   );
 }
 
+/**
+ * Какие записи истории можно вернуть одной кнопкой: последняя правка поля,
+ * если поле с тех пор никто не менял (в нём всё ещё «стало»). Раньше
+ * вернуть ошибочную правку в карточке можно было, только вспомнив прежнее
+ * значение и вписав его руками.
+ */
+function revertible(
+  items: HistoryItem[],
+  contract: { values: Record<string, unknown>; readonly?: boolean } | undefined,
+  schema: { access: { edit: boolean }; fields: RegistryField[] } | null,
+  locked: boolean,
+): Set<string> {
+  const out = new Set<string>();
+  if (!contract || !schema?.access.edit || locked || contract.readonly) return out;
+  const editable = new Set(schema.fields.filter((field) => field.editable).map((field) => field.key));
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const latest = new Map<string, string>();
+  for (const item of items) {
+    for (const key of Object.keys(item.after ?? {})) if (!latest.has(key)) latest.set(key, item.id);
+  }
+  for (const item of items) {
+    if (item.kind !== "contract.update") continue;
+    const keys = Object.keys(item.after ?? {});
+    // Только правка одного поля: запись о нескольких полях сразу — это
+    // загрузка файла или разбор соглашения, и «Вернуть» у неё стёрло бы
+    // заполненное пачкой.
+    if (keys.length !== 1 || !(keys[0] in (item.before ?? {}))) continue;
+    if (keys.every((key) => editable.has(key) && latest.get(key) === item.id && same(contract.values[key], item.after[key]))) {
+      out.add(item.id);
+    }
+  }
+  return out;
+}
+
 function History({ contractId, seq }: { contractId: string; seq: number }) {
   const [items, setItems] = useState<HistoryItem[] | null>(null);
   const [all, setAll] = useState(false);
+  const contract = useRegistry((s) => s.byId.get(contractId));
+  const schema = useRegistry((s) => s.schema);
+  const locked = useContext(CardScopeContext).readonly;
   useEffect(() => {
     let alive = true;
     contractsApi
@@ -865,6 +913,7 @@ function History({ contractId, seq }: { contractId: string; seq: number }) {
   }, [contractId, seq]);
   if (!items || !items.length) return null;
   const shown = all ? items : items.slice(0, 5);
+  const back = revertible(items, contract, schema, locked);
   return (
     <Section title="История">
       {shown.map((item, index) => {
@@ -877,6 +926,21 @@ function History({ contractId, seq }: { contractId: string; seq: number }) {
               <span className="fin-mono fin-muted">{formatTime(item.at)}</span>
               <span>
                 <span className="fin-soft">{item.actor}</span> · {historyText(item.title)}
+                {back.has(item.id) ? (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      className="fin-link-btn hist-back"
+                      title="Поставить в поле прежнее значение — правка уйдёт как обычная, её тоже можно вернуть"
+                      onClick={() => {
+                        for (const [key, value] of Object.entries(item.before)) editField(contractId, key, value ?? null);
+                      }}
+                    >
+                      Вернуть
+                    </button>
+                  </>
+                ) : null}
               </span>
             </div>
           </div>

@@ -47,7 +47,9 @@ import {
 } from "@/components/finance/contracts/store";
 import { formatDay } from "@/components/finance/format";
 import { lookStore } from "@/components/finance/look-store";
+import { type FilterStatus, keepFilter } from "@/components/univer/filter";
 import { type LookKeeper, keepLook } from "@/components/univer/look";
+import { useSessionScope } from "@/components/session-state";
 import { UniverSheet, type UniverApi } from "@/components/univer/sheet";
 import { useFillHeight } from "@/components/univer/use-fill-height";
 
@@ -100,6 +102,9 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
   useEffect(() => () => window.clearTimeout(hideTimer.current), []);
   const [keeper, setKeeper] = useState<LookKeeper | null>(null);
   const [lookEmpty, setLookEmpty] = useState(true);
+  /** Отбор фильтром в шапке на активном листе (`univer/filter.ts`). */
+  const [filtered, setFiltered] = useState<FilterStatus | null>(null);
+  const sessionScope = useSessionScope();
 
   useEffect(() => {
     onOpenRef.current = onOpenCard;
@@ -181,6 +186,8 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
           openCard: (id, ctx) => onOpenRef.current(id, ctx),
           sheet: (view) => {
             activeView.current = view;
+            // Univer дописывает смену листа чуть позже события.
+            queueMicrotask(() => setFiltered(binding.current?.filterStatus() ?? null));
           },
           rebuild: () => setGeneration((value) => value + 1),
           hint: (at) => {
@@ -222,19 +229,27 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
       setKeeper(look);
       setLookEmpty(look.empty());
       const unwatch = look.subscribe(() => setLookEmpty(look.empty()));
+      // Фильтр в шапке — на листах из одного блока; условия живут в сессии.
+      const filter = keepFilter(api, built.unitId, sessionScope, book ? `registry.${book}` : "registry", () =>
+        setFiltered(next.filterStatus()),
+      );
+      next.setFilter(filter);
+      setFiltered(next.filterStatus());
       if (process.env.NODE_ENV !== "production") {
         // Только в разработке: пробники Playwright читают лист.
         (window as unknown as Record<string, unknown>).__cregSheet = { api, binding: next, build: buildRegistry, palette: paletteNow };
       }
       return () => {
         unwatch();
+        filter.stop();
+        next.setFilter(null);
         look.stop();
         next.setLook(null);
         stop();
         if (binding.current === next) binding.current = null;
       };
     },
-    [built, box, book, scheduleHide],
+    [built, box, book, scheduleHide, sessionScope],
   );
 
   useEffect(() => {
@@ -432,6 +447,7 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
             formatting="look"
             listArrow={!ask}
             session={book ? `registry.${book}` : "registry"}
+            onSortFilter={(command) => binding.current?.sortFilter(command) ?? false}
           />
         ) : empty ? (
           <p className="creg-sheet-note" role="status" style={{ margin: "1rem" }}>
@@ -455,6 +471,16 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
         )}
       </div>
       <div className="creg-sheet-foot">
+        {filtered && filtered.columns.length ? (
+          // Отбор виден словами и числом, как в Excel «Найдено 21 из 90»:
+          // иначе спрятанные строки выглядели бы пропавшими договорами.
+          <p className="creg-sheet-filter" role="status">
+            Отбор по {filtered.columns.map((label) => `«${label}»`).join(", ")}: видно {filtered.shown} из {filtered.total} ·{" "}
+            <button type="button" className="fin-link-btn" onClick={() => binding.current?.clearFilter()}>
+              Показать все
+            </button>
+          </p>
+        ) : null}
         <p className={note?.fail ? "creg-sheet-note fin-fail" : "creg-sheet-note"} role="status" aria-live="polite">
           {note?.text ?? ""}
         </p>

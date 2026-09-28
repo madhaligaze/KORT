@@ -10,6 +10,11 @@
  * Договор с двумя ответственными считается у каждого — как у каждого он и
  * висит в работе. «Остаток» и месяц — из книги-сводки (`summary`), договора
  * в ней нет — остатка нет, месяц «нет в сводке».
+ *
+ * «Итого» — по договорам, каждый один раз (`totals`), а не сумма строк. До
+ * 29.09.2026 итог складывал строки, и договор на двоих входил в него дважды:
+ * у «Разовых» из 93 договоров итог показывал 98, а сумма — на миллионы больше
+ * настоящей.
  */
 import type { Contract, PersonRef, RegistrySchema, SummaryEntry } from "@/components/finance/api";
 import { CLOSED_PHASES, phaseOf } from "@/components/finance/contracts/schema";
@@ -27,14 +32,27 @@ export type Tally = {
   byMonth: Map<string, number>;
 };
 
+/** Итог по договорам без повторов; `shared` — сколько договоров на нескольких. */
+export type StaffTotals = {
+  contracts: number;
+  amount: number;
+  remaining: number;
+  openContracts: number;
+  openAmount: number;
+  byMonth: Map<string, number>;
+  shared: number;
+  openShared: number;
+};
+
 export type StaffTable = {
   rows: Tally[];
+  totals: StaffTotals;
   /** Последние месяцы сводки — колонками, от старого к новому. */
   months: string[];
   /** Есть месяцы раньше показанных — колонка «Раньше». */
   older: boolean;
-  /** Сумма незавершённых раньше показанных месяцев. */
-  olderOf: (row: Tally) => number;
+  /** Сумма незавершённых раньше показанных месяцев — у строки или у итога. */
+  olderOf: (row: { byMonth: Map<string, number> }) => number;
 };
 
 export type StaffSource = {
@@ -78,6 +96,16 @@ export function staffTable(source: StaffSource, book = "oneoff"): StaffTable | n
   if (!schema || !main) return null;
   const byPerson = new Map<string, Tally>();
   const monthSet = new Set<string>();
+  const totals: StaffTotals = {
+    contracts: 0,
+    amount: 0,
+    remaining: 0,
+    openContracts: 0,
+    openAmount: 0,
+    byMonth: new Map(),
+    shared: 0,
+    openShared: 0,
+  };
   for (const id of order) {
     const contract = byId.get(id);
     if (!contract || contract.deleted || !contract.views.some((place) => place.view === main.key)) continue;
@@ -90,6 +118,16 @@ export function staffTable(source: StaffSource, book = "oneoff"): StaffTable | n
     const open = !CLOSED_PHASES.has(phaseOf(schema, contract));
     const month = entry?.state === "found" ? entry.months?.[0] ?? "" : "";
     if (open && month) monthSet.add(month);
+    totals.contracts += 1;
+    totals.amount += amount;
+    totals.remaining += remaining;
+    if (names.length > 1) totals.shared += 1;
+    if (open) {
+      totals.openContracts += 1;
+      totals.openAmount += amount;
+      totals.byMonth.set(month, (totals.byMonth.get(month) ?? 0) + amount);
+      if (names.length > 1) totals.openShared += 1;
+    }
     for (const name of names) {
       let tally = byPerson.get(name);
       if (!tally) {
@@ -121,11 +159,13 @@ export function staffTable(source: StaffSource, book = "oneoff"): StaffTable | n
   const all = [...monthSet].sort((a, b) => monthOrder(b) - monthOrder(a));
   const recent = all.slice(0, RECENT);
   const shown = new Set(recent);
+  const olderOf = (row: { byMonth: Map<string, number> }) =>
+    [...row.byMonth].reduce((sum, [month, value]) => (month && !shown.has(month) ? sum + value : sum), 0);
   return {
     rows: [...byPerson.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ru")),
+    totals,
     months: [...recent].reverse(),
     older: all.length > RECENT,
-    olderOf: (row) =>
-      [...row.byMonth].reduce((sum, [month, value]) => (month && !shown.has(month) ? sum + value : sum), 0),
+    olderOf,
   };
 }

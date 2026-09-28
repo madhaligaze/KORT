@@ -124,8 +124,13 @@ export function ValuesPane({ field }: { field: RegistryField }) {
 
   const pickedValues = picked.map((id) => values.find((item) => item.id === id)).filter((item): item is ListValue => !!item);
 
+  /** Смысл значения; «Вернуть» ставит прежний смысл целиком. */
   const setMeaning = (value: ListValue, meaning: ListValue["meaning"], slot: string) => {
-    void action.run(`${slot}:${value.id}`, () => contractsApi.setup.updateValue(value.id, { meaning }));
+    const previous = value.meaning;
+    void action.run(`${slot}:${value.id}`, () => contractsApi.setup.updateValue(value.id, { meaning }), "schema", {
+      text: `Смысл «${value.value}» изменён`,
+      revert: () => contractsApi.setup.updateValue(value.id, { meaning: previous }),
+    });
   };
 
   const add = async () => {
@@ -137,7 +142,10 @@ export function ValuesPane({ field }: { field: RegistryField }) {
       return;
     }
     const meaning = shape === "economic" ? { system: draftSystem } : undefined;
-    const ok = await action.run("add", () => contractsApi.setup.addValue(field.key, clean, meaning));
+    const ok = await action.run("add", () => contractsApi.setup.addValue(field.key, clean, meaning), "schema", (made) => ({
+      text: `«${clean}» добавлено в «${field.title}»`,
+      revert: () => contractsApi.setup.updateValue(made.id, { archived: true }),
+    }));
     if (ok) {
       setDraft("");
       setDraftSystem("");
@@ -207,7 +215,10 @@ export function ValuesPane({ field }: { field: RegistryField }) {
                 label="Значение"
                 trace={action.trace(`name:${value.id}`)}
                 onCommit={(next) =>
-                  void action.run(`name:${value.id}`, () => contractsApi.setup.updateValue(value.id, { value: next }))
+                  void action.run(`name:${value.id}`, () => contractsApi.setup.updateValue(value.id, { value: next }), "schema", {
+                    text: `«${value.value}» теперь «${next}»`,
+                    revert: () => contractsApi.setup.updateValue(value.id, { value: value.value }),
+                  })
                 }
               />
             </span>
@@ -241,10 +252,17 @@ export function ValuesPane({ field }: { field: RegistryField }) {
                     label="Первая сторона"
                     trace={action.trace(`roles-executor:${value.id}`)}
                     onCommit={(next) =>
-                      void action.run(`roles-executor:${value.id}`, () =>
-                        contractsApi.setup.updateValue(value.id, {
-                          meaning: { ...value.meaning, roles: { ...roles, executor: next } },
-                        }),
+                      void action.run(
+                        `roles-executor:${value.id}`,
+                        () =>
+                          contractsApi.setup.updateValue(value.id, {
+                            meaning: { ...value.meaning, roles: { ...roles, executor: next } },
+                          }),
+                        "schema",
+                        {
+                          text: `Первая сторона «${value.value}»: «${next || slots.executor}»`,
+                          revert: () => contractsApi.setup.updateValue(value.id, { meaning: value.meaning }),
+                        },
                       )
                     }
                   />
@@ -258,10 +276,17 @@ export function ValuesPane({ field }: { field: RegistryField }) {
                     label="Вторая сторона"
                     trace={action.trace(`roles-customer:${value.id}`)}
                     onCommit={(next) =>
-                      void action.run(`roles-customer:${value.id}`, () =>
-                        contractsApi.setup.updateValue(value.id, {
-                          meaning: { ...value.meaning, roles: { ...roles, customer: next } },
-                        }),
+                      void action.run(
+                        `roles-customer:${value.id}`,
+                        () =>
+                          contractsApi.setup.updateValue(value.id, {
+                            meaning: { ...value.meaning, roles: { ...roles, customer: next } },
+                          }),
+                        "schema",
+                        {
+                          text: `Вторая сторона «${value.value}»: «${next || slots.customer}»`,
+                          revert: () => contractsApi.setup.updateValue(value.id, { meaning: value.meaning }),
+                        },
                       )
                     }
                   />
@@ -449,7 +474,10 @@ export function ValuesPane({ field }: { field: RegistryField }) {
           if (ask?.kind !== "archive") return;
           const { value } = ask;
           setAsk(null);
-          void action.run(`archive:${value.id}`, () => contractsApi.setup.updateValue(value.id, { archived: true }));
+          void action.run(`archive:${value.id}`, () => contractsApi.setup.updateValue(value.id, { archived: true }), "schema", {
+            text: `«${value.value}» удалено из «${field.title}»`,
+            revert: () => contractsApi.setup.updateValue(value.id, { archived: false }),
+          });
         }}
       />
     </section>
