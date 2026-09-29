@@ -14,7 +14,6 @@ import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   type Amendment,
   type ContractPayments,
-  type HistoryItem,
   type ParsedPiece,
   type PaymentItem,
   type RegistryField,
@@ -45,7 +44,7 @@ import {
   refreshOne,
   useRegistry,
 } from "@/components/finance/contracts/store";
-import { contractMoney, dayTitle, formatDay, formatTime, parseDay, plural } from "@/components/finance/format";
+import { contractMoney, formatDay, parseDay } from "@/components/finance/format";
 import { CardLayer } from "@/components/finance/ui/card-layer";
 import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 import { MenuPopover } from "@/components/finance/ui/menu-popover";
@@ -137,17 +136,14 @@ export function ContractCard({
     <CardLayer open={open} onClose={onClose} label={number ? `Договор ${number}` : "Новый договор"}>
       <CardScopeContext.Provider value={scope}>
       <div className="card-top">
-        <button type="button" className="fin-icon-btn" aria-label="Закрыть" onClick={onClose}>
-          <CloseIcon size={16} />
-        </button>
-        <span className="card-top-num">{contract ? number || "Без номера" : "Новый договор"}</span>
-        <span className={`card-top-state ${topState?.cls ?? ""}`}>{topState?.text ?? ""}</span>
         <button type="button" className="fin-icon-btn" aria-label="Предыдущий договор" disabled={!onPrev} onClick={onPrev}>
           <ArrowUpIcon size={16} />
         </button>
         <button type="button" className="fin-icon-btn" aria-label="Следующий договор" disabled={!onNext} onClick={onNext}>
           <ArrowDownIcon size={16} />
         </button>
+        <span className="card-top-num">{contract ? number || "Без номера" : "Новый договор"}</span>
+        <span className={`card-top-state ${topState?.cls ?? ""}`}>{topState?.text ?? ""}</span>
         <MenuPopover
           items={[
             {
@@ -168,6 +164,9 @@ export function ContractCard({
             },
           ]}
         />
+        <button type="button" className="fin-icon-btn" aria-label="Закрыть" onClick={onClose}>
+          <CloseIcon size={16} />
+        </button>
       </div>
 
       <div className="card-body" key={id ?? "new"}>
@@ -201,7 +200,6 @@ export function ContractCard({
             <SourceText contractId={contract.id} seq={contract.seq} />
             <Snapshot contractId={contract.id} />
             <Payments contractId={contract.id} seq={contract.seq} />
-            <History contractId={contract.id} seq={contract.seq} />
           </>
         ) : null}
       </div>
@@ -554,14 +552,24 @@ function SourceText({ contractId, seq }: { contractId: string; seq: number }) {
         ) : null
       }
     >
-      {shown ? (
+      {/* Текст стоит всё время разбора, наведение только подсвечивает кусок.
+          До 30.09.2026 абзац появлялся по наведению на строку разбора и
+          сдвигал строки вниз из-под курсора: уход — абзац пропал — строка
+          вернулась под курсор — и так по кругу, карточка дрожала. */}
+      {pieces && pieces.length && text ? (
         <p className="source-text" aria-hidden="true">
-          {text.slice(0, shown.start)}
-          <mark data-hover="true">{text.slice(shown.start, shown.end)}</mark>
-          {text.slice(shown.end)}
+          {shown ? (
+            <>
+              {text.slice(0, shown.start)}
+              <mark data-hover="true">{text.slice(shown.start, shown.end)}</mark>
+              {text.slice(shown.end)}
+            </>
+          ) : (
+            text
+          )}
         </p>
       ) : null}
-      <div className="card-grid" style={{ marginTop: shown ? "0.5rem" : 0 }}>
+      <div className="card-grid" style={{ marginTop: pieces && pieces.length && text ? "0.5rem" : 0 }}>
         {textField ? <InlineField contractId={contractId} field={textField} wide /> : null}
         {summaryField ? <InlineField contractId={contractId} field={summaryField} wide /> : null}
       </div>
@@ -817,105 +825,6 @@ function Payments({ contractId, seq }: { contractId: string; seq: number }) {
       {error ? <p className="ifield-error">{error}</p> : null}
     </Section>
   );
-}
-
-/**
- * Какие записи истории можно вернуть одной кнопкой: последняя правка поля,
- * если поле с тех пор никто не менял (в нём всё ещё «стало»). Раньше
- * вернуть ошибочную правку в карточке можно было, только вспомнив прежнее
- * значение и вписав его руками.
- */
-function revertible(
-  items: HistoryItem[],
-  contract: { values: Record<string, unknown>; readonly?: boolean } | undefined,
-  schema: { access: { edit: boolean }; fields: RegistryField[] } | null,
-  locked: boolean,
-): Set<string> {
-  const out = new Set<string>();
-  if (!contract || !schema?.access.edit || locked || contract.readonly) return out;
-  const editable = new Set(schema.fields.filter((field) => field.editable).map((field) => field.key));
-  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const latest = new Map<string, string>();
-  for (const item of items) {
-    for (const key of Object.keys(item.after ?? {})) if (!latest.has(key)) latest.set(key, item.id);
-  }
-  for (const item of items) {
-    if (item.kind !== "contract.update") continue;
-    const keys = Object.keys(item.after ?? {});
-    // Только правка одного поля: запись о нескольких полях сразу — это
-    // загрузка файла или разбор соглашения, и «Вернуть» у неё стёрло бы
-    // заполненное пачкой.
-    if (keys.length !== 1 || !(keys[0] in (item.before ?? {}))) continue;
-    if (keys.every((key) => editable.has(key) && latest.get(key) === item.id && same(contract.values[key], item.after[key]))) {
-      out.add(item.id);
-    }
-  }
-  return out;
-}
-
-function History({ contractId, seq }: { contractId: string; seq: number }) {
-  const [items, setItems] = useState<HistoryItem[] | null>(null);
-  const [all, setAll] = useState(false);
-  const contract = useRegistry((s) => s.byId.get(contractId));
-  const schema = useRegistry((s) => s.schema);
-  const locked = useContext(CardScopeContext).readonly;
-  useEffect(() => {
-    let alive = true;
-    contractsApi
-      .history(contractId)
-      .then((result) => alive && setItems(result.items))
-      .catch(() => alive && setItems([]));
-    return () => {
-      alive = false;
-    };
-  }, [contractId, seq]);
-  if (!items || !items.length) return null;
-  const shown = all ? items : items.slice(0, 5);
-  const back = revertible(items, contract, schema, locked);
-  return (
-    <Section title="История">
-      {shown.map((item, index) => {
-        const day = dayTitle(item.at);
-        const head = index === 0 || dayTitle(shown[index - 1].at) !== day ? day : "";
-        return (
-          <div key={item.id}>
-            {head ? <div className="hist-day">{head}</div> : null}
-            <div className="hist-row">
-              <span className="fin-mono fin-muted">{formatTime(item.at)}</span>
-              <span>
-                <span className="fin-soft">{item.actor}</span> · {historyText(item.title)}
-                {back.has(item.id) ? (
-                  <>
-                    {" "}
-                    <button
-                      type="button"
-                      className="fin-link-btn hist-back"
-                      title="Поставить в поле прежнее значение — правка уйдёт как обычная, её тоже можно вернуть"
-                      onClick={() => {
-                        for (const [key, value] of Object.entries(item.before)) editField(contractId, key, value ?? null);
-                      }}
-                    >
-                      Вернуть
-                    </button>
-                  </>
-                ) : null}
-              </span>
-            </div>
-          </div>
-        );
-      })}
-      {items.length > 5 ? (
-        <button type="button" className="fin-link-btn" style={{ marginTop: "0.5rem", fontSize: "0.8125rem" }} onClick={() => setAll((value) => !value)}>
-          {all ? "Свернуть" : `Вся история · ${items.length} ${plural(items.length, "событие", "события", "событий")}`}
-        </button>
-      ) : null}
-    </Section>
-  );
-}
-
-/** «договор №ЮО/141 · сумма договора: 500 000 → 750 000» → без повтора номера. */
-function historyText(title: string): string {
-  return title.replace(/^договор\s+[^·]*·\s*/i, "");
 }
 
 export function useCardRefresh(id: string | null, open: boolean): void {

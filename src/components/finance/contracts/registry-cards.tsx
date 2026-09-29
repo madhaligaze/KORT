@@ -11,6 +11,10 @@
  * найденное в каждом листе, и «где искать» видно без переключения. Строки не
  * исчезают под глазами: договор, ушедший из листа, стоит приглушённым до смены
  * вкладки. Цвет на экране в нормальном состоянии — только «N замечаний».
+ *
+ * «С долями N» (29.09.2026) — владельцу, администратору и начальнику отдела:
+ * только договоры, где распределены доли исполнителей. Искать их руками по
+ * карточкам было тяжело. Доли — те, что открыты этому человеку (`ensureShares`).
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -27,6 +31,7 @@ import {
 import { SearchIcon } from "@/components/icons";
 import { ContractCard, useCardRefresh } from "@/components/finance/contracts/contract-card";
 import { useMine } from "@/components/finance/contracts/mine";
+import { headOnly, isAdmin } from "@/components/finance/access";
 import {
   bareNumber,
   contractMoney,
@@ -45,6 +50,7 @@ import {
 } from "@/components/finance/contracts/schema";
 import {
   boot,
+  ensureShares,
   forgetDeparted,
   holdLive,
   inBook,
@@ -116,6 +122,13 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
   const fresh = useRegistry((s) => s.fresh);
   const removed = useRegistry((s) => s.departed);
   const wasIn = useRegistry((s) => s.wasIn);
+  const shares = useRegistry((s) => s.shares);
+  // Отбор «С долями» — тем, кто видит доли всех: владельцу, администратору,
+  // начальнику отдела. Сотруднику доли коллег не открыты — отбирать нечего.
+  const seesShares = isAdmin(me) || headOnly(me);
+  useEffect(() => {
+    if (seesShares) void ensureShares();
+  }, [seesShares]);
 
   // Только листы своей книги: у реестра и «Разовых» наборы листов разные.
   const views = useMemo(
@@ -129,6 +142,8 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
   const scope = book ? `registry.${book}` : "registry";
   const [query, setQuery] = useSessionState(`${scope}.query`, "");
   const [issuesOnly, setIssuesOnly] = useSessionState(`${scope}.issues`, false);
+  const [sharesPicked, setSharesOnly] = useSessionState(`${scope}.shares`, false);
+  const sharesOnly = sharesPicked && seesShares;
   // Сортировка своя у каждого листа и помнится в браузере. Выбранная здесь
   // привязана к листу, на котором её выбрали; на другом листе — его память.
   const [sortPick, setSortPick] = useState<{ view: string; sort: { key: SortKey; dir: 1 | -1 } | null } | null>(null);
@@ -205,7 +220,14 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
   const all = useMemo(() => order.map((id) => byId.get(id)).filter((item): item is Contract => !!item && !item.deleted), [order, byId]);
   // «Мои» у заголовка реестра: вкладки, счётчики и строки — по своим договорам.
   const { only: mineOnly } = useMine(me, book);
-  const shownAll = useMemo(() => (mineOnly ? all.filter(mineOnly) : all), [all, mineOnly]);
+  const mineAll = useMemo(() => (mineOnly ? all.filter(mineOnly) : all), [all, mineOnly]);
+  const hasShares = useCallback(
+    (contract: Contract) => Object.keys(shares?.[contract.id]?.people ?? {}).length > 0,
+    [shares],
+  );
+  // «С долями» сужает всё — строки, счётчики вкладок и замечания: видно, в
+  // каких листах договоры с долями, не переключая их по одному.
+  const shownAll = useMemo(() => (sharesOnly ? mineAll.filter(hasShares) : mineAll), [mineAll, sharesOnly, hasShares]);
   const counts = useMemo(() => viewCounts(views, shownAll, needle ? matchesSearch : undefined), [views, shownAll, needle, matchesSearch]);
 
   const rows = useMemo(() => {
@@ -402,18 +424,29 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
           />
         </label>
       </div>
-      {issueCount > 0 ? (
-        <button
-          type="button"
-          className="creg-issues-btn"
-          aria-pressed={issuesOnly}
-          onClick={() => setIssuesOnly((value) => !value)}
-        >
-          {issueCount} {plural(issueCount, "замечание", "замечания", "замечаний")}
-        </button>
-      ) : (
-        <div style={{ height: "1.9rem" }} />
-      )}
+      <div className="creg-filters">
+        {issueCount > 0 ? (
+          <button
+            type="button"
+            className="creg-issues-btn"
+            aria-pressed={issuesOnly}
+            onClick={() => setIssuesOnly((value) => !value)}
+          >
+            {issueCount} {plural(issueCount, "замечание", "замечания", "замечаний")}
+          </button>
+        ) : null}
+        {seesShares ? (
+          <button
+            type="button"
+            className="creg-shares-btn"
+            aria-pressed={sharesOnly}
+            title="Только договоры, где распределены доли исполнителей"
+            onClick={() => setSharesOnly((value) => !value)}
+          >
+            С долями
+          </button>
+        ) : null}
+      </div>
 
       <div className="creg-list">
         <Head
@@ -431,6 +464,13 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
                 Ничего не нашлось ·{" "}
                 <button type="button" className="fin-link-btn" onClick={() => setQuery("")}>
                   Сбросить поиск
+                </button>
+              </>
+            ) : sharesOnly ? (
+              <>
+                В этом листе договоров с долями нет ·{" "}
+                <button type="button" className="fin-link-btn" onClick={() => setSharesOnly(false)}>
+                  Показать все
                 </button>
               </>
             ) : mineOnly ? (

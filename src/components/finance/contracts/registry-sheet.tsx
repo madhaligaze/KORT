@@ -157,17 +157,28 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
   useEffect(() => {
     void ensureStaff();
   }, []);
-  // «По сотрудникам» у «Разовых» считает долями — те, что открыты человеку.
+  // Доли исполнителей — последняя колонка листа и «По сотрудникам» у
+  // «Разовых»; те, что открыты человеку. Книга собирается, когда они
+  // прочитаны (или отказали): иначе ширина колонки встала бы по пустым ячейкам.
+  const [sharesRead, setSharesRead] = useState(false);
   useEffect(() => {
-    if (book === "oneoff") void ensureShares();
-  }, [book]);
+    let alive = true;
+    void ensureShares().finally(() => {
+      if (alive) setSharesRead(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   // «Оплачено/Остаток по выписке» меняют выписки и разнесение, а не правки
   // договоров — опросу реестра о них неоткуда узнать. Раз в минуту, пока
   // вкладка на виду, и сразу при возвращении на неё.
   useEffect(() => {
     void ensurePayments();
     const refresh = () => {
-      if (document.visibilityState === "visible") void ensurePayments();
+      if (document.visibilityState !== "visible") return;
+      void ensurePayments();
+      void ensureShares();
     };
     const timer = window.setInterval(refresh, 60_000);
     document.addEventListener("visibilitychange", refresh);
@@ -215,9 +226,9 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
    */
   const built = useMemo<Built | null>(() => {
     // `generation` — просьба связки собрать книгу заново (лист поменяли в обход).
-    if (!ready || !structure || empty || generation < 0) return null;
+    if (!ready || !structure || empty || !sharesRead || generation < 0) return null;
     return buildRegistry(getRegistry(), paletteNow(), book, only);
-  }, [ready, structure, empty, generation, book, only]);
+  }, [ready, structure, empty, sharesRead, generation, book, only]);
 
   const onReady = useCallback(
     (api: UniverApi) => {

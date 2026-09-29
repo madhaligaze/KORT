@@ -64,6 +64,7 @@ import {
   type RegistryField,
   type RegistrySchema,
   type RegistryView,
+  type ShareMap,
   type ViewBlock,
   contractsApi,
 } from "@/components/finance/api";
@@ -120,7 +121,17 @@ const SNAPSHOT_KEYS = new Set(["paid_snapshot", "remaining_snapshot"]);
  * Приходят своим запросом, а не с договором: «по выписке» — из журнала
  * операций, «(сводка)» — из книги-сводки компании.
  */
-const LIVE_KEYS = new Set(["paid", "remaining", "summary_paid", "summary_remaining"]);
+const LIVE_KEYS = new Set(["paid", "remaining", "summary_paid", "summary_remaining", "__shares"]);
+/**
+ * «Доли исполнителей» — колонка, которую ставит сам лист в конце каждой
+ * части (29.09.2026: «раз доли есть в карточке, пусть будут и в таблице»).
+ * Не поле реестра: приходит своим запросом (`ensureShares`) и только то, что
+ * открыто этому человеку — сотруднику своя доля, начальнику и
+ * администратору все. Правится в карточке: у распределения своё правило
+ * (не больше суммы договора и 100%), ячейка его не удержит.
+ */
+export const SHARES_KEY = "__shares";
+const SHARES_LABEL = "Доли исполнителей";
 /**
  * Поля, которых нет в листе без явного списка колонок: сводка и «Срок, мес»
  * нужны «Разовым», а в «Все договоры» новой компании встали бы пустыми.
@@ -128,6 +139,7 @@ const LIVE_KEYS = new Set(["paid", "remaining", "summary_paid", "summary_remaini
 const EXPLICIT_ONLY = new Set(["summary_paid", "summary_remaining", "age_months"]);
 
 function liveValue(state: RegistryState, id: string, key: string): unknown {
+  if (key === SHARES_KEY) return state.shares?.[id];
   if (key === "summary_paid" || key === "summary_remaining") {
     const entry = state.summary?.[id];
     if (entry?.state !== "found") return undefined;
@@ -155,7 +167,8 @@ const MENU_OPEN = "kort.registry.open-card";
 const MENU_REMOVE = "kort.registry.remove";
 
 export type ColumnKind =
-  | "ordinal" | "text" | "money" | "date" | "party" | "list" | "people" | "department" | "choice" | "bool" | "url";
+  | "ordinal" | "text" | "money" | "date" | "party" | "list" | "people" | "department" | "choice" | "bool" | "url"
+  | "shares";
 
 export type SheetColumn = {
   key: string;
@@ -190,7 +203,7 @@ export type ViewLayout = {
 
 const DEFAULT_WIDTH: Record<ColumnKind, number> = {
   ordinal: 44, text: 180, money: 120, date: 100, party: 200, list: 150,
-  people: 150, department: 80, choice: 110, bool: 60, url: 200,
+  people: 150, department: 80, choice: 110, bool: 60, url: 200, shares: 220,
 };
 
 function kindOf(key: string, field: RegistryField | null): ColumnKind {
@@ -224,7 +237,7 @@ function kindOf(key: string, field: RegistryField | null): ColumnKind {
 /** Предел ширины по типу колонки (см. `fitWidth` в общем корне листов). */
 const WIDTH_CAP: Record<ColumnKind, number> = {
   ordinal: 44, text: 320, money: 160, date: 112, party: 320, list: 280,
-  people: 240, department: 120, choice: 160, bool: 80, url: 240,
+  people: 240, department: 120, choice: 160, bool: 80, url: 240, shares: 380,
 };
 
 const NUMBER_CAP = 220;
@@ -270,6 +283,10 @@ export function layoutOf(schema: RegistrySchema, view: RegistryView): ViewLayout
         key: ORDINAL_KEY, label: "№", width: DEFAULT_WIDTH.ordinal, kind: "ordinal", field: null, readOnly: true,
       });
     }
+    // Доли исполнителей — последней колонкой каждой части, только чтение.
+    columns.push({
+      key: SHARES_KEY, label: SHARES_LABEL, width: DEFAULT_WIDTH.shares, kind: "shares", field: null, readOnly: true,
+    });
     const title = (block.title ?? "").trim();
     const showTitle = source.length > 1
       ? Boolean(title)
@@ -328,6 +345,47 @@ function numberOf(raw: unknown): number | null {
   return /^-?\d+(\.\d+)?$/.test(normal) ? Number(normal) : null;
 }
 
+function shareNumber(value: number): string {
+  return value.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+}
+
+/**
+ * Доли договора строкой ячейки: «Елжас 500 000 (71,4%) · Рысбек 200 000
+ * (28,6%)», у кого не задана — прочерк, в конце — что не распределено. У
+ * сотрудника, которому открыта только своя, — «Ваша доля …»: чужих сумм в
+ * листе нет, как и в ответе сервера. `over` — вместе больше суммы договора.
+ */
+function sharesOf(entry: ShareMap, contract: Contract | undefined, ctx: Ctx): { text: string; over: boolean } {
+  const one = (share: { amount: string | null; percent: string | null } | undefined): string => {
+    const amount = numberOf(share?.amount ?? null);
+    const percent = numberOf(share?.percent ?? null);
+    const pct = percent !== null ? `${percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%` : "";
+    if (amount !== null) return pct ? `${shareNumber(amount)} (${pct})` : shareNumber(amount);
+    return pct || "—";
+  };
+  if (entry.scope === "own") {
+    const mine = Object.values(entry.people)[0];
+    return { text: `Ваша доля ${one(mine)}`, over: false };
+  }
+  const listed = Array.isArray(contract?.values.people) ? (contract?.values.people as string[]) : [];
+  const ids = [...listed, ...Object.keys(entry.people).filter((id) => !listed.includes(id))];
+  const parts = ids.map((id) => `${ctx.people[id]?.name ?? "—"} ${entry.people[id] ? one(entry.people[id]) : "—"}`);
+  const total = numberOf(contract?.values.amount ?? null);
+  const amounts = Object.values(entry.people).map((share) => numberOf(share.amount));
+  const percents = Object.values(entry.people).map((share) => numberOf(share.percent));
+  let over = false;
+  if (total !== null && amounts.every((value) => value !== null)) {
+    const rest = total - amounts.reduce((sum: number, value) => sum + (value ?? 0), 0);
+    over = rest < -0.5;
+    if (rest > 0.5) parts.push(`не распределено ${shareNumber(Math.round(rest * 100) / 100)}`);
+  } else if (percents.every((value) => value !== null)) {
+    const rest = 100 - percents.reduce((sum: number, value) => sum + (value ?? 0), 0);
+    over = rest < -0.01;
+    if (rest > 0.01) parts.push(`не распределено ${rest.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`);
+  }
+  return { text: parts.join(" · "), over };
+}
+
 function isEmpty(value: unknown): boolean {
   return value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
 }
@@ -381,6 +439,8 @@ function faceOf(column: SheetColumn, value: unknown, contract: Contract | undefi
       return { v: column.field?.choices?.find((item) => item.value === value)?.label ?? String(value), fmt: "" };
     case "bool":
       return { v: value === true ? "Да" : value === false ? "Нет" : String(value), fmt: "" };
+    case "shares":
+      return { v: sharesOf(value as ShareMap, contract, ctx).text || null, fmt: "" };
     default:
       return { v: String(value), fmt: "" };
   }
@@ -740,6 +800,11 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
       const stored = LIVE_KEYS.has(column.key) ? liveValue(state, id, column.key) : contract?.values[column.key];
       const value = pending && pending.state !== "conflict" ? pending.value : stored;
       faces[index] = faceOf(column, value, contract, valueCtx);
+      if (column.kind === "shares" && stored && sharesOf(stored as ShareMap, contract, valueCtx).over) {
+        // Договор подешевел после распределения — доли вместе больше суммы.
+        mark += "F";
+        texts.push("Доли вместе больше суммы договора — поправьте их в карточке");
+      }
       if (pending?.state === "failed") {
         mark += "F";
         texts.push(pending.error || "Правка не сохранилась");
@@ -1502,13 +1567,29 @@ export class RegistryBinding {
     listen(
       api.addEvent?.(
         api.Event.BeforeSheetEditStart,
-        (event: { worksheet?: UniverApi; column: number; eventType?: number; cancel?: boolean }) => {
+        (event: { worksheet?: UniverApi; row?: number; column: number; eventType?: number; cancel?: boolean }) => {
+          const sheet = event.worksheet?.getSheetId?.() ?? "";
+          const model = this.models.get(sheet);
+          // Доли правятся в карточке: у распределения своё правило (не больше
+          // суммы договора и 100%), ячейка его не удержит. Двойной щелчок —
+          // карточка договора, печать — подсказка словами, редактора нет.
+          const slot = model && typeof event.row === "number" ? model.slots[event.row] : undefined;
+          const spec = slot ? model?.layout.blocks[slot.block]?.columns[event.column] : undefined;
+          if (spec?.kind === "shares") {
+            event.cancel = true;
+            if (slot?.kind === "row" && slot.id && event.eventType === DBLCLICK) {
+              this.events.openCard(slot.id, { view: sheet, block: slot.block });
+            } else {
+              this.events.note("Доли исполнителей правятся в карточке договора — двойной щелчок по ячейке или Alt+Enter", false);
+            }
+            return;
+          }
           // Двойной щелчок по номеру строки открывает карточку, а не редактор
           // ячейки: редактор оставался открытым под карточкой, и напечатанное
           // потом уходило в «№». Печать с клавиатуры не трогаем — её лист
           // возвращает сам: «Номер строки ставит лист».
           if (event.column !== 0 || event.eventType !== DBLCLICK) return;
-          if (this.models.has(event.worksheet?.getSheetId?.() ?? "")) event.cancel = true;
+          if (model) event.cancel = true;
         },
       ),
     );
@@ -2018,6 +2099,27 @@ export class RegistryBinding {
     }
     const labels = cols.map((col) => this.columnLabel(model, col));
     const named = labels.map((label) => `«${label}»`).join(", ");
+    // «Доли исполнителей» — колонка самого листа, не поле: у всех её не убрать.
+    const own = cols.filter((col) => model.layout.blocks.some((block) => block.columns[col] && block.columns[col].kind !== "shares"));
+    const keys = own.map((col) =>
+      model.layout.blocks.map((block) => {
+        const column = block.columns[col];
+        return column && column.kind !== "shares" ? column.key : null;
+      }),
+    );
+    if (!keys.length) {
+      this.warn({
+        title: `Скрыть колонку ${named} у себя?`,
+        lines: [
+          "Эту колонку ставит сам лист у всех, кому открыты доли: убрать её из листа нельзя, скрыть у себя — можно.",
+          "Доли остаются в карточке договора.",
+          "Вернуть: «Сбросить мой вид» под листом.",
+        ],
+        confirm: "Скрыть",
+        onConfirm: () => this.hideColumns(model, cols),
+      });
+      return true;
+    }
     if (!this.isAdmin()) {
       this.warn({
         title: cols.length === 1 ? `Скрыть колонку ${named} у себя?` : `Скрыть колонки ${named} у себя?`,
@@ -2031,7 +2133,7 @@ export class RegistryBinding {
       });
       return true;
     }
-    const keys = cols.map((col) => model.layout.blocks.map((block) => block.columns[col]?.key ?? null));
+    const ownNamed = own.map((col) => `«${this.columnLabel(model, col)}»`).join(", ");
     const fields = [...new Set(keys.flat().filter((key): key is string => Boolean(key)))];
     const schema = this.ctx.state.schema;
     const keep = fields
@@ -2042,9 +2144,9 @@ export class RegistryBinding {
       })
       .slice(0, 3);
     this.warn({
-      title: cols.length === 1 ? `Убрать колонку ${named} из листа «${model.layout.title}»?` : `Убрать колонки ${named} из листа «${model.layout.title}»?`,
+      title: own.length === 1 ? `Убрать колонку ${ownNamed} из листа «${model.layout.title}»?` : `Убрать колонки ${ownNamed} из листа «${model.layout.title}»?`,
       lines: [
-        `${cols.length === 1 ? "Колонка пропадёт" : "Колонки пропадут"} из листа «${model.layout.title}» у всех сотрудников.`,
+        `${own.length === 1 ? "Колонка пропадёт" : "Колонки пропадут"} из листа «${model.layout.title}» у всех сотрудников.`,
         ...keep,
         "Удалить само поле — «Настроить реестр» → «Поля».",
         "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете.",
@@ -2057,7 +2159,7 @@ export class RegistryBinding {
           const result = await contractsApi.sheetChange({ action: "remove_column", view: model.layout.key, keys: perBlock });
           point = result.point ?? point;
         }
-        this.events.changed?.(point, cols.length === 1 ? `Колонка ${named} убрана из листа` : `Колонки ${named} убраны из листа`);
+        this.events.changed?.(point, own.length === 1 ? `Колонка ${ownNamed} убрана из листа` : `Колонки ${ownNamed} убраны из листа`);
         await reloadSchema();
       },
     });
@@ -2073,6 +2175,11 @@ export class RegistryBinding {
       return this.refuse("«№» стоит первой всегда", ["Номер — адрес строки листа, он не передвигается и перед ним ничего не встаёт."]);
     }
     const label = this.columnLabel(model, from.startColumn);
+    if (model.layout.blocks.some((block) => block.columns[from.startColumn]?.kind === "shares")) {
+      return this.refuse("«Доли исполнителей» стоит последней всегда", [
+        "Эту колонку ставит сам лист в конце каждой части. У себя её можно сузить или скрыть.",
+      ]);
+    }
     if (!this.isAdmin()) {
       return this.refuse("Колонку не передвинуть", [
         "Порядок колонок листа общий у всех сотрудников — его меняет владелец или администратор.",
@@ -2508,6 +2615,13 @@ export class RegistryBinding {
           if (before?.paid !== after?.paid || before?.remaining !== after?.remaining || before?.state !== after?.state) {
             changed.add(id);
           }
+        }
+      }
+      if (next.shares !== prev.shares) {
+        // Доли перечитаны — только строки, где они правда поменялись.
+        const ids = new Set([...Object.keys(prev.shares ?? {}), ...Object.keys(next.shares ?? {})]);
+        for (const id of ids) {
+          if (JSON.stringify(prev.shares?.[id] ?? null) !== JSON.stringify(next.shares?.[id] ?? null)) changed.add(id);
         }
       }
       if (next.payments !== prev.payments) {
@@ -2955,6 +3069,10 @@ export class RegistryBinding {
       this.refuse("«№» не переименовывается", ["Номер — адрес строки листа; его подпись ставит лист."]);
       return;
     }
+    if (spec.kind === "shares") {
+      this.refuse("«Доли исполнителей» не переименовывается", ["Эту колонку ставит сам лист, её подпись одна у всех."]);
+      return;
+    }
     if (!this.isAdmin()) {
       this.refuse("Шапку листа меняет владелец или администратор", [
         `Название колонки «${spec.label}» видят все сотрудники.`,
@@ -3130,6 +3248,7 @@ export class RegistryBinding {
       if (!spec || spec.readOnly) {
         revert = true;
         if (spec?.kind === "ordinal") note = "Номер строки ставит лист";
+        else if (spec?.kind === "shares") note = "Доли исполнителей правятся в карточке договора — двойной щелчок по ячейке или Alt+Enter";
         else if (spec) note = `«${spec.label}» — только для чтения`;
         continue;
       }

@@ -304,6 +304,9 @@ async function pollOnce(): Promise<PollOutcome> {
   try {
     const batch = await contractsApi.changes(state.seq);
     applyChanges(batch);
+    // Договор поменялся — могли поменяться и доли (их правка двигает номер
+    // договора): лист и «По сотрудникам» видят их без перезагрузки.
+    if (batch.contracts.length && state.shares !== null) refreshSharesSoon();
     const live = { online: true, lastOkAt: Date.now(), failures: 0 };
     emit({ live });
     if (batch.schema_rev !== state.schemaRev) await reloadSchema();
@@ -756,6 +759,16 @@ export function ensureSummary(force = false): Promise<void> {
     }
   })();
   return summaryLoading;
+}
+
+/** Одним запросом на пачку правок: опрос приходит раз в 2 с из каждой вкладки. */
+let sharesSoon = 0;
+function refreshSharesSoon(): void {
+  if (sharesSoon) return;
+  sharesSoon = window.setTimeout(() => {
+    sharesSoon = 0;
+    void ensureShares(true);
+  }, 1500);
 }
 
 /** Доли старше этого — перечитываются при следующем обращении. */

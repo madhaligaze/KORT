@@ -256,16 +256,16 @@ export function EmployeeCard({
   return (
     <CardLayer open={open} onClose={onClose} label={`Сотрудник ${employee.full_name}`}>
       <div className="card-top">
-        <button type="button" className="fin-icon-btn" aria-label="Закрыть" onClick={onClose}>
-          <CloseIcon size={16} />
-        </button>
-        <span className="card-top-num">Сотрудник</span>
-        <span className="card-top-state" />
         <button type="button" className="fin-icon-btn" aria-label="Предыдущий сотрудник" disabled={!onPrev} onClick={onPrev}>
           <ArrowUpIcon size={16} />
         </button>
         <button type="button" className="fin-icon-btn" aria-label="Следующий сотрудник" disabled={!onNext} onClick={onNext}>
           <ArrowDownIcon size={16} />
+        </button>
+        <span className="card-top-num">Сотрудник</span>
+        <span className="card-top-state" />
+        <button type="button" className="fin-icon-btn" aria-label="Закрыть" onClick={onClose}>
+          <CloseIcon size={16} />
         </button>
       </div>
 
