@@ -82,9 +82,8 @@ export function isMine(contract: Contract, employee: string): boolean {
   return Array.isArray(people) && people.includes(employee);
 }
 
-/** «Все 468 · Мои 12» — у заголовка реестра, для обоих его видов. */
-export function MineSwitch({ me, book, className }: { me: Me; book: string; className?: string }) {
-  const mine = useMine(me, book);
+/** Сколько договоров в книге и сколько из них своих. */
+function useMineCounts(me: Me, book: string): { all: number; own: number; ready: boolean } {
   const schema = useRegistry((s) => s.schema);
   const byId = useRegistry((s) => s.byId);
   const phase = useRegistry((s) => s.phase);
@@ -100,7 +99,43 @@ export function MineSwitch({ me, book, className }: { me: Me; book: string; clas
     }
     return { all, own };
   }, [schema, byId, book, employee]);
-  if (!mine.available || phase !== "ready") return null;
+  return { ...counts, ready: phase === "ready" };
+}
+
+/**
+ * «Только мои» — тумблер в конце ленты таблицы (29.09.2026: «как тумблер:
+ * нажат — остаётся нажатым, пока ещё раз не нажмёшь»). Действует на все
+ * листы книги сразу; включённый помнится. Нажатый — весом и чертой, как
+ * выбранный вид, без заливки.
+ */
+export function MineToggle({ me, book }: { me: Me; book: string }) {
+  const mine = useMine(me, book);
+  const counts = useMineCounts(me, book);
+  if (!mine.available || !counts.ready) return null;
+  return (
+    <button
+      type="button"
+      className="usheet-toggle"
+      aria-pressed={mine.on}
+      title={
+        mine.on
+          ? "Показаны только договоры, где вы — ответственное лицо. Нажмите ещё раз — покажутся все"
+          : "Показать на всех листах только договоры, где вы — ответственное лицо"
+      }
+      // Фокус остаётся в листе: иначе Enter после щелчка ушёл бы кнопке.
+      onPointerDown={(event) => event.preventDefault()}
+      onClick={() => mine.set(!mine.on)}
+    >
+      Только мои <span className="fin-mine-n">{counts.own}</span>
+    </button>
+  );
+}
+
+/** «Все 468 · Мои 12» — у заголовка реестра в «Карточках». */
+export function MineSwitch({ me, book, className }: { me: Me; book: string; className?: string }) {
+  const mine = useMine(me, book);
+  const counts = useMineCounts(me, book);
+  if (!mine.available || !counts.ready) return null;
   return (
     <div className={`fin-mine${className ? ` ${className}` : ""}`} role="radiogroup" aria-label="Какие договоры показывать">
       <button

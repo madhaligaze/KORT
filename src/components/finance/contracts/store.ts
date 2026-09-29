@@ -32,6 +32,7 @@ import {
   type SummaryEntry,
   type SummarySource,
   FinanceApiError,
+  SCHEMA_EVENT,
   contractsApi,
 } from "@/components/finance/api";
 
@@ -243,6 +244,8 @@ export async function reloadSchema(): Promise<void> {
     const schema = await contractsApi.schema();
     const moved = state.phase === "ready" && placementKey(state.schema) !== placementKey(schema);
     emit({ schema, schemaRev: schema.schema_rev });
+    // Номер схемы двигает и смена прав на договоры — пусть рама перечитает права.
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(SCHEMA_EVENT));
     if (moved) await reloadAll();
   } catch {
     /* следующий опрос попробует снова */

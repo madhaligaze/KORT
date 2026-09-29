@@ -445,6 +445,13 @@ export class FinanceApiError extends Error {
  */
 export const AUTH_LOST_EVENT = "finance:auth-lost";
 export const FORBIDDEN_EVENT = "finance:forbidden";
+/**
+ * Схема реестра сменилась — в том числе потому, что человеку поменяли право
+ * на договоры (сервер двигает номер схемы). Рама перечитывает `me` сразу, а не
+ * через 20 с: «Только мои» пропадает, как только область сузили до «где
+ * ответственный».
+ */
+export const SCHEMA_EVENT = "finance:schema";
 /** Двери входа отвечают 401 на неверный пароль — это не потеря сеанса. */
 const LOGIN_PATHS = /^\/auth\/(login|register|phone\/)/;
 

@@ -43,6 +43,7 @@ import {
   type Overview,
   AUTH_LOST_EVENT,
   FORBIDDEN_EVENT,
+  SCHEMA_EVENT,
   FinanceApiError,
   financeApi,
   peopleApi,
@@ -717,18 +718,34 @@ export function FinanceClient() {
       setAuthNotice("Сеанс завершён — войдите снова");
       setMe(null);
     };
+    // Не чаще раза в 3 с — но сигнал внутри этих секунд не теряется, а
+    // откладывается: права, сменившиеся сразу после открытия страницы,
+    // иначе доезжали только с опросом через 20 с.
     let lastCheck = 0;
+    let later = 0;
     const forbidden = () => {
-      const now = Date.now();
-      if (now - lastCheck < 3000) return;
-      lastCheck = now;
+      const wait = lastCheck + 3000 - Date.now();
+      if (wait > 0) {
+        if (!later) {
+          later = window.setTimeout(() => {
+            later = 0;
+            lastCheck = Date.now();
+            void refreshMe();
+          }, wait);
+        }
+        return;
+      }
+      lastCheck = Date.now();
       void refreshMe();
     };
     window.addEventListener(AUTH_LOST_EVENT, lost);
     window.addEventListener(FORBIDDEN_EVENT, forbidden);
+    window.addEventListener(SCHEMA_EVENT, forbidden);
     return () => {
+      window.clearTimeout(later);
       window.removeEventListener(AUTH_LOST_EVENT, lost);
       window.removeEventListener(FORBIDDEN_EVENT, forbidden);
+      window.removeEventListener(SCHEMA_EVENT, forbidden);
     };
   }, [signedIn, setMe, refreshMe]);
 
@@ -1322,7 +1339,7 @@ export function FinanceClient() {
                   </button>
                 ))}
               </nav>
-              {me ? <MineSwitch me={me} book={registry.book} /> : null}
+              {me && section === registry.modes[0].key ? <MineSwitch me={me} book={registry.book} /> : null}
             </div>
           ) : operationActions ? (
             // Журнал: справа от заголовка — новая операция.
@@ -1366,7 +1383,7 @@ export function FinanceClient() {
                   {mode.title}
                 </button>
               ))}
-              {me ? <MineSwitch me={me} book={registry.book} /> : null}
+              {me && section === registry.modes[0].key ? <MineSwitch me={me} book={registry.book} /> : null}
             </nav>
           ) : null}
           <FadeIn key={`body-${section}`}>{content}</FadeIn>

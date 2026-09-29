@@ -26,7 +26,7 @@ import { createUniver, LocaleType, mergeLocales } from "@univerjs/presets";
 import { CommandType, ICommandService, IConfigService } from "@univerjs/core";
 import { IMenuManagerService, IRenderManagerService, MenuItemType } from "@univerjs/preset-sheets-core";
 import { SheetsFilterService } from "@univerjs/preset-sheets-filter";
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { type Observable, distinctUntilChanged, map, of, switchMap } from "rxjs";
 
@@ -123,6 +123,12 @@ type Props = {
    * листе из частей сортировки нет). `false` — команда Univer как есть.
    */
   onSortFilter?: (command: string) => boolean;
+  /**
+   * Своё в конце ленты, за её пунктами («Только мои» у реестра). Стоит
+   * рядом с лентой, а не в ней: пункты Univer на узком окне уходят под «⋮»
+   * с конца, и кнопка в конце ленты пропадала бы первой.
+   */
+  ribbonEnd?: ReactNode;
 };
 
 /**
@@ -418,6 +424,26 @@ function findTabRow(root: HTMLElement): HTMLElement | null {
 }
 
 /**
+ * Пересчитать, какие пункты ленты уходят под «⋮». Univer считает это
+ * наблюдателем размеров ленты, а ширина, сменившаяся в тот же миг, что и
+ * первый замер (встал `ribbonEnd`, догрузился шрифт), пропускалась: на окне
+ * ~1000px пункты не сворачивались под «⋮», а обрезались краем. Пустое слияние
+ * меню пересоздаёт ленту — и наблюдатель, который первым делом меряет заново.
+ */
+function relayoutRibbon(univerAPI: UniverApi): void {
+  try {
+    univerAPI._injector.get(IMenuManagerService).appendRootMenu({});
+  } catch {
+    /* лента останется как есть */
+  }
+}
+
+/** Ряд ленты: сама лента пунктов Univer и то, что встаёт за ней. */
+function findRibbonRow(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>('[data-u-comp="ribbon-toolbar"]')?.parentElement ?? null;
+}
+
+/**
  * Пустая книга: один лист, столько же строк и колонок, сколько даёт новый
  * документ Google Sheets. Числа не круглые, потому что скопированы у него —
  * человек, переехавший из Sheets, не должен упереться в другую границу.
@@ -442,7 +468,19 @@ export function blankWorkbook(name = "Новая таблица"): WorkbookSnaps
 }
 
 export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverSheet(
-  { data, onReady, extras = false, fullscreen = true, listEdit = true, formatting = true, listArrow = true, session, onShown, onSortFilter },
+  {
+    data,
+    onReady,
+    extras = false,
+    fullscreen = true,
+    listEdit = true,
+    formatting = true,
+    listArrow = true,
+    session,
+    onShown,
+    onSortFilter,
+    ribbonEnd,
+  },
   ref,
 ) {
   const onSortFilterRef = useRef(onSortFilter);
@@ -458,6 +496,9 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
   const listsRef = useRef<ListWatch | null>(null);
   /** Узел в строке над лентой, куда порталом встаёт «На весь экран». */
   const [tabSlot, setTabSlot] = useState<{ host: HTMLElement } | null>(null);
+  /** Узел в конце ряда ленты, куда порталом встаёт `ribbonEnd`. */
+  const [endSlot, setEndSlot] = useState<{ host: HTMLElement } | null>(null);
+  const wantsEnd = Boolean(ribbonEnd);
   // Через ref, чтобы обработчик, пересозданный родителем, не пересоздавал
   // книгу: эффект ниже монтируется один раз и живёт до размонтирования.
   const onReadyRef = useRef(onReady);
@@ -568,8 +609,11 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
     const shown = () => {
       if (shownSent) return;
       shownSent = true;
+      // Шрифт догрузился — ширины пунктов ленты другие: пересчитать «⋮».
+      void document.fonts?.ready.then(() => apiRef.current === univerAPI && relayoutRibbon(univerAPI));
       shownFrame = requestAnimationFrame(() => {
         quietFilterFrame(univerAPI, univerAPI.getActiveWorkbook?.()?.getId?.());
+        relayoutRibbon(univerAPI);
         if (place?.restore()) setFull(true);
         shownFrame = requestAnimationFrame(() => onShownRef.current?.());
       });
@@ -688,6 +732,45 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
     };
   }, [fullscreen]);
 
+  // Своё в конце ряда ленты — тем же приёмом, что «На весь экран»: лента
+  // перерисовывается, наблюдатель только планирует, узел ставится кадром позже.
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!wantsEnd || !root) return;
+    let host: HTMLElement | null = null;
+    let frame = 0;
+    const attach = () => {
+      frame = 0;
+      if (!root.isConnected) return;
+      const placed = host?.isConnected && host.parentElement?.lastElementChild === host;
+      const row = placed ? (host?.parentElement ?? null) : findRibbonRow(root);
+      if (!row) return;
+      if (!host) {
+        host = document.createElement("span");
+        host.className = "usheet-ribbon-end";
+      }
+      if (row.lastElementChild !== host) {
+        row.appendChild(host);
+        // Лента стала уже — пусть Univer заново решит, что уходит под «⋮».
+        requestAnimationFrame(() => apiRef.current && relayoutRibbon(apiRef.current));
+      }
+      const slot = { host };
+      setEndSlot((current) => (current?.host === slot.host ? current : slot));
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(attach);
+    };
+    schedule();
+    const observer = new MutationObserver(schedule);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      host?.remove();
+      setEndSlot(null);
+    };
+  }, [wantsEnd]);
+
   // Раздел открыл или закрыл свой слой над ячейкой — стрелке пора на место.
   useEffect(() => {
     listsRef.current?.refresh();
@@ -738,6 +821,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
             tabSlot.host,
           )
         : null}
+      {endSlot && ribbonEnd ? createPortal(ribbonEnd, endSlot.host) : null}
       {arrow
         ? createPortal(
             <button

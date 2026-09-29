@@ -1248,6 +1248,11 @@ export type BindingEvents = {
   hint?: (at: { sheet: string; row: number; col: number; temp: boolean } | null) => void;
   /** «Удалить N договоров» из меню правой кнопки — раздел спрашивает подтверждение. */
   remove?: (items: { id: string; number: string }[]) => void;
+  /**
+   * Выделена ровно одна строка договора целиком — раздел может подсказать,
+   * что строк можно отметить несколько. `null` — выделение другое.
+   */
+  rowTip?: (at: { sheet: string; row: number } | null) => void;
 };
 
 const M = {
@@ -1431,7 +1436,10 @@ export class RegistryBinding {
         // Задачей позже: Univer дорисовывает своё выделение после события, и
         // расширенное сразу оставалось закрашенным только в колонке «№».
         const ws = event.worksheet ?? null;
-        window.setTimeout(() => this.wholeRows(ws), 0);
+        window.setTimeout(() => {
+          this.wholeRows(ws);
+          this.tipRows(ws);
+        }, 0);
       }),
     );
     listen(
@@ -2457,6 +2465,23 @@ export class RegistryBinding {
     } catch (exc) {
       console.warn("строки не выделились целиком:", exc);
     }
+  }
+
+  /** Одна строка договора выделена целиком — сказать разделу (подсказка про Ctrl). */
+  private tipRows(ws: UniverApi | null): void {
+    if (!ws || !this.alive || !this.events.rowTip) return;
+    const sheet = ws.getSheetId?.() ?? "";
+    const model = this.models.get(sheet);
+    let selections: { range: SheetRange & { rangeType?: number } }[] = [];
+    try {
+      selections = ws.getSelection?.()?._selections ?? [];
+    } catch {
+      selections = [];
+    }
+    const only = selections.length === 1 ? selections[0].range : null;
+    const row = only && only.rangeType === RANGE_ROW && only.startRow === only.endRow ? only.startRow : -1;
+    const slot = row >= 0 ? model?.slots[row] : undefined;
+    this.events.rowTip(slot?.kind === "row" && slot.id ? { sheet, row } : null);
   }
 
   /** Договоры строк выделения на активном листе — без спрятанных фильтром. */

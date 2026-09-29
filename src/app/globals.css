@@ -2530,6 +2530,35 @@ label.auth-row-label { cursor: pointer; }
 .usheet-full:hover { color: var(--fin-text, var(--text-primary)); border-bottom-color: currentColor; }
 .usheet-full[aria-pressed="true"] { color: var(--fin-text, var(--text-primary)); border-bottom-color: currentColor; }
 .usheet-full:focus-visible { outline: 2px solid var(--fin-text, var(--text-primary)); outline-offset: 2px; }
+/* Конец ряда ленты — своё за пунктами Univer («Только мои»). Волосяная черта
+   слева — как разделитель групп ленты. Лента — `1fr`, этот столбец — по
+   содержимому: пункты Univer под «⋮» уходят раньше, чем он. */
+.usheet-ribbon-end {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 1.5rem;
+  margin-left: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--fin-card-line, var(--border-base));
+  white-space: nowrap;
+}
+.usheet-toggle {
+  padding: 0.2rem 0.1rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  color: var(--fin-text-soft, var(--text-secondary));
+  cursor: pointer;
+  transition: color var(--dur-fast, 0.15s) ease-out, border-color var(--dur-fast, 0.15s) ease-out;
+}
+.usheet-toggle:hover { color: var(--fin-text, var(--text-primary)); }
+.usheet-toggle[aria-pressed="true"] { font-weight: 650; color: var(--fin-text, var(--text-primary)); border-bottom-color: currentColor; }
+.usheet-toggle:focus-visible { outline: 2px solid var(--fin-text, var(--text-primary)); outline-offset: 2px; }
 /* Пока на странице лист, жест тачпада вбок не листает историю браузера:
    докрутили таблицу до края — Chrome уводил на прошлую страницу. Колесо над
    листом гасит `UniverSheet`; это правило — для остатка жеста, начатого у края. */
@@ -3246,6 +3275,18 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
   line-height: 1.4;
 }
 .creg-hint-text { margin: 0; color: var(--fin-text-soft); }
+.creg-hint-text b { font-weight: 600; color: var(--fin-text); }
+/* «Несколько строк — Ctrl»: та же плашка, что подсказка ячейки, уже по ширине. */
+.creg-rowtip { max-width: min(320px, calc(100vw - 24px)); }
+.creg-rowtip-off {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--fin-text-soft);
+  cursor: pointer;
+  user-select: none;
+}
+.creg-rowtip-off input { margin: 0; accent-color: var(--fin-text); }
 .creg-hint-issue { display: grid; gap: 0.2rem; }
 .creg-hint-issue:not([data-ack="true"]) > .creg-hint-line > span { color: var(--fin-fail); }
 .creg-hint-flag {

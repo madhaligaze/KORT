@@ -24,7 +24,7 @@ import { type ChangeMode as ChangeModeValue, type Me, contractsApi, trashApi } f
 import { isAdmin } from "@/components/finance/access";
 import { ChangeMode } from "@/components/finance/contracts/change-mode";
 import { OtherContracts } from "@/components/finance/contracts/contract-card";
-import { useMine } from "@/components/finance/contracts/mine";
+import { MineToggle, useMine } from "@/components/finance/contracts/mine";
 import {
   RegistryBinding,
   buildRegistry,
@@ -74,6 +74,21 @@ type Note = { text: string; fail: boolean; at: number; undo?: string[] };
 
 type Removal = { items: { id: string; number: string }[] };
 
+/**
+ * Подсказка «несколько строк — Ctrl» (29.09.2026: «что можно отметить
+ * несколько строк, нигде не сказано»). Встаёт, когда выделена одна строка,
+ * пока человек не отметит «Больше не показывать»; отметка помнится у учётки.
+ */
+const ROW_TIP = "kort_tip_rows_off";
+
+function rowTipOff(user: string): boolean {
+  try {
+    return localStorage.getItem(`${ROW_TIP}:${user}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** «№ 12/2024, № 13/2024, № 14/2024 и ещё 5» — какие договоры уйдут. */
 function numberList(items: { number: string }[]): string {
   const named = items.filter((item) => bareNumber(item.number)).map((item) => `№ ${bareNumber(item.number)}`);
@@ -96,6 +111,10 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
   const { only } = useMine(me, book);
   const [removal, setRemoval] = useState<Removal | null>(null);
   const admin = isAdmin(me);
+  const [rowTip, setRowTip] = useState<{ left: number; top: number } | null>(null);
+  const tipUser = me.user?.id ?? "";
+  const tipBox = useRef<HTMLDivElement>(null);
+  const mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
   const { ref: box, height } = useFillHeight(360, 4);
   const [note, setNote] = useState<Note | null>(null);
   const [ask, setAsk] = useState<AskGroup | null>(null);
@@ -213,6 +232,16 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
           },
           rebuild: () => setGeneration((value) => value + 1),
           remove: (items) => setRemoval({ items }),
+          rowTip: (at) => {
+            if (!at || rowTipOff(tipUser)) {
+              setRowTip(null);
+              return;
+            }
+            const rect = binding.current?.cellRectAt(at.sheet, at.row, 0);
+            // Справа от «№» на уровне строки: ниже — строки, которые человек
+            // сейчас будет отмечать, их подсказка закрывать не должна.
+            setRowTip(rect?.visible ? { left: Math.round(rect.right + 8), top: Math.round(rect.top - 6) } : null);
+          },
           hint: (at) => {
             // Univer прячет заметку, как только мышь ушла с ячейки, — а по
             // дороге к «Учтено» она уходит всегда. Раньше подсказка гасла в
@@ -272,7 +301,7 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
         if (binding.current === next) binding.current = null;
       };
     },
-    [built, box, book, scheduleHide, sessionScope],
+    [built, box, book, scheduleHide, sessionScope, tipUser],
   );
 
   useEffect(() => {
@@ -454,6 +483,32 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, [ask, settle]);
 
+  // Подсказка про несколько строк уходит, как подсказка ячейки: прокрутка,
+  // Esc, правая кнопка (меню встаёт на её место), щелчок мимо неё.
+  useEffect(() => {
+    if (!rowTip) return;
+    const hide = () => setRowTip(null);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") hide();
+    };
+    const onDown = (event: PointerEvent) => {
+      if (tipBox.current && event.target instanceof Node && tipBox.current.contains(event.target)) return;
+      // Щелчок по листу сам решит: новое выделение одной строки поставит её снова.
+      hide();
+    };
+    const host = box.current;
+    host?.addEventListener("wheel", hide, { passive: true });
+    host?.addEventListener("contextmenu", hide);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => {
+      host?.removeEventListener("wheel", hide);
+      host?.removeEventListener("contextmenu", hide);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [rowTip, box]);
+
   // Подсказка уходит, когда лист прокрутили (ячейка уехала), по Esc и по
   // щелчку мимо неё. Наведение на другую ячейку прячет её само (сервис заметок).
   useEffect(() => {
@@ -539,6 +594,7 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
             listArrow={!ask}
             session={book ? `registry.${book}` : "registry"}
             onSortFilter={(command) => binding.current?.sortFilter(command) ?? false}
+            ribbonEnd={<MineToggle me={me} book={book} />}
           />
         ) : empty ? (
           <p className="creg-sheet-note" role="status" style={{ margin: "1rem" }}>
@@ -598,6 +654,39 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
           </button>
         ) : null}
       </div>
+      {rowTip && !removal && !ask
+        ? createPortal(
+            <div
+              ref={tipBox}
+              className="creg-hint creg-rowtip"
+              role="status"
+              style={{ left: rowTip.left, top: rowTip.top }}
+            >
+              <div className="creg-hint-body">
+                <p className="creg-hint-text">
+                  Несколько строк: <b>{mod}</b> + щелчок по «№» — по одной, <b>Shift</b> — подряд. Правой кнопкой —
+                  удалить их или открыть карточку.
+                </p>
+                <label className="creg-rowtip-off">
+                  <input
+                    type="checkbox"
+                    onChange={(event) => {
+                      if (!event.target.checked) return;
+                      try {
+                        localStorage.setItem(`${ROW_TIP}:${tipUser}`, "1");
+                      } catch {
+                        /* подсказка уйдёт до перезагрузки */
+                      }
+                      setRowTip(null);
+                    }}
+                  />
+                  Больше не показывать
+                </label>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
       <ConfirmDialog
         open={removal !== null}
         title={
