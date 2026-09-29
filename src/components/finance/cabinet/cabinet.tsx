@@ -12,6 +12,7 @@ import { PEOPLE_ALL, PeopleTab } from "@/components/finance/cabinet/people-tab";
 import { MyAccess, ProfileTab } from "@/components/finance/cabinet/profile-tab";
 import { RightsMatrix } from "@/components/finance/cabinet/rights";
 import { SessionsList } from "@/components/finance/cabinet/sessions-list";
+import { RestoreTab } from "@/components/finance/cabinet/restore-tab";
 import { TrashTab } from "@/components/finance/cabinet/trash-tab";
 import { ROLE_TITLES } from "@/components/finance/cabinet/status";
 import { SelectLine } from "@/components/finance/ui/select-line";
@@ -38,7 +39,7 @@ import { SplitReveal } from "@/components/motion/split-reveal";
  * подписями «Моё / Люди / Учёт» стояли стопкой, выбранной была одна на все
  * три, и стопка читалась как форма, а не как переключатель.
  */
-type Tab = "profile" | "access" | "sessions" | "actions" | "people" | "rights" | "audit" | "trash";
+type Tab = "profile" | "access" | "sessions" | "actions" | "restore" | "people" | "rights" | "audit" | "trash";
 type Group = "mine" | "team" | "trash";
 
 const MINE: { key: Tab; label: string }[] = [
@@ -53,6 +54,7 @@ const GROUP_OF: Record<Tab, Group> = {
   access: "mine",
   sessions: "mine",
   actions: "mine",
+  restore: "mine",
   people: "team",
   rights: "team",
   audit: "team",
@@ -102,6 +104,13 @@ export function Cabinet({
   const seePeople = can(me, "people", "view");
   const managePeople = can(me, "people", "edit");
   const seeAudit = can(me, "audit", "view");
+  // «Восстановление» — изменения таблицы реестра для всех и возврат «как было»:
+  // у каждого, кому открыты договоры (своё; у администратора — все).
+  const seeRestore = can(me, "contracts", "view");
+  const mine = useMemo(
+    () => (seeRestore ? [...MINE, { key: "restore" as Tab, label: "Восстановление" }] : MINE),
+    [seeRestore],
+  );
 
   const [data, setData] = useState<{ departments: Department[]; employees: EmployeeRow[] } | null>(null);
   const [notes, setNotes] = useState<NotificationItem[]>([]);
@@ -119,16 +128,16 @@ export function Cabinet({
   const keepsTrash = isAdmin(me);
   const groups = useMemo(() => {
     const out: { key: Group; label: string; tabs: { key: Tab; label: string; count?: number }[] }[] = [
-      { key: "mine", label: "Моё", tabs: MINE },
+      { key: "mine", label: "Моё", tabs: mine },
     ];
     if (people.length) out.push({ key: "team", label: "Команда", tabs: people });
     // У корзины подразделов нет: раздел и есть экран.
     if (keepsTrash) out.push({ key: "trash", label: "Корзина", tabs: [] });
     return out;
-  }, [people, keepsTrash]);
+  }, [people, keepsTrash, mine]);
   const allowed = useMemo(
-    () => new Set<Tab>([...MINE.map((t) => t.key), ...people.map((t) => t.key), ...(keepsTrash ? ["trash" as Tab] : [])]),
-    [people, keepsTrash],
+    () => new Set<Tab>([...mine.map((t) => t.key), ...people.map((t) => t.key), ...(keepsTrash ? ["trash" as Tab] : [])]),
+    [people, keepsTrash, mine],
   );
 
   const [tab, setTabState] = useState<Tab>(() => {
@@ -136,6 +145,7 @@ export function Cabinet({
     if (
       wanted &&
       (MINE.some((t) => t.key === wanted) ||
+        (seeRestore && wanted === "restore") ||
         (seePeople && ["people", "rights"].includes(wanted)) ||
         (seeAudit && wanted === "audit") ||
         (isAdmin(me) && wanted === "trash"))
@@ -381,6 +391,7 @@ export function Cabinet({
             )
           ) : null}
           {shownTab === "trash" ? <TrashTab /> : null}
+          {shownTab === "restore" ? <RestoreTab /> : null}
           {shownTab === "audit" ? (
             <ActionFeed full people={data?.employees ?? []} onOpenContract={onOpenContract} />
           ) : null}

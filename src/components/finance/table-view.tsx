@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IConfigService } from "@univerjs/core";
 
 import { HEADER_STYLE, PAPER, ROW_H, fitWidth, headerHeight, sampled } from "@/components/univer/columns";
 import { listRule, putLists } from "@/components/univer/lists";
 import { type PollOutcome, pollWhileVisible } from "@/components/univer/live";
 import { type LookKeeper, keepLook } from "@/components/univer/look";
-import { guardSheets } from "@/components/univer/protect";
+import { PROTECTION_MENU, type StructureKind, guardCommands, rangesOf } from "@/components/univer/guard";
 import { UniverSheet, type UniverApi, type WorkbookSnapshot } from "@/components/univer/sheet";
 import { DATE_PATTERN, MONEY_PATTERN, WRAP_CLIP, dateOf, serialOf } from "@/components/univer/sheet-model";
 import { useFillHeight } from "@/components/univer/use-fill-height";
+import { type SheetWarningSpec, SheetWarning } from "@/components/univer/warning";
 import { writeCells } from "@/components/univer/write";
 import { lookStore } from "@/components/finance/look-store";
 import { useSessionScope } from "@/components/session-state";
@@ -43,6 +45,67 @@ import {
  * адрес: адрес — это `key`, и правка уходит по нему. То же правило, что для
  * колонок книг, и по той же причине.
  */
+
+/**
+ * Что сломалось бы в журнале от команды листа — словами, у каждой своё
+ * (29.09.2026: «не одно предупреждение для всех»). Строка журнала — адрес
+ * своей операции, колонка — её поле: сдвиг любого из них увёл бы правку в
+ * чужую операцию или чужое поле.
+ */
+const JOURNAL_REFUSALS: Partial<Record<StructureKind, SheetWarningSpec>> = {
+  insertRows: {
+    title: "Строка в журнал не вставляется",
+    lines: [
+      "Каждая строка журнала — своя операция; вставка сдвинула бы строки, и правка ушла бы в соседнюю операцию.",
+      "Новую операцию впишите в пустую строку под последней — она встанет на своё место по дате при следующей сборке листа.",
+    ],
+  },
+  removeRows: {
+    title: "Строку журнала не удалить отсюда",
+    lines: [
+      "Строка — это операция с деньгами: её удаляют в «Журнале» списком — кнопкой «Удалить» у строки операции.",
+      "Удалённая операция остаётся в корзине кабинета — её можно вернуть.",
+    ],
+  },
+  insertCols: {
+    title: "Колонку в журнал не добавить",
+    lines: ["Колонки журнала — поля операции, одни и те же у всех сотрудников: их набор задаёт учёт, а не лист."],
+  },
+  moveCols: {
+    title: "Колонки журнала не переставляются",
+    lines: ["Порядок колонок общий у всех. У себя колонку можно сузить или скрыть: правая кнопка по букве колонки."],
+  },
+  moveRows: {
+    title: "Строки журнала не передвигаются",
+    lines: ["Порядок журнала — по дате операций; чтобы операция встала выше или ниже, поменяйте её дату."],
+  },
+  sort: {
+    title: "Журнал не сортируется в листе",
+    lines: [
+      "Сортировка перемешала бы строки на экране, а каждая строка — адрес своей операции: следующая правка ушла бы в соседнюю.",
+      "Отбирайте нужное фильтром в шапке — он строки не двигает.",
+    ],
+  },
+  shiftCells: {
+    title: "Ячейки журнала не сдвигаются",
+    lines: ["Сдвиг переложил бы суммы и даты в чужие операции и поля. Очистите ячейки или поправьте их значения."],
+  },
+  merge: {
+    title: "Ячейки журнала не объединяются",
+    lines: ["У каждой ячейки — своё поле своей операции. Для заметного вида — заливка и жирный: это ваш вид листа."],
+  },
+  renameSheet: { title: "Лист журнала не переименовывается", lines: ["Журнал один, его название задаёт учёт."] },
+  removeSheet: { title: "Лист журнала не удаляется", lines: ["Это и есть журнал операций, а не копия."] },
+  addSheet: { title: "Новый лист здесь не заводится", lines: ["Журнал — один лист операций; свои таблицы ведутся в «Книгах Google»."] },
+  orderSheets: { title: "Лист журнала один", lines: [] },
+  protect: {
+    title: "Защита листа не нужна",
+    lines: [
+      "Журнал сам возвращает то, что правится в карточке операции, и предупреждает перед изменениями для всех.",
+      "Поставленная защита вернула бы замки и отказ «нет разрешения» на обычную заливку.",
+    ],
+  },
+};
 
 /** Сколько пустых строк держать под последней операцией. */
 const SPARE_ROWS = 100;
@@ -300,6 +363,8 @@ export function TableView({
   const [sheet, setSheet] = useState<Mounted | null>(null);
   const [error, setError] = useState("");
   const [beat, setBeat] = useState<Beat | null>(null);
+  /** Окно перед изменением, которое сломало бы связь строк с операциями. */
+  const [warning, setWarning] = useState<SheetWarningSpec | null>(null);
   const { ref: box, height } = useFillHeight(360, 44);
   /**
    * Смонтированный лист держим и в ref: обработчик правки живёт внутри Univer
@@ -650,40 +715,67 @@ export function TableView({
     const poller = pollWhileVisible(tick);
     disposers.push(() => poller.stop());
 
-    // Права листа — общим корнем (`univer/protect.ts`). Строки не вставляются
-    // и не удаляются (строка — адрес операции; новая заводится в пустой
-    // строке внизу), колонки — тоже (их задаёт сервер); сортировка закрыта:
-    // она перемешала бы строки на экране, а карта «строка → операция»
-    // осталась бы прежней, и правка ушла бы в соседнюю операцию. Фильтр
-    // строки не двигает — он открыт.
-    void guardSheets(
-      api,
-      [
-        {
-          sheetId: SHEET_ID,
-          guard: {
-            name: "Журнал",
-            readOnly: !canEditRef.current,
-            allow: {
-              insertRows: false,
-              deleteRows: false,
-              insertColumns: false,
-              deleteColumns: false,
-              sort: false,
-              filter: true,
-            },
-            lockedColumns: columns.flatMap((column, index) => (column.editable ? [] : [index])),
-            lockedRows: [HEADER_ROW],
-          },
-        },
-      ],
-      () => alive,
-    ).then((cancel) => {
-      if (alive) disposers.push(cancel);
-      else cancel();
+    // Защиты листа нет (29.09.2026): замки на вкладке и отказ «нет разрешения
+    // на установку стилей» мешали оформлению. Строка журнала — адрес своей
+    // операции, поэтому вставка и удаление строк, сортировка и колонки здесь
+    // не делаются — но не молча, а окном со словами, что сломалось бы
+    // (`univer/guard.ts`). Фильтр строки не двигает — он открыт.
+    const hideColumns = (cols: number[]) => {
+      guard.pass(() => {
+        void api.executeCommand("sheet.command.set-col-hidden", {
+          unitId: api.getActiveWorkbook?.()?.getId?.(),
+          subUnitId: SHEET_ID,
+          ranges: cols.map((col) => ({ startRow: 0, endRow: 0, startColumn: col, endColumn: col, rangeType: 2 })),
+        });
+      });
+    };
+    const guard = guardCommands(api, (command, kind: StructureKind) => {
+      if (kind === "removeCols") {
+        const cols = [
+          ...new Set(
+            rangesOf(api, command).flatMap((range) =>
+              Array.from({ length: Math.max(0, range.endColumn - range.startColumn + 1) }, (_, i) => range.startColumn + i),
+            ),
+          ),
+        ].filter((col) => col < columns.length);
+        if (!cols.length) return true;
+        const names = cols.map((col) => `«${columns[col]?.title ?? col + 1}»`).join(", ");
+        setWarning({
+          title: cols.length === 1 ? `Скрыть колонку ${names} у себя?` : `Скрыть колонки ${names} у себя?`,
+          lines: [
+            "Колонки журнала — поля операции: у всех они одни и те же, убрать их нельзя.",
+            "Скрыть — только в вашем виде листа: у коллег и в выгрузке колонка остаётся.",
+            "Вернуть: «Сбросить мой вид» под листом.",
+          ],
+          confirm: "Скрыть",
+          onConfirm: () => hideColumns(cols),
+        });
+        return true;
+      }
+      setWarning(JOURNAL_REFUSALS[kind] ?? { title: "Так журнал не меняется", lines: [] });
+      return true;
     });
+    disposers.push(() => guard.stop());
+    try {
+      const config = api._injector.get(IConfigService) as {
+        setConfig: (key: string, value: unknown, options?: { merge: boolean }) => void;
+      };
+      config.setConfig("menu", Object.fromEntries(PROTECTION_MENU.map((id) => [id, { hidden: true }])), { merge: true });
+    } catch {
+      /* пункты защиты останутся — их команды всё равно перехватываются */
+    }
 
     const apply = async (touched: Map<number, Set<number>>) => {
+      if (!canEditRef.current) {
+        // Защиты нет — правку того, кому журнал открыт на просмотр, лист
+        // возвращает сам и говорит почему.
+        for (const sheetRow of touched.keys()) {
+          if (sheetRow === HEADER_ROW) writeHeader();
+          else writeRow(sheetRow, mine.rows.get(sheetRow) ?? null);
+        }
+        setBeat({ text: "Журнал открыт вам только на просмотр — правка не сохраняется", at: Date.now(), refusal: false });
+        return;
+      }
       const tally: Tally = { saved: 0, created: 0, lastRow: 0, refusals: [], missing: "" };
       const order = [...touched.keys()].sort((a, b) => a - b);
       const big = order.length > 20;
@@ -809,6 +901,7 @@ export function TableView({
           />
         ) : null}
       </div>
+      <SheetWarning spec={warning} onClose={() => setWarning(null)} />
       {/* Строка состояния: таблица обязана говорить, что записала. Молчание
           после правки — это и есть сомнение «сохранилось ли». В покое пусто:
           место держим, текста не пишем. */}

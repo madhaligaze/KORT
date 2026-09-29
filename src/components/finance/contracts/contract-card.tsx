@@ -34,15 +34,15 @@ import {
   provenanceWord,
   roleLabels,
 } from "@/components/finance/contracts/schema";
+import { Shares } from "@/components/finance/contracts/shares";
 import {
   create,
   edit as editField,
   ensurePayments,
   ensureStaff,
-  ensureSummary,
+  dropMany,
   put,
   refreshOne,
-  remove,
   useRegistry,
 } from "@/components/finance/contracts/store";
 import { contractMoney, dayTitle, formatDay, formatTime, parseDay, plural } from "@/components/finance/format";
@@ -196,10 +196,10 @@ export function ContractCard({
 
         {contract ? (
           <>
+            <Shares contractId={contract.id} seq={contract.seq} />
             <Amendments contractId={contract.id} seq={contract.seq} />
             <SourceText contractId={contract.id} seq={contract.seq} />
             <Snapshot contractId={contract.id} />
-            <FromSummary contractId={contract.id} />
             <Payments contractId={contract.id} seq={contract.seq} />
             <History contractId={contract.id} seq={contract.seq} />
           </>
@@ -209,7 +209,7 @@ export function ContractCard({
       <ConfirmDialog
         open={confirmRemove}
         title={`Удалить договор ${number}?`.trim()}
-        text="Он уйдёт из реестра и листов в корзину. Вернуть — из корзины в личном кабинете."
+        text="Он уйдёт из реестра, листов и карточек у всех сотрудников в корзину. Вернуть — «Восстановление» в личном кабинете."
         confirm="Удалить"
         danger
         busy={removing}
@@ -218,7 +218,13 @@ export function ContractCard({
           if (!contract) return;
           setRemoving(true);
           try {
-            await remove(contract.id);
+            // Через точку восстановления, как удаление из листа: вернуть договор
+            // может тот, кто удалил, а не только администратор из корзины.
+            const result = await contractsApi.sheetChange({ action: "delete_contracts", ids: [contract.id], book: book ?? "" });
+            if (!(result.done ?? []).includes(contract.id)) {
+              throw new Error(result.failed?.[0]?.error ?? "Договор не удалился");
+            }
+            dropMany([contract.id]);
             setConfirmRemove(false);
             onClose();
           } finally {
@@ -686,58 +692,12 @@ function Snapshot({ contractId }: { contractId: string }) {
   );
 }
 
-/**
- * «Оплачено» из книги-сводки компании (у BBC — «Осн.Общая сводка»): та же
- * цифра, что колонка «Оплачено» в «Разовых». Нет сводки или договора в ней —
- * раздела нет; номер нашёлся у другого клиента — так и сказано, в «Оплачено»
- * такой договор не идёт (правило «не угадывать»).
+/*
+ * Раздела «По сводке» в карточке больше нет (29.09.2026): откуда «Оплачено»
+ * в «Разовых» — внутренняя логика, её никому не нужно читать, а разделу
+ * приходилось бы делить карточку на «разовую» и прочие. Цифра сводки
+ * остаётся колонкой листа «Разовых» и в «По сотрудникам».
  */
-function FromSummary({ contractId }: { contractId: string }) {
-  const entry = useRegistry((s) => s.summary?.[contractId]);
-  const source = useRegistry((s) => s.summarySource ?? s.schema?.summary ?? null);
-  const visible = useRegistry((s) => Boolean(s.schema?.fields.some((field) => field.key === "summary_paid")));
-  useEffect(() => {
-    if (visible && source) void ensureSummary();
-  }, [visible, source]);
-  if (!visible || !source || !entry || entry.state === "missing") return null;
-  const where = <span className="fin-muted">{source.title || "сводка"}</span>;
-  if (entry.state !== "found") {
-    return (
-      <Section title="По сводке" end={where}>
-        <p className="fin-soft" style={{ margin: 0 }}>
-          {entry.state === "other_client"
-            ? `Номер в сводке есть, но у другого клиента: ${(entry.candidates ?? []).join(", ")}`
-            : `Номер в сводке у нескольких похожих клиентов: ${(entry.candidates ?? []).join(", ")} — «Оплачено» не посчитано`}
-        </p>
-      </Section>
-    );
-  }
-  return (
-    <Section title="По сводке" end={where}>
-      <div className="snapshot">
-        <span>
-          <span className="eyebrow">Оплачено</span>
-          <br />
-          <span style={{ color: "var(--fin-text)" }}>{contractMoney(entry.paid)}</span>
-        </span>
-        {entry.remaining !== null && entry.remaining !== undefined ? (
-          <span>
-            <span className="eyebrow">Остаток</span>
-            <br />
-            <span style={{ color: "var(--fin-text)" }}>{contractMoney(entry.remaining)}</span>
-          </span>
-        ) : null}
-        {entry.months?.length ? (
-          <span>
-            <span className="eyebrow">Месяц в сводке</span>
-            <br />
-            {entry.months.map((month) => month.toLowerCase()).join(", ")}
-          </span>
-        ) : null}
-      </div>
-    </Section>
-  );
-}
 
 const PAYMENT_ACTIONS: Record<PaymentItem["how"], { label: string; action: "link" | "unlink" | "auto" }> = {
   open: { label: "Отнести к этому договору", action: "link" },

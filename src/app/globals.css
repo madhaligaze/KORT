@@ -2238,12 +2238,29 @@ label.auth-row-label { cursor: pointer; }
   align-items: center;
   flex-shrink: 0;
   height: 34px;
-  padding-right: 0.9rem;
+  padding: 0 0.9rem 0 0;
   margin-right: 0.15rem;
+  border: none;
   border-right: 1px solid rgba(255, 252, 225, 0.16);
+  background: none;
   color: var(--fin-chrome-text);
+  cursor: pointer;
 }
-.fin-brand-mark { display: block; height: 15px; width: auto; }
+.fin-brand-mark { display: block; height: 15px; width: auto; transition: opacity 0.2s ease; }
+.fin-brand:hover .fin-brand-mark { opacity: 0.72; }
+.fin-brand:focus-visible { outline: 1px solid var(--fin-chrome-text); outline-offset: 3px; }
+/* Знак — «на главную». В кабинете дышит: медленно гаснет до половины и
+   возвращается — подсказка, что назад к учёту — он. Движение — прозрачностью:
+   размер и место знака в шапке не меняются. Наведение останавливает дыхание. */
+.fin-brand[data-pulse="true"] .fin-brand-mark { animation: fin-brand-breath 2.8s ease-in-out infinite; }
+.fin-brand[data-pulse="true"]:hover .fin-brand-mark { animation: none; opacity: 1; }
+@keyframes fin-brand-breath {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.42; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fin-brand[data-pulse="true"] .fin-brand-mark { animation: none; }
+}
 .fin-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; color: var(--fin-text); }
 .fin-table th {
   text-align: left;
@@ -3199,6 +3216,119 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
 .hist-day { margin: 0.75rem 0 0.25rem; font-size: 0.75rem; color: var(--text-muted); }
 .hist-row { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 0.75rem; padding: 0.35rem 0; font-size: 0.8125rem; }
 
+/* ─── Доли исполнителей и отделов в карточке ───
+   Полоса — пропорции одной тушью, сегменты разделены просветом; своя доля
+   сотрудника — полной тушью, остальные тише. Перебор — рамкой розой.
+   Нераспределённое — пунктирная дорожка под сегментами. */
+.share-block { display: grid; gap: 0; margin-bottom: 1rem; }
+.share-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
+.share-title { font-size: 0.8125rem; color: var(--fin-text-soft); }
+.share-edit, .share-units .fin-link-btn { font-size: 0.8125rem; }
+.share-units { display: inline-flex; gap: 0.75rem; }
+.share-units .fin-link-btn[aria-pressed="true"] { font-weight: 600; color: var(--fin-text); }
+.share-units .fin-link-btn[aria-pressed="false"] { color: var(--fin-text-soft); }
+.share-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin: 0 0 0.35rem;
+  background-image: linear-gradient(90deg, var(--fin-dotted) 50%, transparent 50%);
+  background-size: 6px 1px;
+  background-repeat: repeat-x;
+  background-position: left center;
+}
+.share-bar[data-over="true"] { outline: 1px solid var(--fin-fail); outline-offset: 2px; }
+/* Тон сегмента — смесью с фоном карточки, а не прозрачностью: сквозь
+   прозрачный просвечивал бы пунктир нераспределённого. */
+.share-seg { display: block; flex: 0 0 auto; height: 100%; background: color-mix(in srgb, var(--fin-text) 55%, var(--fin-card-bg)); }
+.share-seg[data-mine="true"] { background: var(--fin-text); }
+.share-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 5.5rem;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--fin-line);
+  font-size: 0.875rem;
+}
+.share-row[data-mine="true"] .share-name { font-weight: 600; }
+.share-name { min-width: 0; overflow-wrap: anywhere; color: var(--fin-text); }
+.share-sub { margin-left: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
+.share-val { font-variant-numeric: tabular-nums; text-align: right; color: var(--fin-text); white-space: nowrap; }
+.share-pct { font-variant-numeric: tabular-nums; text-align: right; color: var(--fin-text-soft); font-size: 0.8125rem; white-space: nowrap; }
+.share-foot { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.share-edit-row { grid-template-columns: minmax(0, 1fr) 10rem 6.5rem auto; }
+.share-input { display: inline-flex; align-items: center; gap: 0.35rem; }
+.share-input input {
+  width: 100%;
+  height: 1.875rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--fin-line);
+  border-radius: 0;
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.share-input input:focus { outline: none; border-color: var(--fin-text); }
+.share-unit { font-size: 0.8125rem; color: var(--text-muted); }
+.share-drop { font-size: 0.75rem; color: var(--fin-text-soft); }
+.share-add { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.share-add select { height: 1.875rem; padding: 0 0.5rem; border: 1px solid var(--fin-line); border-radius: 0; background: var(--input-bg); color: var(--fin-text); font: inherit; }
+.share-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 0.75rem; }
+.share-actions .fin-link-btn { font-size: 0.8125rem; }
+@media (max-width: 639px) {
+  .share-edit-row { grid-template-columns: minmax(0, 1fr) 8rem; }
+  .share-edit-row .share-pct { grid-column: 2; }
+}
+
+/* ─── Окно предупреждения листа (`univer/warning.tsx`) ───
+   Кнопки по просьбе владельца (29.09.2026): «Отмена» — зелёная плита, «ОК» —
+   красная. Текст плит — `--accent-fg`: тёмный на светлых тонах тёмной темы,
+   светлый на тёмных тонах светлой — контраст держится в обеих. */
+.sheet-warn { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); padding: 1.5rem; overflow-y: auto; }
+.sheet-warn-title { margin: 0; font-size: 1.125rem; font-weight: 500; letter-spacing: -0.01em; }
+.sheet-warn-lines { margin: 0.75rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; font-size: 0.875rem; color: var(--fin-text-soft); line-height: 1.45; }
+.sheet-warn-lines li { position: relative; padding-left: 1rem; }
+.sheet-warn-lines li::before { content: ""; position: absolute; left: 0; top: 0.7em; width: 0.5rem; height: 1px; background: var(--fin-text-soft); }
+.sheet-warn-input { display: grid; gap: 0.35rem; margin-top: 1rem; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.sheet-warn-input input {
+  height: 2.25rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--fin-text);
+  border-radius: 0;
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+.sheet-warn-input input:focus { outline: none; }
+.sheet-warn-alt { margin: 0.75rem 0 0; font-size: 0.8125rem; }
+.sheet-warn-error { margin: 0.75rem 0 0; font-size: 0.8125rem; color: var(--fin-fail); }
+.sheet-warn-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; }
+.sheet-warn-cancel, .sheet-warn-ok {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 6.5rem;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 0;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--accent-fg);
+  cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-out);
+}
+.sheet-warn-cancel { background: var(--accent-emerald); }
+.sheet-warn-ok { background: var(--fin-fail); }
+.sheet-warn-cancel:hover:not(:disabled), .sheet-warn-ok:hover:not(:disabled) { filter: brightness(1.08); }
+.sheet-warn-cancel:focus-visible, .sheet-warn-ok:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 2px; }
+.sheet-warn-cancel:disabled, .sheet-warn-ok:disabled { opacity: 0.55; cursor: default; }
+
 /* ─── Протокол загрузки ─── */
 .proto { display: grid; gap: 0; }
 .proto-item { border-top: 1px solid var(--fin-line); }
@@ -4033,3 +4163,6 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
 }
 
 @keyframes creg-trace { from { transform: scaleX(0); } to { transform: scaleX(1); opacity: 0; } }
+
+/* «Восстановление» в кабинете — те же строки, что у корзины; возвращённое тише. */
+.cab-trash-row[data-restored="true"] .cab-trash-title { color: var(--fin-text-soft); }

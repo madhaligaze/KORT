@@ -20,8 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { type ChangeMode as ChangeModeValue, type Me, contractsApi, trashApi } from "@/components/finance/api";
-import { isAdmin } from "@/components/finance/access";
+import { type ChangeMode as ChangeModeValue, type Me, type PointRef, contractsApi } from "@/components/finance/api";
 import { ChangeMode } from "@/components/finance/contracts/change-mode";
 import { OtherContracts } from "@/components/finance/contracts/contract-card";
 import { MineToggle, useMine } from "@/components/finance/contracts/mine";
@@ -39,22 +38,24 @@ import {
   boot,
   cancel,
   ensurePayments,
+  ensureShares,
   ensureStaff,
   ensureSummary,
   forBook,
   getRegistry,
   holdLive,
   put,
-  removeMany,
+  reloadAll,
+  reloadSchema,
   useRegistry,
 } from "@/components/finance/contracts/store";
-import { bareNumber, formatDay, plural } from "@/components/finance/format";
-import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
+import { formatDay } from "@/components/finance/format";
 import { lookStore } from "@/components/finance/look-store";
 import { type FilterStatus, keepFilter } from "@/components/univer/filter";
 import { type LookKeeper, keepLook } from "@/components/univer/look";
 import { useSessionScope } from "@/components/session-state";
 import { UniverSheet, type UniverApi } from "@/components/univer/sheet";
+import { type SheetWarningSpec, SheetWarning } from "@/components/univer/warning";
 import { useFillHeight } from "@/components/univer/use-fill-height";
 
 type Props = {
@@ -69,10 +70,12 @@ type Props = {
   onNeighbors?: (around: { prev: string | null; next: string | null }) => void;
 };
 
-/** `undo` — только что удалённые договоры: «Вернуть» из корзины (у администратора). */
-type Note = { text: string; fail: boolean; at: number; undo?: string[] };
-
-type Removal = { items: { id: string; number: string }[] };
+/**
+ * Строка под листом. `point` — изменение для всех, запомненное точкой
+ * восстановления: «Вернуть» у него — у автора и администратора, не только из
+ * корзины (`contracts/restore.py`).
+ */
+type Note = { text: string; fail: boolean; at: number; point?: PointRef };
 
 /**
  * Подсказка «несколько строк — Ctrl» (29.09.2026: «что можно отметить
@@ -89,14 +92,6 @@ function rowTipOff(user: string): boolean {
   }
 }
 
-/** «№ 12/2024, № 13/2024, № 14/2024 и ещё 5» — какие договоры уйдут. */
-function numberList(items: { number: string }[]): string {
-  const named = items.filter((item) => bareNumber(item.number)).map((item) => `№ ${bareNumber(item.number)}`);
-  const shown = named.slice(0, 3).join(", ");
-  const more = items.length - Math.min(3, named.length);
-  return more > 0 ? `${shown}${shown ? " и ещё " : ""}${more}` : shown;
-}
-
 /** Сколько подсказка ждёт мышь, ушедшую с ячейки, прежде чем погаснуть. */
 const HIDE_DELAY = 420;
 
@@ -109,8 +104,13 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
   const state = useRegistry((value) => value);
   // «Мои» у заголовка реестра: лист собирается из своих договоров.
   const { only } = useMine(me, book);
-  const [removal, setRemoval] = useState<Removal | null>(null);
-  const admin = isAdmin(me);
+  const [warning, setWarning] = useState<SheetWarningSpec | null>(null);
+  /**
+   * Изменения для всех, сделанные из этого листа, — для Ctrl+Z, когда своя
+   * история Univer пуста (лист после них пересобирается и её теряет).
+   * Правки значений сюда не идут: их Ctrl+Z возвращает сам Univer.
+   */
+  const points = useRef<PointRef[]>([]);
   const [rowTip, setRowTip] = useState<{ left: number; top: number } | null>(null);
   const tipUser = me.user?.id ?? "";
   const tipBox = useRef<HTMLDivElement>(null);
@@ -157,6 +157,10 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
   useEffect(() => {
     void ensureStaff();
   }, []);
+  // «По сотрудникам» у «Разовых» считает долями — те, что открыты человеку.
+  useEffect(() => {
+    if (book === "oneoff") void ensureShares();
+  }, [book]);
   // «Оплачено/Остаток по выписке» меняют выписки и разнесение, а не правки
   // договоров — опросу реестра о них неоткуда узнать. Раз в минуту, пока
   // вкладка на виду, и сразу при возвращении на неё.
@@ -231,7 +235,17 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
             queueMicrotask(() => setFiltered(binding.current?.filterStatus() ?? null));
           },
           rebuild: () => setGeneration((value) => value + 1),
-          remove: (items) => setRemoval({ items }),
+          warn: (spec) => setWarning(spec),
+          changed: (point, text) => {
+            if (point && point.kind !== "values") points.current = [...points.current, point].slice(-20);
+            setNote({ text, fail: false, at: Date.now(), point: point ?? undefined });
+          },
+          undo: () => {
+            const last = points.current.pop();
+            if (!last) return false;
+            void restoreRef.current(last);
+            return true;
+          },
           rowTip: (at) => {
             if (!at || rowTipOff(tipUser)) {
               setRowTip(null);
@@ -325,61 +339,29 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
   }, [openId, state, built, onNeighbors]);
 
   /**
-   * Удаление отмеченных строк. Подтверждение закрывается сразу: строки
-   * уходят из листа по мере ответов, счёт — строкой под листом.
+   * «Вернуть» — как было до изменения, по точке восстановления: удалённые
+   * договоры — из корзины, лист и колонки — прежними, значения — прежними,
+   * если их после не поменяли коллеги. Вернувшееся приходит опросом; лист и
+   * колонки — перечитанной схемой, порядок строк — перечитанным реестром.
    */
-  const removeRows = useCallback(async (items: Removal["items"]) => {
-    setRemoval(null);
-    const total = items.length;
-    const noun = (count: number) => plural(count, "договор", "договора", "договоров");
-    if (total > 1) setNote({ text: `Удаляем ${total} ${noun(total)}`, fail: false, at: Date.now() });
-    const result = await removeMany(
-      items.map((item) => item.id),
-      (done) => {
-        if (total > 1) setNote({ text: `Удаляем ${total} ${noun(total)} · ${done}`, fail: false, at: Date.now() });
-      },
-    );
-    const done = result.done.length;
-    if (result.failed.length) {
-      const more = result.failed.length > 1 ? ` · ещё отказов: ${result.failed.length - 1}` : "";
-      setNote({
-        text: `${done ? `Удалено ${done} ${noun(done)} · ` : ""}не удалено: ${result.failed[0].error}${more}`,
-        fail: true,
-        at: Date.now(),
-        undo: done ? result.done : undefined,
-      });
-    } else {
-      setNote({
-        text: done === 1 ? "Договор удалён" : `Удалено ${done} ${noun(done)}`,
-        fail: false,
-        at: Date.now(),
-        undo: result.done,
-      });
-    }
-  }, []);
-
-  /**
-   * «Вернуть» — из корзины. Строки приходят обычным опросом (через пару
-   * секунд) и встают на прежние места по порядку реестра: пересборка листа
-   * здесь не нужна — снятая книга ловила бы ещё не отработавшую проверку
-   * списков Univer.
-   */
-  const restoreRows = useCallback(async (ids: string[]) => {
+  const restorePoint = useCallback(async (point: PointRef) => {
+    points.current = points.current.filter((item) => item.id !== point.id);
     setNote({ text: "Возвращаем…", fail: false, at: Date.now() });
-    const failed: string[] = [];
-    for (const id of ids) {
-      try {
-        await trashApi.restore("contract", id);
-      } catch (exc) {
-        failed.push(exc instanceof Error ? exc.message : "не вернулся");
+    try {
+      const result = await contractsApi.restorePoints.restore(point.id);
+      const skipped = result.skipped.length ? ` · не тронуто: ${result.skipped[0]}${result.skipped.length > 1 ? ` и ещё ${result.skipped.length - 1}` : ""}` : "";
+      setNote({ text: `Вернули как было: ${result.title}${skipped}`, fail: false, at: Date.now() });
+      await reloadSchema();
+      if (result.kind === "order") {
+        await reloadAll();
+        setGeneration((value) => value + 1);
       }
+    } catch (exc) {
+      setNote({ text: `Не вернулось: ${exc instanceof Error ? exc.message : "ошибка"}`, fail: true, at: Date.now() });
     }
-    setNote(
-      failed.length
-        ? { text: `Не вернулось: ${failed[0]}`, fail: true, at: Date.now() }
-        : { text: ids.length === 1 ? "Договор возвращён" : `Возвращено ${ids.length}`, fail: false, at: Date.now() },
-    );
   }, []);
+  const restoreRef = useRef(restorePoint);
+  restoreRef.current = restorePoint;
 
   // «Читаем реестр…» — только если чтение затянулось: быстрый ответ не должен
   // мигать подписью.
@@ -594,6 +576,7 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
             listArrow={!ask}
             session={book ? `registry.${book}` : "registry"}
             onSortFilter={(command) => binding.current?.sortFilter(command) ?? false}
+            onStart={(restored) => binding.current?.begin(restored)}
             ribbonEnd={<MineToggle me={me} book={book} />}
           />
         ) : empty ? (
@@ -630,10 +613,15 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
         ) : null}
         <p className={note?.fail ? "creg-sheet-note fin-fail" : "creg-sheet-note"} role="status" aria-live="polite">
           {note?.text ?? ""}
-          {note?.undo?.length && admin ? (
+          {note?.point ? (
             <>
               {" · "}
-              <button type="button" className="fin-link-btn" onClick={() => void restoreRows(note.undo ?? [])}>
+              <button
+                type="button"
+                className="fin-link-btn"
+                title="Как было до этого изменения — то же, что Ctrl+Z или «Восстановление» в кабинете"
+                onClick={() => note.point && void restorePoint(note.point)}
+              >
                 Вернуть
               </button>
             </>
@@ -654,7 +642,7 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
           </button>
         ) : null}
       </div>
-      {rowTip && !removal && !ask
+      {rowTip && !warning && !ask
         ? createPortal(
             <div
               ref={tipBox}
@@ -687,28 +675,7 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
             document.body,
           )
         : null}
-      <ConfirmDialog
-        open={removal !== null}
-        title={
-          removal?.items.length === 1
-            ? `Удалить договор${bareNumber(removal.items[0].number) ? ` № ${bareNumber(removal.items[0].number)}` : ""}?`
-            : `Удалить ${removal?.items.length ?? 0} ${plural(removal?.items.length ?? 0, "договор", "договора", "договоров")}?`
-        }
-        text={[
-          removal && removal.items.length > 1 ? `${numberList(removal.items)}.` : "",
-          admin
-            ? "Уйдут в корзину — вернуть можно сразу, строкой под листом, или из корзины в кабинете."
-            : "Уйдут в корзину — вернуть может администратор.",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        confirm="Удалить"
-        danger
-        onCancel={() => setRemoval(null)}
-        onConfirm={() => {
-          if (removal) void removeRows(removal.items);
-        }}
-      />
+      <SheetWarning spec={warning} onClose={() => setWarning(null)} />
       {ask && spot && count
         ? createPortal(
             <div ref={pop}>

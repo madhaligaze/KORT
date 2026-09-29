@@ -1253,15 +1253,140 @@ export type ContractImportBatch = {
 
 const C = "/contracts";
 
+/** Доля — суммой (тенге) или процентом от суммы договора. */
+export type ShareUnit = "amount" | "percent";
+
+export type ShareSummary = {
+  given: number;
+  allocated_amount: string | null;
+  allocated_percent: string | null;
+  rest_amount: string | null;
+  rest_percent: string | null;
+  over: boolean;
+};
+
+export type PersonShare = {
+  employee_id: string;
+  name: string;
+  department: string;
+  amount: string | null;
+  percent: string | null;
+  entered: ShareUnit | null;
+  mine: boolean;
+};
+
+export type DepartmentShare = {
+  department_id: string;
+  code: string;
+  title: string;
+  main: boolean;
+  amount: string | null;
+  percent: string | null;
+  entered: ShareUnit | null;
+};
+
+export type ContractShares = {
+  contract_id: string;
+  amount: string | null;
+  billing: string;
+  seq: number;
+  people: {
+    /** `all` — доли всех; `own` — только своя; `none` — ни одной. */
+    scope: "all" | "own" | "none";
+    can_edit: boolean;
+    count: number;
+    unit: ShareUnit | null;
+    rows: PersonShare[];
+    summary?: ShareSummary;
+  };
+  /** `null` — доли отделов этому человеку не открыты. */
+  departments: {
+    can_edit: boolean;
+    unit: ShareUnit | null;
+    rows: DepartmentShare[];
+    summary: ShareSummary;
+    main: string | null;
+    choices: { id: string; code: string; title: string }[];
+  } | null;
+};
+
+/** Доли людей одного договора: сотрудник → сумма и процент. */
+export type ShareMap = {
+  scope: "all" | "own";
+  people: Record<string, { amount: string | null; percent: string | null }>;
+};
+
+export type SheetChange = {
+  action:
+    | "delete_contracts"
+    | "add_column"
+    | "remove_column"
+    | "rename_column"
+    | "rename_block"
+    | "move_column"
+    | "rename_view"
+    | "archive_view"
+    | "order_views"
+    | "move_rows"
+    | "values_point"
+    | "created_point";
+  view?: string;
+  book?: string;
+  ids?: string[];
+  title?: string;
+  type?: string;
+  block?: number;
+  key?: string;
+  label?: string;
+  keys?: (string | null)[];
+  after?: (string | null)[];
+  before?: string | null;
+  items?: { id: string; keys: string[] }[];
+};
+
+export type PointRef = { id: string; title: string; kind: string };
+
+export type SheetChangeResult = {
+  point?: PointRef | null;
+  done?: string[];
+  failed?: { id: string; error: string }[];
+  key?: string;
+  removed?: string[];
+};
+
+export type RestorePointItem = {
+  id: string;
+  kind: string;
+  title: string;
+  /** Что вернётся словами: «договоры вернутся из корзины». */
+  returns: string;
+  book: string;
+  view: string;
+  created_at: string | null;
+  by: string;
+  mine: boolean;
+  restored_at: string | null;
+  restored_by: string;
+  can_restore: boolean;
+};
+
+export type RestoreResult = { title: string; done: string[]; skipped: string[]; kind: string };
+
 export const contractsApi = {
   schema: () => request<RegistrySchema>(`${C}/schema`),
   all: () => request<ContractsAll>(C),
   changes: (since: number) => request<ChangesBatch>(`${C}/changes${qs({ since })}`),
   one: (id: string) => request<OneContract>(`${C}/${id}`),
-  create: (values: Record<string, unknown>, ctx?: { view?: string; block?: number; source?: string }) =>
+  create: (values: Record<string, unknown>, ctx?: { view?: string; block?: number; source?: string; before?: string | null }) =>
     request<OneContract>(C, {
       method: "POST",
-      body: JSON.stringify({ values, view: ctx?.view, block: ctx?.block, source: ctx?.source ?? "app" }),
+      body: JSON.stringify({
+        values,
+        view: ctx?.view,
+        block: ctx?.block,
+        source: ctx?.source ?? "app",
+        before: ctx?.before ?? null,
+      }),
     }),
   patch: (id: string, values: Record<string, unknown>, knownSeq: number | null, mode?: ChangeMode | null) =>
     request<OneContract>(`${C}/${id}`, {
@@ -1304,6 +1429,24 @@ export const contractsApi = {
       `${C}/summary${qs({ force: force ? "true" : undefined })}`,
     ),
   exportUrl: (views?: string[]) => `${API}${C}/export.xlsx${qs({ views: views?.join(",") })}`,
+  shares: {
+    /** Доли договора — только открытые этому человеку (`shares.py`). */
+    of: (id: string) => request<ContractShares>(`${C}/${id}/shares`),
+    /** Доли всех видимых договоров — для «По сотрудникам». */
+    all: () => request<{ contracts: Record<string, ShareMap> }>(`${C}/shares`),
+    setPeople: (id: string, unit: ShareUnit, items: { employee_id: string; value: string | null }[]) =>
+      request<ContractShares>(`${C}/${id}/shares/people`, { method: "PUT", body: JSON.stringify({ unit, items }) }),
+    setDepartments: (id: string, unit: ShareUnit, items: { department_id: string; value: string | null }[]) =>
+      request<ContractShares>(`${C}/${id}/shares/departments`, { method: "PUT", body: JSON.stringify({ unit, items }) }),
+  },
+  /** Изменение таблицы, о котором лист предупредил (`contracts/restore.py`). */
+  sheetChange: (body: SheetChange) =>
+    request<SheetChangeResult>(`${C}/sheet/change`, { method: "POST", body: JSON.stringify(body) }),
+  restorePoints: {
+    list: () => request<{ items: RestorePointItem[] }>(`${C}/restore-points`),
+    restore: (id: string) =>
+      request<RestoreResult>(`${C}/restore-points/${id}/restore`, { method: "POST" }),
+  },
   imports: {
     upload: (file: File) => {
       const form = new FormData();

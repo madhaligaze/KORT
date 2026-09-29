@@ -8,15 +8,18 @@
  * чтобы два вида не разошлись в цифрах.
  *
  * Договор с двумя ответственными считается у каждого — как у каждого он и
- * висит в работе. «Остаток» и месяц — из книги-сводки (`summary`), договора
- * в ней нет — остатка нет, месяц «нет в сводке».
+ * висит в работе. С 29.09.2026 — долей, если она задана и открыта этому
+ * человеку (`shares.py`): у кого 500 000 из 700 000, у того в строке 500 000,
+ * а остаток и месяц — той же долей. Чужая доля не открыта — у того человека
+ * договор, как прежде, целиком. «Остаток» и месяц — из книги-сводки
+ * (`summary`), договора в ней нет — остатка нет, месяц «нет в сводке».
  *
  * «Итого» — по договорам, каждый один раз (`totals`), а не сумма строк. До
  * 29.09.2026 итог складывал строки, и договор на двоих входил в него дважды:
  * у «Разовых» из 93 договоров итог показывал 98, а сумма — на миллионы больше
  * настоящей.
  */
-import type { Contract, PersonRef, RegistrySchema, SummaryEntry } from "@/components/finance/api";
+import type { Contract, PersonRef, RegistrySchema, ShareMap, SummaryEntry } from "@/components/finance/api";
 import { CLOSED_PHASES, phaseOf } from "@/components/finance/contracts/schema";
 
 export type Tally = {
@@ -62,6 +65,8 @@ export type StaffSource = {
   people: Readonly<Record<string, PersonRef>>;
   parties: Readonly<Record<string, { name: string }>>;
   summary: Readonly<Record<string, SummaryEntry>> | null;
+  /** Доли людей в договорах — только открытые этому человеку (`ensureShares`). */
+  shares?: Readonly<Record<string, ShareMap>> | null;
 };
 
 const MONTHS = ["ЯНВАРЬ", "ФЕВРАЛЬ", "МАРТ", "АПРЕЛЬ", "МАЙ", "ИЮНЬ", "ИЮЛЬ", "АВГУСТ", "СЕНТЯБРЬ", "ОКТЯБРЬ", "НОЯБРЬ", "ДЕКАБРЬ"];
@@ -91,7 +96,7 @@ export function mainOf(schema: RegistrySchema | null, book: string) {
 }
 
 export function staffTable(source: StaffSource, book = "oneoff"): StaffTable | null {
-  const { schema, byId, order, people, parties, summary } = source;
+  const { schema, byId, order, people, parties, summary, shares } = source;
   const main = mainOf(schema, book);
   if (!schema || !main) return null;
   const byPerson = new Map<string, Tally>();
@@ -110,7 +115,20 @@ export function staffTable(source: StaffSource, book = "oneoff"): StaffTable | n
     const contract = byId.get(id);
     if (!contract || contract.deleted || !contract.views.some((place) => place.view === main.key)) continue;
     const ids = Array.isArray(contract.values.people) ? (contract.values.people as string[]) : [];
-    const names = ids.length ? ids.map((person) => people[person]?.name ?? "—") : ["Без ответственного"];
+    const persons = ids.length
+      ? ids.map((person) => ({ id: person, name: people[person]?.name ?? "—" }))
+      : [{ id: "", name: "Без ответственного" }];
+    const names = persons.map((person) => person.name);
+    // Доля человека, если она задана и ему открыта; нет — договор у него целиком.
+    const split = shares?.[contract.id]?.people;
+    const shareOf = (person: string): number | null => {
+      const raw = split?.[person]?.amount;
+      if (raw === null || raw === undefined || raw === "") return null;
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : null;
+    };
+    // Договор разложен по долям у всех — в строках людей он не повторяется.
+    const whole = !(ids.length > 1 && ids.every((person) => shareOf(person) !== null));
     const client = parties[String(contract.values.customer ?? "")]?.name ?? "";
     const amount = numberOf(contract.values.amount);
     const entry = summary?.[contract.id];
@@ -121,14 +139,17 @@ export function staffTable(source: StaffSource, book = "oneoff"): StaffTable | n
     totals.contracts += 1;
     totals.amount += amount;
     totals.remaining += remaining;
-    if (names.length > 1) totals.shared += 1;
+    if (names.length > 1 && whole) totals.shared += 1;
     if (open) {
       totals.openContracts += 1;
       totals.openAmount += amount;
       totals.byMonth.set(month, (totals.byMonth.get(month) ?? 0) + amount);
-      if (names.length > 1) totals.openShared += 1;
+      if (names.length > 1 && whole) totals.openShared += 1;
     }
-    for (const name of names) {
+    for (const { id: person, name } of persons) {
+      const part = person ? shareOf(person) : null;
+      const mine = part ?? amount;
+      const fraction = part === null ? 1 : amount > 0 ? part / amount : 0;
       let tally = byPerson.get(name);
       if (!tally) {
         tally = {
@@ -146,13 +167,13 @@ export function staffTable(source: StaffSource, book = "oneoff"): StaffTable | n
       }
       if (client) tally.clients.add(client);
       tally.contracts += 1;
-      tally.amount += amount;
-      tally.remaining += remaining;
+      tally.amount += mine;
+      tally.remaining += remaining * fraction;
       if (open) {
         if (client) tally.openClients.add(client);
         tally.openContracts += 1;
-        tally.openAmount += amount;
-        tally.byMonth.set(month, (tally.byMonth.get(month) ?? 0) + amount);
+        tally.openAmount += mine;
+        tally.byMonth.set(month, (tally.byMonth.get(month) ?? 0) + mine);
       }
     }
   }

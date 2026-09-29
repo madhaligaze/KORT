@@ -660,6 +660,29 @@ export function FinanceClient() {
     if (section && section !== "me") setCameFrom(section);
     setSection("me");
   }, [section, setSection]);
+  /**
+   * Из кабинета — к учёту: туда, откуда пришли, иначе на главный раздел; без
+   * разделов — на главный экран с предупреждением. Одна дорога у «← К учёту»
+   * и у знака KORT в шапке.
+   */
+  const leaveCabinet = useCallback(() => {
+    const came = cameFrom ? ALL_SECTIONS.find((item) => item.key === cameFrom) : undefined;
+    const back = came && came.key !== "me" && visible(came) ? came.key : home;
+    if (back) setSection(back);
+    else {
+      setSectionState(null);
+      writeParams({ s: null, id: null, v: null, t: null, d: null }, true);
+    }
+  }, [cameFrom, visible, home, setSection]);
+  /**
+   * Знак KORT — «на главную» (29.09.2026): до того из кабинета на главную
+   * вела только «← К учёту» на портрете. В кабинете знак дышит — подсказка,
+   * что он и есть дорога назад.
+   */
+  const goHome = useCallback(() => {
+    if (section === "me") leaveCabinet();
+    else if (home && home !== section) setSection(home);
+  }, [section, home, leaveCabinet, setSection]);
   const openContract = useCallback((id: string) => {
     setSectionState("contracts");
     writeParams({ s: "contracts", id, v: null, t: null, d: null }, true);
@@ -1035,9 +1058,16 @@ export function FinanceClient() {
     <SessionScope scope={sessionScope}>
     <div className="fin-page">
       <header className="fin-head" ref={measureHead}>
-        <span className="fin-brand">
+        <button
+          type="button"
+          className="fin-brand"
+          data-pulse={section === "me" ? "true" : undefined}
+          onClick={goHome}
+          title="На главную"
+          aria-label="KORT — на главную"
+        >
           <KortWordmark className="fin-brand-mark" />
-        </span>
+        </button>
         {/* Компания в шапке, а не название раздела: человек ведёт несколько
             компаний, и первое, что ему надо знать, — в какой он сейчас. */}
         <div className="flex flex-col mr-auto min-w-0">
@@ -1134,15 +1164,7 @@ export function FinanceClient() {
                 setMe(next);
                 reload();
               }}
-              onBack={() => {
-                const back = cameFrom && cameFrom !== "me" && visible(ALL_SECTIONS.find((item) => item.key === cameFrom)!) ? cameFrom : home;
-                if (back) setSection(back);
-                else {
-                  // Разделов нет — назад на главный экран с предупреждением.
-                  setSectionState(null);
-                  writeParams({ s: null, id: null, v: null, t: null, d: null }, true);
-                }
-              }}
+              onBack={leaveCabinet}
               onLogout={async () => {
                 await financeApi.logout().catch(() => undefined);
                 // Компьютер бывает общим: черновики вышедшего не ждут следующего.

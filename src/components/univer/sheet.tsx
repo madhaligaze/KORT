@@ -97,6 +97,12 @@ type Props = {
    */
   onShown?: () => void;
   /**
+   * Лист нарисован и место сессии возвращено. `restored` — человек уже
+   * работал в этом листе не в начале (его место вернулось); нет — раздел
+   * может поставить лист, куда удобнее начать.
+   */
+  onStart?: (restored: boolean) => void;
+  /**
    * Оформление, формулы и вставка в ленте. `false` оставляет то, что работает
    * с данными: отмену, поиск, фильтр и сортировку. `"look"` — ещё и всё, что
    * меняет только вид (шрифт, цвета, выравнивание, перенос, границы): лист,
@@ -478,6 +484,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
     listArrow = true,
     session,
     onShown,
+    onStart,
     onSortFilter,
     ribbonEnd,
   },
@@ -505,6 +512,8 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
   onReadyRef.current = onReady;
   const onShownRef = useRef(onShown);
   onShownRef.current = onShown;
+  const onStartRef = useRef(onStart);
+  onStartRef.current = onStart;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const apiRef = useRef<any>(null);
 
@@ -562,6 +571,15 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
       ],
     });
     apiRef.current = univerAPI;
+    // Пробникам Playwright — фасад листа, только по флагу в браузере пробника:
+    // в headless Ctrl+Z и правая кнопка до холста доходят не всегда.
+    try {
+      if (window.localStorage.getItem("kort_probe") === "1") {
+        (window as unknown as Record<string, unknown>).__kortUniver = univerAPI;
+      }
+    } catch {
+      /* хранилище закрыто — без крючка */
+    }
     // Тема — до книги: первая отрисовка уже в нужных цветах, без вспышки.
     const retheme = () => {
       try {
@@ -614,7 +632,11 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
       shownFrame = requestAnimationFrame(() => {
         quietFilterFrame(univerAPI, univerAPI.getActiveWorkbook?.()?.getId?.());
         relayoutRibbon(univerAPI);
-        if (place?.restore()) setFull(true);
+        const back = place?.restore();
+        if (back?.full) setFull(true);
+        // Своё место не возвращено — раздел ставит лист на начальное место
+        // (реестр: нижняя пустая строка — сразу вписывать новый договор).
+        onStartRef.current?.(Boolean(back?.moved));
         shownFrame = requestAnimationFrame(() => onShownRef.current?.());
       });
     };

@@ -29,6 +29,7 @@ import {
   type PaymentSummary,
   type PersonRef,
   type RegistrySchema,
+  type ShareMap,
   type SummaryEntry,
   type SummarySource,
   FinanceApiError,
@@ -76,6 +77,11 @@ export type RegistryState = {
    */
   summary: Readonly<Record<string, SummaryEntry>> | null;
   summarySource: SummarySource | null;
+  /**
+   * Доли людей в договорах — только открытые этому человеку (`ensureShares`):
+   * «По сотрудникам» считает по ним. `null` — не прочитано.
+   */
+  shares: Readonly<Record<string, ShareMap>> | null;
   /** По какой сводке сервер посчитал листы («Остатки») в последнем полном чтении. */
   listSummaryRev: string;
   edits: ReadonlyMap<string, ReadonlyMap<string, Edit>>;
@@ -110,6 +116,7 @@ const EMPTY: RegistryState = {
   payments: null,
   summary: null,
   summarySource: null,
+  shares: null,
   listSummaryRev: "",
   edits: new Map(),
   live: { online: true, lastOkAt: null, failures: 0 },
@@ -609,7 +616,7 @@ export function pendingCount(): number {
 
 export async function create(
   values: Record<string, unknown>,
-  ctx?: { view?: string; block?: number; source?: string },
+  ctx?: { view?: string; block?: number; source?: string; before?: string | null },
 ): Promise<string> {
   const one = await contractsApi.create(values, ctx);
   putOne(one, false);
@@ -617,6 +624,18 @@ export async function create(
   fresh.add(one.contract.id);
   emit({ fresh });
   return one.contract.id;
+}
+
+/**
+ * Договоры, удалённые сервером пачкой (лист: «Удалить N договоров», точка
+ * восстановления — `contracts/restore.py`), уходят из листа и карточек сразу,
+ * не дожидаясь опроса.
+ */
+export function dropMany(ids: readonly string[]): void {
+  if (!ids.length) return;
+  const byId = new Map(state.byId);
+  for (const id of ids) byId.delete(id);
+  emit({ byId, order: sortOrder(byId) });
 }
 
 export async function remove(id: string): Promise<void> {
@@ -737,6 +756,36 @@ export function ensureSummary(force = false): Promise<void> {
     }
   })();
   return summaryLoading;
+}
+
+/** Доли старше этого — перечитываются при следующем обращении. */
+const SHARES_TTL = 60_000;
+let sharesAt = 0;
+let sharesLoading: Promise<void> | null = null;
+
+/**
+ * Доли людей в договорах (`shares.py`) — своим запросом, как сводка: в общий
+ * ответ реестра они не входят, потому что у каждого свои — сотруднику только
+ * его доли. `force` — после правки долей в карточке.
+ */
+export function ensureShares(force = false): Promise<void> {
+  const company = state.company;
+  if (!company) return Promise.resolve();
+  const fresh = state.shares !== null && Date.now() - sharesAt < SHARES_TTL;
+  if (!force && (sharesLoading || fresh)) return sharesLoading ?? Promise.resolve();
+  sharesLoading = (async () => {
+    try {
+      const result = await contractsApi.shares.all();
+      if (state.company !== company) return;
+      sharesAt = Date.now();
+      emit({ shares: result.contracts });
+    } catch {
+      /* «По сотрудникам» посчитает договоры целиком, как до долей */
+    } finally {
+      sharesLoading = null;
+    }
+  })();
+  return sharesLoading;
 }
 
 /** Справочник старше этого — перечитывается при следующем выборе. */

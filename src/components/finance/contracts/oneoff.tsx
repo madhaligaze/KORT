@@ -13,53 +13,66 @@
  * «Оплачено» — из книги-сводки компании («Осн.Общая сводка BBC 2026»), как
  * колонка Q книги: по номеру договора и клиенту (`contracts/summary.py`).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { SummarySource } from "@/components/finance/api";
 import { staffTable } from "@/components/finance/contracts/staff";
-import { ensureSummary, useRegistry } from "@/components/finance/contracts/store";
+import { ensureShares, ensureSummary, useRegistry } from "@/components/finance/contracts/store";
 import { formatTime, plural } from "@/components/finance/format";
 import { formatMoney } from "@/components/finance/api";
 
-/** Строка «откуда оплата»: книга, лист, когда прочитана; отказ — словами. */
+/** Сводка свежеет сама: раз в минуту, пока вкладка на виду, и сразу при возвращении на неё. */
+export function useSummaryRefresh(): void {
+  useEffect(() => {
+    void ensureSummary();
+    const refresh = () => {
+      if (document.visibilityState === "visible") void ensureSummary();
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+}
+
+/**
+ * Над «Разовыми» — одна кнопка «Обновить» (29.09.2026).
+ *
+ * Прежде здесь стояла строка «„Оплачено“ — из книги „Осн.Общая сводка BBC
+ * 2026“, лист …, прочитана в …» — внутренняя логика, которую «знать и
+ * читать никому не надо». Сводка перечитывается сама (`useSummaryRefresh`,
+ * сервер держит книгу две минуты); кнопка — перечитать сейчас. Когда книга
+ * прочитана, видно в подсказке кнопки. Отказ чтения — словами и розой:
+ * иначе «Оплачено» стояло бы старым молча.
+ */
 export function SummaryLine({ onSetup }: { onSetup?: () => void }) {
   const source = useRegistry((s) => s.summarySource);
   const schemaSource = useRegistry((s) => s.schema?.summary ?? null);
   const ready = useRegistry((s) => s.phase === "ready");
   const [busy, setBusy] = useState(false);
+  useSummaryRefresh();
   const shown: SummarySource | null = source ?? schemaSource;
   if (!ready) return null;
   if (!shown) {
-    return (
+    // Не подключена — действие только тому, кто может подключить.
+    return onSetup ? (
       <p className="creg-oneoff-line">
-        «Оплачено» берётся из книги-сводки — она не подключена
-        {onSetup ? (
-          <>
-            {" · "}
-            <button type="button" className="fin-link-btn" onClick={onSetup}>
-              Подключить
-            </button>
-          </>
-        ) : null}
+        <button type="button" className="fin-link-btn" onClick={onSetup}>
+          Подключить сводку оплат
+        </button>
       </p>
-    );
+    ) : null;
   }
   return (
     <p className="creg-oneoff-line">
-      <span>
-        «Оплачено» — из{" "}
-        <a href={shown.url} target="_blank" rel="noreferrer" className="fin-link-btn">
-          {shown.title || "книги-сводки"}
-        </a>
-        , лист «{shown.worksheet}»
-        {shown.read_at ? ` · прочитана в ${formatTime(shown.read_at)}` : ""}
-      </span>
-      {shown.error ? <span className="fin-fail"> · {shown.error}</span> : null}
-      {shown.drift ? <span> · книгу поправили: {shown.drift}</span> : null}
+      {shown.error ? <span className="fin-fail">{shown.error}</span> : null}
       <button
         type="button"
         className="fin-link-btn"
         disabled={busy}
+        title={shown.read_at ? `Оплаты прочитаны в ${formatTime(shown.read_at)}` : undefined}
         onClick={async () => {
           setBusy(true);
           try {
@@ -87,10 +100,14 @@ export function OneoffStaff() {
   const people = useRegistry((s) => s.people);
   const parties = useRegistry((s) => s.parties);
   const summary = useRegistry((s) => s.summary);
+  const shares = useRegistry((s) => s.shares);
+  useEffect(() => {
+    void ensureShares();
+  }, []);
 
   const data = useMemo(
-    () => staffTable({ schema, byId, order, people, parties, summary }),
-    [schema, byId, order, people, parties, summary],
+    () => staffTable({ schema, byId, order, people, parties, summary, shares }),
+    [schema, byId, order, people, parties, summary, shares],
   );
   if (!schema || !data) return null;
   const { rows, totals, months, older, olderOf } = data;
