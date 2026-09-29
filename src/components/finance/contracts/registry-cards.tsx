@@ -368,14 +368,7 @@ export function Registry({
     setDraft({ view: view.main ? undefined : view.key, block: singleBlock });
   };
 
-  const menu = [
-    { label: "Загрузить Excel", hidden: !canSetup, onSelect: () => onGo("contracts-import") },
-    { label: "Настроить реестр", hidden: !canSetup, onSelect: () => onGo("contracts-setup") },
-    {
-      label: "Скачать .xlsx",
-      onSelect: () => (window.location.href = contractsApi.exportUrl(book ? views.map((item) => item.key) : undefined)),
-    },
-  ];
+  const menu = registryMenu(schema, book, onGo);
 
   if (!all.length && !needle) {
     return (
@@ -383,7 +376,9 @@ export function Registry({
         <div className="creg-top">
           <LiveLine />
           <div className="creg-top-actions">
-            <MenuPopover items={menu} />
+            <span className="only-mobile">
+              <MenuPopover items={menu} />
+            </span>
           </div>
         </div>
         {canSetup ? (
@@ -431,7 +426,11 @@ export function Registry({
                 Новый договор
               </button>
             ) : null}
-            <MenuPopover items={menu} />
+            {/* На широком окне эти пункты — кнопками в строке заголовка
+                (`RegistryActions`); на телефоне строки заголовка нет. */}
+            <span className="only-mobile">
+              <MenuPopover items={menu} />
+            </span>
           </div>
           <MineSwitch me={me} book={book} shares={sharesPick} staff={staff} />
         </div>
@@ -546,6 +545,43 @@ export function Registry({
         onNext={index >= 0 && index < ids.length - 1 ? () => openCard(ids[index + 1]) : undefined}
       />
     </>
+  );
+}
+
+/** Пункты реестра: загрузить файл и настроить — администратору, скачать — всем. */
+function registryMenu(schema: RegistrySchema, book: string, onGo: (section: string) => void) {
+  const canSetup = !!schema.access.setup;
+  const views = schema.views.filter((view) => inBook(view, book));
+  return [
+    { label: "Загрузить Excel", hidden: !canSetup, onSelect: () => onGo("contracts-import") },
+    { label: "Настроить реестр", hidden: !canSetup, onSelect: () => onGo("contracts-setup") },
+    {
+      label: "Скачать .xlsx",
+      onSelect: () => (window.location.href = contractsApi.exportUrl(book ? views.map((item) => item.key) : undefined)),
+    },
+  ];
+}
+
+/**
+ * «Загрузить Excel · Настроить реестр · Скачать .xlsx» — кнопками в строке
+ * заголовка справа, над «Новый договор», в «Карточках» и «Таблице» (30.09.2026:
+ * «неудобно постоянно кликать по троеточию»). На телефоне строки заголовка
+ * нет — там те же пункты под «⋯».
+ */
+export function RegistryActions({ book, onGo }: { book: string; onGo: (section: string) => void }) {
+  const schema = useRegistry((s) => s.schema);
+  const phase = useRegistry((s) => s.phase);
+  if (phase !== "ready" || !schema) return null;
+  return (
+    <div className="creg-actions" role="group" aria-label="Реестр: файл и настройка">
+      {registryMenu(schema, book, onGo)
+        .filter((item) => !item.hidden)
+        .map((item) => (
+          <button key={item.label} type="button" className="btn-ghost btn-sm" onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ))}
+    </div>
   );
 }
 

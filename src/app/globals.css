@@ -2162,6 +2162,11 @@ label.auth-row-label { cursor: pointer; }
    весом и чертой под словом, не цветом и не плашкой (правило индикаторов).
    Порядок постоянный: переключение не переставляет слова местами. */
 .fin-reg-title { justify-content: flex-start; align-items: baseline; column-gap: 2rem; }
+/* «Загрузить Excel · Настроить реестр · Скачать .xlsx» — справа в той же
+   строке, над «Новый договор»: действия, а не виды, — волосяной рамкой. */
+/* На окне ~800 строка не вмещает всё и кнопки уходят второй строкой —
+   нижний отступ держит зазор до «Новый договор». */
+.creg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; margin: 0.25rem 0 0.75rem auto; align-self: center; }
 .fin-views { display: flex; align-items: baseline; gap: 1.25rem; }
 .fin-view {
   padding: 0.2rem 0;

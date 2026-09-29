@@ -71,7 +71,7 @@ import { CashFlowReport, DebtsReport, ProfitReport, ProjectsReport } from "@/com
 import { CalendarView } from "@/components/finance/calendar-view";
 import { PlanActualReport } from "@/components/finance/plan-actual";
 import { DictionariesPanel } from "@/components/finance/dictionaries-panel";
-import { Registry, useRegistryBoot } from "@/components/finance/contracts/registry-cards";
+import { Registry, RegistryActions, useRegistryBoot } from "@/components/finance/contracts/registry-cards";
 import { ContractCard } from "@/components/finance/contracts/contract-card";
 import { bookTitle } from "@/components/finance/contracts/schema";
 import { boot, ensureSchema, ensureSummary, useRegistry } from "@/components/finance/contracts/store";
@@ -1359,6 +1359,7 @@ export function FinanceClient() {
                   </button>
                 ))}
               </nav>
+              <RegistryActions book={registry.book} onGo={setSection} />
             </div>
           ) : operationActions ? (
             // Журнал: справа от заголовка — новая операция.
