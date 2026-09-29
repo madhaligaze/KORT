@@ -73,6 +73,11 @@ export type Me = {
     departments?: string[];
     fields: Record<string, AccessLevel>;
   };
+  /**
+   * Чьих сотрудников человек видит и меняет правом «Сотрудники и права»:
+   * `department` — начальник отдела, только люди своего отдела.
+   */
+  people_scope?: { rows: "all" | "department"; department_id: string | null };
   /** Открытые просьбы к администраторам — «N запросов» в раме. */
   pending_requests?: number;
   employee?: {
@@ -1417,6 +1422,8 @@ export type AccessCatalog = {
   resources: AccessResource[];
   fields: { key: string; field: string; title: string; levels: AccessLevel[] }[];
   row_scopes: ("all" | "department" | "own")[];
+  /** «Сотрудники и права»: всех или своего отдела (начальник отдела). */
+  people_scopes?: ("all" | "department")[];
 };
 
 export type ContractScope = {
@@ -1443,6 +1450,9 @@ export type SubjectAccess = {
   department_grants?: Record<string, Grant>;
   effective: Record<string, AccessLevel>;
   contracts_scope?: { rows: "all" | "department" | "own"; entities: string[] };
+  /** У отдела: люди со входом и кто из них начальник («Сотрудники и права» своего отдела). */
+  members?: { id: string; name: string; admin: boolean }[];
+  heads?: string[];
 };
 
 export type GrantChange = AccessLevel | { level: AccessLevel; scope?: ContractScope } | null;

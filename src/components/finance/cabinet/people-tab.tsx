@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { ChoiceSelect } from "@/components/choice-select";
-import { can } from "@/components/finance/access";
+import { can, headOnly } from "@/components/finance/access";
 import { type Department, type EmployeeRow, type Me, peopleApi } from "@/components/finance/api";
 import { FilterChips } from "@/components/finance/cabinet/filter-chips";
 import { EmployeeCard } from "@/components/finance/cabinet/employee-card";
@@ -48,6 +48,8 @@ export function PeopleTab({
   onOpen: (id: string | null) => void;
 }) {
   const manage = can(me, "people", "edit");
+  // Начальник отдела: люди только своего отдела, отделы меняет администратор.
+  const head = headOnly(me);
   // Открытая форма и набранное в ней переживают перезагрузку (`session-state.tsx`).
   const [adding, setAdding] = useSessionState<"person" | "department" | null>("people.adding", null);
   const [renaming, setRenaming] = useSessionState("people.renaming", false);
@@ -111,9 +113,11 @@ export function PeopleTab({
             <button type="button" className="btn-ghost btn-sm" onClick={() => setAdding("person")}>
               + Сотрудник
             </button>
-            <button type="button" className="btn-ghost btn-sm" onClick={() => setAdding("department")}>
-              + Отдел
-            </button>
+            {head ? null : (
+              <button type="button" className="btn-ghost btn-sm" onClick={() => setAdding("department")}>
+                + Отдел
+              </button>
+            )}
           </span>
         ) : null}
       </div>
@@ -143,7 +147,7 @@ export function PeopleTab({
                   Права отдела
                 </button>
               ) : null}
-              {manage ? (
+              {manage && !head ? (
                 <button type="button" className="fin-link-btn cab-dept-act" onClick={() => setRenaming(true)}>
                   Переименовать
                 </button>
@@ -156,7 +160,8 @@ export function PeopleTab({
       {adding === "person" ? (
         <PersonForm
           departments={departments}
-          department={current?.id ?? ""}
+          department={head ? (me.people_scope?.department_id ?? "") : (current?.id ?? "")}
+          lockDepartment={head}
           onCancel={() => setAdding(null)}
           onSaved={(row) => {
             setAdding(null);
@@ -175,7 +180,12 @@ export function PeopleTab({
           onSaved={(item) => {
             setAdding(null);
             onChanged();
-            if (item) onDepartment(item.id);
+            // Новый отдел сразу открывается на своих правах: что он видит и
+            // кто начальник решается при заведении, а не потом по людям.
+            if (item) {
+              onDepartment(item.id);
+              onDepartmentRights(item.id);
+            }
           }}
         />
       ) : null}
@@ -262,11 +272,14 @@ export function PeopleTab({
 function PersonForm({
   departments,
   department,
+  lockDepartment = false,
   onCancel,
   onSaved,
 }: {
   departments: Department[];
   department: string;
+  /** Начальник отдела заводит людей только в свой отдел. */
+  lockDepartment?: boolean;
   onCancel: () => void;
   onSaved: (row: EmployeeRow) => void;
 }) {
@@ -301,7 +314,7 @@ function PersonForm({
           const row = await peopleApi.employees.create({
             full_name: name.trim(),
             phone: access && digits ? phoneValue(digits) : undefined,
-            department_id: dept || null,
+            department_id: (lockDepartment ? department : dept) || null,
             job_title: job.trim(),
             access,
           });
@@ -325,7 +338,14 @@ function PersonForm({
         </label>
         <label className="auth-field">
           <span className="eyebrow">Отдел</span>
-          <ChoiceSelect className="input-field" value={dept} onChange={setDept} placeholder="Без отдела" clearable>
+          <ChoiceSelect
+            className="input-field"
+            value={lockDepartment ? department : dept}
+            onChange={setDept}
+            placeholder="Без отдела"
+            clearable={!lockDepartment}
+            disabled={lockDepartment}
+          >
             {departments.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.code} · {item.title}

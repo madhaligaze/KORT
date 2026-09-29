@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { can, isAdmin, nameOf } from "@/components/finance/access";
+import { can, headOnly, isAdmin, nameOf } from "@/components/finance/access";
 import { type Department, type EmployeeRow, type Me, type NotificationItem, peopleApi } from "@/components/finance/api";
 import { readParam, writeParams } from "@/components/finance/address";
 import { ActionFeed } from "@/components/finance/cabinet/action-feed";
@@ -366,7 +366,12 @@ export function Cabinet({
                     <p className="cab-rights-head">
                       {departments.find((d) => d.id === pickedRightsDept)?.title} · права отдела
                     </p>
-                    <RightsMatrix kind="department" id={pickedRightsDept} readOnly={!managePeople} />
+                    <RightsMatrix
+                      kind="department"
+                      id={pickedRightsDept}
+                      me={me}
+                      readOnly={!managePeople || headOnly(me)}
+                    />
                   </>
                 ) : null}
                 {isAdmin(me) ? null : (

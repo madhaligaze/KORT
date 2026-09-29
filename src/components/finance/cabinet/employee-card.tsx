@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { can, isOwner } from "@/components/finance/access";
+import { can, headOnly, isOwner } from "@/components/finance/access";
 import { type Department, type EmployeeRow, type Me, type SubjectAccess, peopleApi } from "@/components/finance/api";
 import { ActionFeed } from "@/components/finance/cabinet/action-feed";
 import { EditLine } from "@/components/finance/cabinet/edit-line";
@@ -360,7 +360,8 @@ export function EmployeeCard({
                 kind="select"
                 options={[{ value: "", label: "Без отдела" }, ...departments.map((d) => ({ value: d.id, label: `${d.code} · ${d.title}` }))]}
                 shown={department ? `${department.code} · ${department.title}` : undefined}
-                editable={manage}
+                // Начальник отдела переводит людей только администратором.
+                editable={manage && !headOnly(me)}
                 onSave={(v) => save({ department_id: v || null })()}
               />
               <EditLine label="Должность" value={employee.job_title} editable={manage} onSave={(v) => save({ job_title: v })()} />
@@ -414,6 +415,7 @@ export function EmployeeCard({
             <RightsMatrix
               kind="employee"
               id={employee.id}
+              me={me}
               readOnly={!touchable}
               onChanged={(data) => setSections(openSections(data))}
             />

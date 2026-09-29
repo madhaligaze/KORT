@@ -8,11 +8,13 @@ import {
   type ContractScope,
   type Grant,
   type GrantChange,
+  type Me,
   type OwnEntity,
   type SubjectAccess,
   contractsApi,
   peopleApi,
 } from "@/components/finance/api";
+import { grantCap, headOnly, isAdmin } from "@/components/finance/access";
 import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 import { SelectLine } from "@/components/finance/ui/select-line";
 
@@ -27,6 +29,12 @@ import { SelectLine } from "@/components/finance/ui/select-line";
  * «Доступ») — «у отдела» мелкой строкой под названием, «Лично» с первой
  * позицией «Как у отдела» и «Итог». Администратор и владелец видят вместо
  * матрицы одну строку: у них записей прав нет, они видят всё.
+ *
+ * Кто сам не администратор, раздаёт права не выше своих (29.09.2026): выше
+ * своего уровень виден, но не выбирается — подсказка говорит почему. Сервер
+ * держит то же правило (`check_grant`). Начальник отдела «Сотрудники и
+ * права» не раздаёт вовсе: начальника назначает администратор — строкой
+ * «Начальник» в правах отдела.
  */
 type Kind = "department" | "employee";
 type Choice = AccessLevel | "inherit";
@@ -34,6 +42,10 @@ type Choice = AccessLevel | "inherit";
 const LEVEL_WORDS: Record<AccessLevel, string> = { none: "Нет", view: "Видит", edit: "Правит" };
 const FIELD_WORDS: Record<AccessLevel, string> = { none: "Скрыто", view: "Видит", edit: "Правит" };
 const ROW_WORDS = { all: "все", department: "своего отдела", own: "где ответственный" } as const;
+const PEOPLE_WORDS = { all: "всех", department: "своего отдела" } as const;
+const ROW_RANK = { own: 0, department: 1, all: 2 } as const;
+const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
+const ABOVE = "Выше ваших прав — открывает администратор";
 
 let catalogCache: Promise<AccessCatalog> | null = null;
 export function loadCatalog(): Promise<AccessCatalog> {
@@ -54,6 +66,7 @@ export function LevelSwitch({
   onChange,
   label,
   disabled,
+  cap = "edit",
 }: {
   value: Choice;
   levels: AccessLevel[];
@@ -63,10 +76,17 @@ export function LevelSwitch({
   onChange: (next: Choice) => void;
   label: string;
   disabled?: boolean;
+  /** Выше этого уровня выбрать нельзя: раздающий сам не выше. */
+  cap?: AccessLevel;
 }) {
   const items = [
     ...(inherit ? [{ key: "inherit" as Choice, label: "Как у отдела" }] : []),
-    ...levels.map((level) => ({ key: level as Choice, label: words[level] })),
+    ...levels.map((level) => ({
+      key: level as Choice,
+      label: words[level],
+      disabled: RANK[level] > RANK[cap],
+      title: RANK[level] > RANK[cap] ? ABOVE : undefined,
+    })),
   ];
   return (
     <SelectLine
@@ -104,16 +124,22 @@ const PRESETS: Preset[] = [
       MONEY_EDIT.has(r) ? "edit" : r.startsWith("reports.") || r === "integrations" || r === "contracts" ? "view" : "none",
   },
   { key: "view", title: "Только просмотр", levels: (r) => (r === "people" || r === "audit" ? "none" : "view") },
+  // Весь учёт: людей и журнал действий набор не открывает — это решение о
+  // начальнике и администраторе, а не об отделе.
+  { key: "all", title: "Все разделы", levels: (r) => (r === "people" || r === "audit" ? "none" : "edit") },
 ];
 
 export function RightsMatrix({
   kind,
   id,
+  me,
   readOnly = false,
   onChanged,
 }: {
   kind: Kind;
   id: string;
+  /** Кто смотрит: не администратор раздаёт не выше своего. */
+  me?: Me | null;
   readOnly?: boolean;
   /** Права записаны — карточка пересчитывает «разделов не открыто». */
   onChanged?: (data: SubjectAccess) => void;
@@ -129,6 +155,10 @@ export function RightsMatrix({
   const [preset, setPreset] = useState<Preset | "inherit" | "none" | null>(null);
   const [presetBusy, setPresetBusy] = useState(false);
   const [presetError, setPresetError] = useState("");
+  const [headBusy, setHeadBusy] = useState("");
+  const [headError, setHeadError] = useState("");
+  const admin = isAdmin(me);
+  const head = headOnly(me);
 
   useEffect(() => {
     let alive = true;
@@ -168,9 +198,10 @@ export function RightsMatrix({
 
   const applyPreset = useCallback(async () => {
     if (!catalog || !preset) return;
-    const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
     const changes: Record<string, GrantChange> = {};
     for (const item of catalog.resources) {
+      // Начальник отдела «Сотрудники и права» не раздаёт — набор их не трогает.
+      if (head && item.key === "people") continue;
       if (preset === "inherit") {
         changes[item.key] = null;
         continue;
@@ -178,7 +209,10 @@ export function RightsMatrix({
       const wanted = preset === "none" ? "none" : preset.levels(item.key);
       if (wanted === null) continue;
       const top = item.levels.reduce<AccessLevel>((best, level) => (RANK[level] > RANK[best] ? level : best), "none");
-      changes[item.key] = RANK[wanted] > RANK[top] ? top : wanted;
+      // Не выше возможного у раздела и не выше своих прав.
+      const cap = grantCap(me, item.key);
+      const bounded = RANK[wanted] > RANK[top] ? top : wanted;
+      changes[item.key] = RANK[bounded] > RANK[cap] ? cap : bounded;
     }
     setPresetBusy(true);
     setPresetError("");
@@ -193,7 +227,7 @@ export function RightsMatrix({
     } finally {
       setPresetBusy(false);
     }
-  }, [catalog, preset, kind, id, onChanged]);
+  }, [catalog, preset, kind, id, onChanged, me, head]);
 
   const groups = useMemo(() => {
     const out: { title: string; items: AccessCatalog["resources"] }[] = [];
@@ -259,7 +293,8 @@ export function RightsMatrix({
           words={words}
           inherit={person && !noDept}
           label={title}
-          disabled={readOnly || state.sending}
+          disabled={readOnly || state.sending || (head && resource === "people")}
+          cap={grantCap(me, resource)}
           onChange={(next) => void save(resource, next === "inherit" ? null : next)}
         />
         {person ? (
@@ -306,6 +341,51 @@ export function RightsMatrix({
         onConfirm={() => void applyPreset()}
         onCancel={() => setPreset(null)}
       />
+      {!person && data.members?.length ? (
+        // Начальник — право «Сотрудники и права» своего отдела, записанное
+        // человеку лично; здесь оно ставится одним нажатием. Заместителей
+        // может быть несколько.
+        <div className="cab-right cab-right-sub-row cab-heads">
+          <span className="cab-right-title">
+            Начальник отдела
+            <span className="cab-right-sub fin-soft">заводит людей в отдел, правит их доступ не выше своего, удаляет</span>
+          </span>
+          <span className="cab-entity-list">
+            {data.members
+              .filter((member) => !member.admin)
+              .map((member) => {
+                const on = data.heads?.includes(member.id) ?? false;
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    className="cab-toggle"
+                    aria-pressed={on}
+                    disabled={readOnly || !admin || headBusy !== ""}
+                    title={admin ? undefined : "Начальника назначает администратор"}
+                    onClick={async () => {
+                      setHeadBusy(member.id);
+                      setHeadError("");
+                      try {
+                        await peopleApi.access.put("employee", member.id, {
+                          people: on ? null : { level: "edit", scope: { rows: "department" } },
+                        });
+                        setData(await peopleApi.access.get("department", id));
+                      } catch (exc) {
+                        setHeadError(exc instanceof Error ? exc.message : "Не записалось");
+                      } finally {
+                        setHeadBusy("");
+                      }
+                    }}
+                  >
+                    {member.name}
+                  </button>
+                );
+              })}
+          </span>
+          {headError ? <span className="cab-line-error fin-fail">{headError}</span> : null}
+        </div>
+      ) : null}
       {person ? (
         <div className="cab-right cab-right-head" aria-hidden="true">
           <span />
@@ -319,6 +399,32 @@ export function RightsMatrix({
           {group.items.map((item) => (
             <Fragment key={item.key}>
               {renderRow(item.key, item.title, item.levels, LEVEL_WORDS, item.note)}
+              {item.key === "people" && (data.effective.people ?? "none") !== "none" ? (
+                <div className="cab-right-more">
+                  <div className="cab-right cab-right-sub-row">
+                    <span className="cab-right-title">
+                      Чьих сотрудников
+                      {person && !own.people ? <span className="cab-right-sub fin-soft">как у отдела</span> : null}
+                    </span>
+                    <SelectLine
+                      items={(catalog.people_scopes ?? ["all", "department"]).map((key) => ({
+                        key,
+                        label: PEOPLE_WORDS[key],
+                      }))}
+                      value={((own.people ?? (person ? dept.people : undefined))?.scope?.rows as "department" | undefined) ?? "all"}
+                      onChange={(rowsScope) => {
+                        const level = own.people?.level ?? (person ? dept.people?.level : undefined) ?? "view";
+                        void save("people", { level, scope: { rows: rowsScope } });
+                      }}
+                      role="radiogroup"
+                      label="Чьих сотрудников"
+                      size="sm"
+                      disabled={readOnly || !admin || rows.people?.sending}
+                      className="cab-level"
+                    />
+                  </div>
+                </div>
+              ) : null}
               {item.key === "contracts" && contractsLevel !== "none" ? (
                 <div className="cab-right-more">
                   <div className="cab-right cab-right-sub-row">
@@ -327,10 +433,10 @@ export function RightsMatrix({
                       {scopeInherited ? <span className="cab-right-sub fin-soft">как у отдела</span> : null}
                     </span>
                     <SelectLine
-                      items={(catalog.row_scopes ?? ["all", "department", "own"]).map((key) => ({
-                        key,
-                        label: ROW_WORDS[key],
-                      }))}
+                      items={(catalog.row_scopes ?? ["all", "department", "own"]).map((key) => {
+                        const wider = !admin && ROW_RANK[key] > ROW_RANK[me?.contracts_scope?.rows ?? "all"];
+                        return { key, label: ROW_WORDS[key], disabled: wider, title: wider ? ABOVE : undefined };
+                      })}
                       value={scope.rows ?? "all"}
                       onChange={(rowsScope) => setScope({ rows: rowsScope })}
                       role="radiogroup"
@@ -360,14 +466,25 @@ export function RightsMatrix({
                           )
                           .map((department) => {
                             const on = scope.departments?.includes(department.id) ?? false;
+                            // Не администратор открывает только те отделы, что видит сам.
+                            const closed =
+                              !admin &&
+                              (me?.contracts_scope?.rows ?? "all") !== "all" &&
+                              !(me?.contracts_scope?.departments ?? []).includes(department.id);
                             return (
                               <button
                                 key={department.id}
                                 type="button"
                                 className="cab-toggle"
                                 aria-pressed={on}
-                                title={department.title && department.title !== department.code ? department.title : undefined}
-                                disabled={readOnly || scopeInherited || rows.contracts?.sending}
+                                title={
+                                  closed && !on
+                                    ? ABOVE
+                                    : department.title && department.title !== department.code
+                                      ? department.title
+                                      : undefined
+                                }
+                                disabled={readOnly || scopeInherited || rows.contracts?.sending || (closed && !on)}
                                 onClick={() => {
                                   const current = scope.departments ?? [];
                                   setScope({

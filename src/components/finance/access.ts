@@ -42,6 +42,32 @@ export function canAny(me: Me | null | undefined, resources: readonly string[], 
   return resources.some((resource) => can(me, resource, level));
 }
 
+/**
+ * Начальник отдела: «Сотрудники и права» только своего отдела. Заводит людей
+ * к себе, правит их доступ, удаляет — отделы и чужих людей не видит.
+ */
+export function headOnly(me: Me | null | undefined): boolean {
+  return !isAdmin(me) && me?.people_scope?.rows === "department";
+}
+
+/**
+ * Выше чего человек не раздаёт права: не администратор — не выше своих
+ * (сервер держит то же правило, `check_grant`). Поле договора — не выше
+ * своего уровня поля.
+ */
+export function grantCap(me: Me | null | undefined, resource: string): AccessLevel {
+  if (isAdmin(me)) return "edit";
+  if (resource.startsWith("contracts.field.")) {
+    const own = me?.contracts_scope?.fields?.[resource.slice("contracts.field.".length)];
+    return own ?? levelOf(me, "contracts");
+  }
+  return levelOf(me, resource);
+}
+
+export function withinCap(me: Me | null | undefined, resource: string, level: AccessLevel): boolean {
+  return RANK[level] <= RANK[grantCap(me, resource)];
+}
+
 /** Разделы с деньгами: им нужны сводка и справочники (счета, статьи). */
 export const MONEY_RESOURCES = [
   "journal",
