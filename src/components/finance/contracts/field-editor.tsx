@@ -9,7 +9,7 @@
  * Сторона и сумма существующего договора спрашивают «опечатка или с даты»
  * прямо под полем; пока нет ответа, новое значение стоит приглушённым.
  */
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { type Party, type RegistryField, type RegistrySchema, contractsApi } from "@/components/finance/api";
 import { ChangeMode } from "@/components/finance/contracts/change-mode";
@@ -26,6 +26,7 @@ import {
   type Edit,
 } from "@/components/finance/contracts/store";
 import { contractMoney, formatDay, middleEllipsis, parseDay, shortName } from "@/components/finance/format";
+import { DateCalendar, calendarKey } from "@/components/finance/ui/date-picker";
 import { useSessionDrop, useSessionState } from "@/components/session-state";
 
 /**
@@ -462,6 +463,7 @@ function TextEditor({
       }
     },
   };
+  if (field.type === "date") return <DateEditor common={common} value={value} draft={draft} setDraft={setDraft} error={error} onCommit={onCommit} onCancel={onCancel} />;
   return (
     <>
       {multiline ? (
@@ -469,6 +471,84 @@ function TextEditor({
       ) : (
         <input {...common} inputMode={field.type === "money" || field.type === "number" ? "decimal" : undefined} />
       )}
+      {error ? <div className="ifield-error">{error}</div> : null}
+    </>
+  );
+}
+
+/**
+ * Дата в карточке — с календарём (30.09.2026): день выбирается щелчком и
+ * записывается сразу, печатать не нужно. Набор по-прежнему работает, стрелки
+ * двигают день прямо в поле (`calendarKey`), Enter и уход из поля — как у
+ * любого поля карточки.
+ */
+function DateEditor({
+  common,
+  value,
+  draft,
+  setDraft,
+  error,
+  onCommit,
+  onCancel,
+}: {
+  common: {
+    className: string;
+    value: string;
+    placeholder: string;
+    autoFocus: boolean;
+    onChange: (event: { target: { value: string } }) => void;
+    onBlur: () => void;
+    onKeyDown: (event: React.KeyboardEvent) => void;
+  };
+  value: unknown;
+  draft: string;
+  setDraft: (text: string) => void;
+  error: string;
+  onCommit: (value: unknown) => void;
+  onCancel: () => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(true);
+  const calendarId = useId();
+  const stored = typeof value === "string" && value ? value.slice(0, 10) : null;
+  const pick = (iso: string) => {
+    setOpen(false);
+    if (iso === stored) onCancel();
+    else onCommit(iso);
+  };
+  return (
+    <>
+      <input
+        {...common}
+        ref={input}
+        inputMode="numeric"
+        role="combobox"
+        aria-controls={calendarId}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        onKeyDown={(event) => {
+          const next = calendarKey(event, draft, stored);
+          if (next) {
+            event.preventDefault();
+            setOpen(true);
+            setDraft(formatDay(next));
+            return;
+          }
+          common.onKeyDown(event);
+        }}
+      />
+      {open ? (
+        <DateCalendar
+          id={calendarId}
+          anchor={input}
+          value={stored}
+          cursor={parseDay(draft)}
+          onPick={pick}
+          onClear={stored ? () => onCommit("") : undefined}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
       {error ? <div className="ifield-error">{error}</div> : null}
     </>
   );

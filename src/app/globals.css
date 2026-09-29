@@ -2983,6 +2983,59 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   z-index: 30;
 }
 
+/* ─── Календарь под полем даты (`ui/date-picker.tsx`) ───
+   Без скруглений и заливок: выбранный день — рамкой тушью и весом, сегодня —
+   чертой под числом, курсор клавиатуры — волосяной рамкой. Выше карточки
+   договора: календарь открывается из её полей. */
+.dp {
+  position: fixed;
+  z-index: calc(var(--z-fin-confirm) + 5);
+  width: 17.5rem;
+  max-width: calc(100vw - 16px);
+  padding: 0.75rem;
+  background: var(--fin-card-bg);
+  border: 1px solid var(--fin-card-line);
+  box-shadow: var(--shadow-float);
+  color: var(--fin-text);
+  font-size: 0.875rem;
+  user-select: none;
+}
+.dp button { border-radius: 0; font: inherit; color: inherit; background: none; cursor: pointer; }
+.dp button:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 1px; }
+.dp-head { display: grid; grid-template-columns: 2rem 1fr 2rem; align-items: center; margin-bottom: 0.5rem; }
+.dp-nav { height: 2rem; border: 1px solid transparent; font-size: 1.125rem; line-height: 1; color: var(--fin-text-soft) !important; }
+.dp-nav:hover { border-color: var(--fin-line); color: var(--fin-text) !important; }
+.dp-title { border: 0; padding: 0.25rem 0; font-weight: 650 !important; text-underline-offset: 4px; }
+.dp-title:hover:not(:disabled) { text-decoration: underline dotted; }
+.dp-title:disabled { cursor: default; }
+.dp-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-wd { padding: 0.25rem 0; text-align: center; font-size: 0.6875rem; color: var(--fin-text-soft); }
+.dp-day, .dp-cell { position: relative; border: 1px solid transparent; font-variant-numeric: tabular-nums; }
+.dp-day { height: 2.125rem; }
+.dp-cell { height: 2.75rem; }
+.dp-day:hover, .dp-cell:hover { background: var(--fin-hover); }
+.dp-day[data-out="true"] { color: var(--fin-text-soft) !important; opacity: 0.55; }
+.dp-day[data-today="true"]::after, .dp-cell[data-today="true"]::after {
+  content: "";
+  position: absolute;
+  left: 32%;
+  right: 32%;
+  bottom: 5px;
+  height: 1px;
+  background: currentColor;
+}
+.dp-day[data-cursor="true"] { border-color: var(--fin-line); }
+.dp-day[data-on="true"], .dp-cell[data-on="true"] { border-color: var(--fin-text); font-weight: 650 !important; }
+.dp-cells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.dp-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.625rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--fin-line);
+  font-size: 0.8125rem;
+}
+
 /* ─── Меню ⋯ и всплывающие списки ─── */
 .fin-pop {
   position: absolute;

@@ -47,6 +47,7 @@ import {
 import { contractMoney, formatDay, parseDay } from "@/components/finance/format";
 import { CardLayer } from "@/components/finance/ui/card-layer";
 import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
+import { DateInput } from "@/components/finance/ui/date-picker";
 import { MenuPopover } from "@/components/finance/ui/menu-popover";
 
 type Props = {
@@ -631,7 +632,7 @@ function PieceRow({
             <>
               <input value={value} onChange={(event) => setValue(event.target.value)} placeholder={effect === "amount" ? "новая сумма" : "кто теперь"} aria-label="Новое значение" />
               <span>с</span>
-              <input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="дд.мм.гггг" aria-label="С какой даты" style={{ width: "7.5rem" }} />
+              <DateInput value={from} onChange={setFrom} ariaLabel="С какой даты" style={{ width: "7.5rem" }} />
             </>
           ) : null}
         </span>

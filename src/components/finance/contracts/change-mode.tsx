@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { parseDay } from "@/components/finance/format";
+import { DateInput } from "@/components/finance/ui/date-picker";
 
 type Props = {
   onFix: () => void;
@@ -52,19 +53,12 @@ export function ChangeMode({ onFix, onFromDate, onCancel, style, count }: Props)
       {askDate ? (
         <>
           <span>Изменение с</span>
-          <input
-            ref={dateInput}
+          <DateInput
+            inputRef={dateInput}
             value={date}
-            placeholder="дд.мм.гггг"
-            inputMode="numeric"
-            aria-label="С какой даты"
-            onChange={(event) => setDate(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && iso) {
-                event.preventDefault();
-                onFromDate(iso);
-              }
-            }}
+            ariaLabel="С какой даты"
+            onChange={setDate}
+            onEnter={() => iso && onFromDate(iso)}
           />
           <button type="button" disabled={!iso} onClick={() => iso && onFromDate(iso)}>
             Записать{suffix}
