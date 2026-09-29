@@ -62,6 +62,8 @@ export type Me = {
    *  Для экранов, ещё не переведённых на `access`. */
   abilities?: string[];
   role?: MemberRole | null;
+  /** Вид раздела по привычке учётки (`habits.ts`): группа → вид. */
+  habits?: Record<string, string>;
   /** Раздел прав → уровень. Владельцу и администратору — всё «edit». */
   access?: Record<string, AccessLevel>;
   contracts_scope?: {
@@ -703,6 +705,9 @@ export const financeApi = {
     request<{ ok: boolean }>(`/auth/members/${userId}`, { method: "DELETE" }),
   changePassword: (body: { old_password: string; new_password: string }) =>
     request<{ ok: boolean }>("/auth/password", { method: "POST", body: JSON.stringify(body) }),
+  /** Передать владение компанией — только владелец, с паролем; сам остаётся `keep`. */
+  transferOwner: (body: { user_id: string; password: string; keep: "admin" | "employee" }) =>
+    request<{ ok: boolean }>("/auth/owner", { method: "POST", body: JSON.stringify(body) }),
   /** Своя почта для входа — с текущим паролем. Сеансы остаются. */
   changeEmail: (body: { email: string; password: string }) =>
     request<{ id: string; email: string }>("/auth/email", { method: "POST", body: JSON.stringify(body) }),
@@ -1577,4 +1582,18 @@ export const looksApi = {
   put: (key: string, look: unknown) =>
     request<{ ok: boolean }>(`/looks/${key}`, { method: "PUT", body: JSON.stringify({ look }) }),
   reset: (key: string) => request<{ ok: boolean }>(`/looks/${key}`, { method: "DELETE" }),
+};
+
+/**
+ * Привычки учётки (`app/finance/habits.py`): какой вид раздела у человека по
+ * умолчанию. `keepalive` — отчёт при закрытии вкладки долетает и после неё.
+ */
+export const habitsApi = {
+  prefer: () => request<{ prefer: Record<string, string> }>("/looks/habits/prefer"),
+  report: (group: string, body: { mode: string; minutes?: number; pick?: boolean }, keepalive = false) =>
+    request<{ prefer: Record<string, string> }>(`/looks/habits/${encodeURIComponent(group)}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      keepalive,
+    }),
 };

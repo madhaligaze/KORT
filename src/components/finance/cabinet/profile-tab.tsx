@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { RESOURCE_TITLES, can, isAdmin, isOwner, levelOf } from "@/components/finance/access";
-import { type Department, type Me, financeApi, peopleApi } from "@/components/finance/api";
+import { type Department, type EmployeeRow, type Me, financeApi, peopleApi } from "@/components/finance/api";
+import { ROLE_TITLES } from "@/components/finance/cabinet/status";
+import { ChoiceSelect } from "@/components/choice-select";
+import { SelectLine } from "@/components/finance/ui/select-line";
 import { EditLine } from "@/components/finance/cabinet/edit-line";
 import { plural } from "@/components/finance/format";
 
@@ -31,12 +34,15 @@ export function ProfileTab({
   me,
   onMe,
   departments,
+  employees = null,
   onPeopleChanged,
 }: {
   me: Me;
   onMe: (next: Me) => void;
   /** Отделы компании — для выбора своего; `null` — ещё не прочитаны или не видны. */
   departments: Department[] | null;
+  /** Люди компании — кому передать владение; `null` — не прочитаны или не видны. */
+  employees?: EmployeeRow[] | null;
   onPeopleChanged?: () => void;
 }) {
   const admin = isAdmin(me);
@@ -44,6 +50,8 @@ export function ProfileTab({
   const department = employee?.department;
   const [changing, setChanging] = useState(false);
   const [changingEmail, setChangingEmail] = useState(false);
+  const [handing, setHanding] = useState(false);
+  const role = me.role ?? me.company?.role ?? null;
   // Владелец, зарегистрированный без имени, заведён сотрудником под своей
   // почтой. Показать почту в строке ФИО — значит выдать её за имя; пустая
   // строка честнее и сама просит её заполнить.
@@ -159,6 +167,28 @@ export function ProfileTab({
         </span>
       </div>
 
+      {/* Роль — у всех словом; владелец может передать владение (29.09.2026:
+          «владельцем может стать другой, а я — администратором»). */}
+      {role ? (
+        <div className="cab-line cab-line-top" data-wide="true">
+          <span className="cab-line-label">Роль</span>
+          <span className="cab-line-value">
+            {handing ? (
+              <OwnerForm me={me} employees={employees ?? []} onDone={() => setHanding(false)} onChanged={refresh} />
+            ) : (
+              <span className="cab-email">
+                <span className="cab-line-static">{ROLE_TITLES[role as keyof typeof ROLE_TITLES] ?? role}</span>
+                {role === "owner" ? (
+                  <button type="button" className="btn-ghost btn-sm cab-password-open" onClick={() => setHanding(true)}>
+                    Передать владение
+                  </button>
+                ) : null}
+              </span>
+            )}
+          </span>
+        </div>
+      ) : null}
+
       {/* Тема — тумблером в шапке, как на входе (28.09.2026), а не строкой здесь. */}
       {(me.companies?.length ?? 0) > 1 ? (
         <div className="cab-line" data-wide="true">
@@ -184,6 +214,123 @@ export function ProfileTab({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * «Передать владение»: кому (только тот, кто уже входит сам), кем остаюсь,
+ * пароль. Над кнопкой — последствие фактом: вернуть владение сможет только
+ * новый владелец. Сервер проверяет всё то же (`auth.transfer_ownership`).
+ */
+function OwnerForm({
+  me,
+  employees,
+  onDone,
+  onChanged,
+}: {
+  me: Me;
+  employees: EmployeeRow[];
+  onDone: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [to, setTo] = useState("");
+  const [keep, setKeep] = useState<"admin" | "employee">("admin");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+  const candidates = employees.filter(
+    (row) => row.account && row.account.status === "active" && row.account.user_id !== me.user?.id && !row.archived,
+  );
+  const chosen = candidates.find((row) => row.account?.user_id === to) ?? null;
+
+  if (done) {
+    return (
+      <span className="cab-line-static">
+        {done}{" "}
+        <button type="button" className="fin-link-btn" onClick={onDone}>
+          Готово
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <form
+      className="cab-password"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (!chosen?.account) return;
+        setBusy(true);
+        setError("");
+        try {
+          await financeApi.transferOwner({ user_id: chosen.account.user_id, password, keep });
+          setDone(`Владелец теперь — ${chosen.full_name}. Вы — ${ROLE_TITLES[keep]}.`);
+          await onChanged();
+        } catch (exc) {
+          setError(exc instanceof Error ? exc.message : "Владение не передано");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <label className="auth-field">
+        <span className="eyebrow">Кому</span>
+        {candidates.length ? (
+          <ChoiceSelect className="input-field" value={to} onChange={setTo} placeholder="Выберите человека">
+            {candidates.map((row) => (
+              <option key={row.id} value={row.account?.user_id ?? ""}>
+                {row.full_name} · {ROLE_TITLES[row.account?.role ?? "employee"]}
+              </option>
+            ))}
+          </ChoiceSelect>
+        ) : (
+          <span className="auth-hint">Передать некому: нужен человек, который уже входит в KORT сам.</span>
+        )}
+      </label>
+      <span className="auth-field">
+        <span className="eyebrow">Вы остаётесь</span>
+        <SelectLine
+          items={[
+            { key: "admin", label: "Администратор" },
+            { key: "employee", label: "Сотрудник" },
+          ]}
+          value={keep}
+          onChange={setKeep}
+          role="radiogroup"
+          label="Кем остаться"
+          size="sm"
+        />
+      </span>
+      <label className="auth-field">
+        <span className="eyebrow">Ваш пароль</span>
+        <input
+          className="input-field"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+        />
+      </label>
+      {chosen ? (
+        <p className="cab-consequence">
+          {chosen.full_name} станет владельцем, вы — {ROLE_TITLES[keep]}. Вернуть владение сможет только новый владелец.
+        </p>
+      ) : null}
+      {error ? (
+        <p className="cab-error fin-fail" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <span className="cab-add-actions">
+        <button type="button" className="btn-ghost btn-sm" onClick={onDone}>
+          Отмена
+        </button>
+        <button type="submit" className="btn-primary btn-sm" disabled={busy || !chosen || !password}>
+          {busy ? "Передаём…" : "Передать владение"}
+        </button>
+      </span>
+    </form>
   );
 }
 

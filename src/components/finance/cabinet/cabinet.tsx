@@ -321,6 +321,7 @@ export function Cabinet({
               me={me}
               onMe={onMe}
               departments={data ? departments : null}
+              employees={data?.employees ?? null}
               onPeopleChanged={() => void load()}
             />
           ) : null}

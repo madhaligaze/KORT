@@ -79,6 +79,7 @@ import { RegistryImport } from "@/components/finance/contracts/import/registry-i
 import { RegistrySetup } from "@/components/finance/contracts/setup/registry-setup";
 import { readParam, writeParams } from "@/components/finance/address";
 import { forgetLooks } from "@/components/finance/look-store";
+import { habitsOwner, pickMode, preferOf, useModeTracker } from "@/components/finance/habits";
 import type { Me, OperationKind } from "@/components/finance/api";
 import { SessionScope, dropAllSessions, useSessionState, useSessionStateIn } from "@/components/session-state";
 
@@ -376,6 +377,41 @@ function readMode(nav: Section): Section | null {
   }
 }
 
+/**
+ * Вид реестра, выбранный в этой вкладке, — главнее привычки: переключился на
+ * карточки ради одного договора и ушёл в «Разовые» — вернёшься в карточки.
+ * Новая вкладка или вход — снова по привычке (`habits.ts`).
+ */
+const SESSION_MODE_KEY = "fin_registry_mode_now";
+
+function readSessionMode(nav: Section): Section | null {
+  try {
+    const value = sessionStorage.getItem(`${SESSION_MODE_KEY}:${nav}`);
+    return REGISTRIES.find((registry) => registry.nav === nav)?.modes.find((mode) => mode.key === value)?.key ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionMode(section: Section): void {
+  const registry = registryOf(section);
+  if (!registry) return;
+  try {
+    sessionStorage.setItem(`${SESSION_MODE_KEY}:${registry.nav}`, section);
+  } catch {
+    /* вкладка без хранилища — решит привычка */
+  }
+}
+
+/** Каким видом открыть реестр: выбор в этой вкладке → привычка учётки → последний в браузере. */
+function chooseMode(nav: Section, owner: string, fromMe?: Readonly<Record<string, string>> | null): Section | null {
+  const registry = REGISTRIES.find((item) => item.nav === nav);
+  if (!registry) return null;
+  const habit = preferOf(owner, nav, fromMe);
+  const byHabit = registry.modes.find((mode) => mode.key === habit)?.key ?? null;
+  return readSessionMode(nav) ?? byHabit ?? readMode(nav);
+}
+
 function writeMode(section: Section): void {
   const registry = registryOf(section);
   if (!registry) return;
@@ -516,6 +552,9 @@ export function FinanceClient() {
   useEffect(() => {
     if (companyKey && seesContracts) void ensureSchema(companyKey, userKey);
   }, [companyKey, userKey, seesContracts]);
+  // Привычки учётки — до выбора раздела входа: вид реестра берётся из них.
+  const habitOwner = habitsOwner(userKey, companyKey);
+  const meHabits = me?.habits ?? null;
   const registrySchema = useRegistry((s) => s.schema);
   const oneoffTitle = bookTitle(registrySchema, "oneoff");
   const titleOf = useCallback(
@@ -547,7 +586,14 @@ export function FinanceClient() {
   const { home, section, sectionItem, hasSections, registry } = useMemo(() => {
     const lastItem = last ? ALL_SECTIONS.find((item) => item.key === last) : undefined;
     const firstKey = groups[0]?.items[0]?.key ?? null;
-    const homeKey: Section | null = lastItem && visible(lastItem) ? lastItem.key : firstKey;
+    const entry: Section | null = lastItem && visible(lastItem) ? lastItem.key : firstKey;
+    // Вход в реестр — видом по привычке учётки, а не тем, что открывался
+    // последним в этом браузере (29.09.2026); на новом компьютере, где
+    // «последнего» нет, — тоже. Показанный вид сразу становится выбором этой
+    // вкладки (эффект ниже), поэтому опрос `me` раз в 20 с с новой привычкой
+    // не перекинет открытые карточки на таблицу посреди работы.
+    const entryRegistry = entry ? registryOf(entry) : undefined;
+    const homeKey: Section | null = entryRegistry ? (chooseMode(entryRegistry.nav, habitOwner, meHabits) ?? entry) : entry;
     const current: Section | null = picked ?? homeKey;
     const baseItem = current ? ALL_SECTIONS.find((item) => item.key === current) : undefined;
     return {
@@ -557,7 +603,7 @@ export function FinanceClient() {
       hasSections: groups.length > 0,
       registry: current ? registryOf(current) : undefined,
     };
-  }, [last, groups, visible, picked, titleOf]);
+  }, [last, groups, visible, picked, titleOf, habitOwner, meHabits]);
   const allowed = sectionItem ? visible(sectionItem) : false;
   const money = canAny(me, MONEY_RESOURCES);
   /**
@@ -575,13 +621,28 @@ export function FinanceClient() {
     // экрану — при смене раздела они уходят из адреса.
     writeParams({ s: key, id: null, v: null, t: null, d: null }, true);
   }, []);
-  /** Пункт колонки: у реестра — вид, в котором человек работал последним. */
+  /**
+   * «Карточки · Таблица»: явный выбор — голос в привычку учётки и выбор этой
+   * вкладки (`habits.ts`, `writeSessionMode`).
+   */
+  const pickView = useCallback(
+    (next: Section) => {
+      const target = registryOf(next);
+      if (target && next !== section) {
+        pickMode(habitOwner, target.nav, next);
+        writeSessionMode(next);
+      }
+      setSection(next);
+    },
+    [section, setSection, habitOwner],
+  );
+  /** Пункт колонки: у реестра — вид по привычке учётки или выбранный в этой вкладке. */
   const openNav = useCallback(
     (key: Section) => {
       const found = REGISTRIES.find((item) => item.nav === key);
-      setSection(found ? (readMode(key) ?? key) : key);
+      setSection(found ? (chooseMode(key, habitOwner, meHabits) ?? key) : key);
     },
-    [setSection],
+    [setSection, habitOwner, meHabits],
   );
   /** Откуда пришли в кабинет — туда и возвращает «← К учёту». */
   const [cameFrom, setCameFrom] = useState<Section | null>(null);
@@ -633,6 +694,12 @@ export function FinanceClient() {
     return () => clearInterval(timer);
   }, [me, refreshMe]);
   const signedIn = me !== null;
+  // Минуты работы в виде реестра — в привычку учётки (`habits.ts`).
+  useModeTracker(signedIn ? habitOwner : "", registry?.nav ?? null, registry && allowed ? section : null);
+  // Открытый вид реестра — выбор этой вкладки: новая привычка с опроса его не сменит.
+  useEffect(() => {
+    if (signedIn && registry && section) writeSessionMode(section);
+  }, [signedIn, registry, section]);
   useEffect(() => {
     if (!signedIn) return;
     // Сеанс закрыли (блокировка, сброс, «Завершить сеансы») — ко входу со
@@ -1240,7 +1307,7 @@ export function FinanceClient() {
                     type="button"
                     className="fin-view"
                     aria-current={mode.key === section ? "page" : undefined}
-                    onClick={() => setSection(mode.key)}
+                    onClick={() => pickView(mode.key)}
                   >
                     {mode.title}
                   </button>
@@ -1284,7 +1351,7 @@ export function FinanceClient() {
                   type="button"
                   className="fin-mode"
                   aria-current={mode.key === section ? "page" : undefined}
-                  onClick={() => setSection(mode.key)}
+                  onClick={() => pickView(mode.key)}
                 >
                   {mode.title}
                 </button>
