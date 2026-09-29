@@ -178,11 +178,10 @@ function OneoffCardsScreen({ me, onGo }: { me: Me; onGo: (section: string) => vo
     <>
       <div className="creg-oneoff-top">
         <SummaryLine onSetup={isAdmin(me) ? () => onGo("contracts-setup") : undefined} />
-        <button type="button" className="fin-link-btn" aria-pressed={staff} onClick={() => setStaff((value) => !value)}>
-          {staff ? "Договоры" : "По сотрудникам"}
-        </button>
       </div>
-      {staff ? <OneoffStaff /> : <Registry me={me} onGo={onGo} book="oneoff" />}
+      {/* «По сотрудникам» — в одном ряду с «Все · Мои · С долями» под «Новый
+          договор» (30.09.2026: пунктирная ссылка над кнопкой ломала верх). */}
+      <Registry me={me} onGo={onGo} book="oneoff" staff={{ on: staff, set: setStaff, view: <OneoffStaff /> }} />
     </>
   );
 }

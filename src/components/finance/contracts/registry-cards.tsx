@@ -20,7 +20,7 @@
  * «договор есть в его ответе». До 30.09 в ответ шли только договоры с
  * введёнными суммами, а их на проде не было ни одного — отбор был пуст.
  */
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -34,7 +34,7 @@ import {
 } from "@/components/finance/api";
 import { SearchIcon } from "@/components/icons";
 import { ContractCard, useCardRefresh } from "@/components/finance/contracts/contract-card";
-import { MineSwitch, useMine } from "@/components/finance/contracts/mine";
+import { MineSwitch, type StaffPick, useMine } from "@/components/finance/contracts/mine";
 import { isAdmin } from "@/components/finance/access";
 import {
   bareNumber,
@@ -114,7 +114,22 @@ function emptyText(me: Me): string {
  * `book` — книга листов: `""` — реестр, `oneoff` — «Разовые ЮО». Вкладки —
  * листы своей книги; поиск, отбор и черновик у каждой книги свои.
  */
-export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: string) => void; book?: string }) {
+export function Registry({
+  me,
+  onGo,
+  book = "",
+  staff,
+}: {
+  me: Me;
+  onGo: (section: string) => void;
+  book?: string;
+  /**
+   * «По сотрудникам» у «Разовых» — четвёртым положением «Все · Мои · С
+   * долями»: верх (новый договор, отбор) остаётся, вместо вкладок и строк —
+   * `view`.
+   */
+  staff?: (StaffPick & { view: ReactNode }) | null;
+}) {
   useRegistryBoot(me);
   const phase = useRegistry((s) => s.phase);
   const error = useRegistry((s) => s.error);
@@ -418,94 +433,100 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
             ) : null}
             <MenuPopover items={menu} />
           </div>
-          <MineSwitch me={me} book={book} shares={sharesPick} />
+          <MineSwitch me={me} book={book} shares={sharesPick} staff={staff} />
         </div>
       </div>
 
-      <div className="creg-bar">
-        <Tabs views={views} active={view.key} counts={counts} onSelect={selectView} />
-        <label className="creg-search">
-          <span className="creg-search-ico">
-            <SearchIcon size={15} />
-          </span>
-          <input
-            ref={search}
-            type="search"
-            value={query}
-            placeholder="Номер, контрагент или БИН"
-            aria-label="Поиск по реестру"
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.stopPropagation();
-                setQuery("");
-              }
-            }}
-          />
-        </label>
-      </div>
-      <div className="creg-filters">
-        {issueCount > 0 ? (
-          <button
-            type="button"
-            className="creg-issues-btn"
-            aria-pressed={issuesOnly}
-            onClick={() => setIssuesOnly((value) => !value)}
-          >
-            {issueCount} {plural(issueCount, "замечание", "замечания", "замечаний")}
-          </button>
-        ) : null}
-      </div>
+      {staff?.on ? (
+        staff.view
+      ) : (
+        <>
+          <div className="creg-bar">
+            <Tabs views={views} active={view.key} counts={counts} onSelect={selectView} />
+            <label className="creg-search">
+              <span className="creg-search-ico">
+                <SearchIcon size={15} />
+              </span>
+              <input
+                ref={search}
+                type="search"
+                value={query}
+                placeholder="Номер, контрагент или БИН"
+                aria-label="Поиск по реестру"
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.stopPropagation();
+                    setQuery("");
+                  }
+                }}
+              />
+            </label>
+          </div>
+          <div className="creg-filters">
+            {issueCount > 0 ? (
+              <button
+                type="button"
+                className="creg-issues-btn"
+                aria-pressed={issuesOnly}
+                onClick={() => setIssuesOnly((value) => !value)}
+              >
+                {issueCount} {plural(issueCount, "замечание", "замечания", "замечаний")}
+              </button>
+            ) : null}
+          </div>
 
-      <div className="creg-list">
-        <Head
-          sort={sort}
-          onSort={(key) => {
-            const next = !sort || sort.key !== key ? { key, dir: 1 as const } : sort.dir === 1 ? { key, dir: -1 as const } : null;
-            setSortPick({ view: view.key, sort: next });
-            writeSort(view.key, next);
-          }}
-        />
-        {rows.length === 0 ? (
-          <p className="creg-empty">
-            {needle ? (
-              <>
-                Ничего не нашлось ·{" "}
-                <button type="button" className="fin-link-btn" onClick={() => setQuery("")}>
-                  Сбросить поиск
-                </button>
-              </>
-            ) : sharesOnly ? (
-              <>
-                {isAdmin(me) ? "В этом листе совместных договоров нет" : "В этом листе нет договоров, где у вас доля"} ·{" "}
-                <button type="button" className="fin-link-btn" onClick={() => setSharesOnly(false)}>
-                  Показать все
-                </button>
-              </>
-            ) : mineOnly ? (
-              "Здесь нет договоров, где вы ответственный"
+          <div className="creg-list">
+            <Head
+              sort={sort}
+              onSort={(key) => {
+                const next = !sort || sort.key !== key ? { key, dir: 1 as const } : sort.dir === 1 ? { key, dir: -1 as const } : null;
+                setSortPick({ view: view.key, sort: next });
+                writeSort(view.key, next);
+              }}
+            />
+            {rows.length === 0 ? (
+              <p className="creg-empty">
+                {needle ? (
+                  <>
+                    Ничего не нашлось ·{" "}
+                    <button type="button" className="fin-link-btn" onClick={() => setQuery("")}>
+                      Сбросить поиск
+                    </button>
+                  </>
+                ) : sharesOnly ? (
+                  <>
+                    {isAdmin(me) ? "В этом листе совместных договоров нет" : "В этом листе нет договоров, где у вас доля"} ·{" "}
+                    <button type="button" className="fin-link-btn" onClick={() => setSharesOnly(false)}>
+                      Показать все
+                    </button>
+                  </>
+                ) : mineOnly ? (
+                  "Здесь нет договоров, где вы ответственный"
+                ) : (
+                  "В этом листе пока пусто"
+                )}
+              </p>
             ) : (
-              "В этом листе пока пусто"
+              <Rows
+                view={view}
+                rows={rows}
+                grouped={view.blocks.length > 1 && !sort}
+                openId={openId}
+                fresh={fresh}
+                needle={needle}
+                onOpen={openRow}
+              />
             )}
-          </p>
-        ) : (
-          <Rows
-            view={view}
-            rows={rows}
-            grouped={view.blocks.length > 1 && !sort}
-            openId={openId}
-            fresh={fresh}
-            needle={needle}
-            onOpen={openRow}
-          />
-        )}
-      </div>
+          </div>
 
-      {canEdit ? (
-        <button type="button" className="btn-primary creg-fab only-mobile" onClick={newContract} hidden={!!openId || !!draft}>
-          + Новый договор
-        </button>
-      ) : null}
+          {canEdit ? (
+            <button type="button" className="btn-primary creg-fab only-mobile" onClick={newContract} hidden={!!openId || !!draft}>
+              + Новый договор
+            </button>
+          ) : null}
+        </>
+      )}
 
       <ContractCard
         id={openId}

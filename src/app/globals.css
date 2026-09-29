@@ -2734,10 +2734,10 @@ html:has(.usheet) { overscroll-behavior-x: none; }
 .creg-top-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 /* Справа столбиком: «Новый договор ⋯», под ним «Все · Мои · С долями». */
 .creg-top-side { display: flex; flex-direction: column; align-items: flex-end; gap: 0.625rem; margin-left: auto; }
-.creg-top-side .fin-mine { margin-left: 0; }
+.creg-top-side .fin-mine { margin-left: 0; flex-wrap: wrap; justify-content: flex-end; row-gap: 0.5rem; }
 /* Телефон: «Новый договор» внизу экрана — «⋯» и отбор встают одной строкой. */
 @media (max-width: 767.98px) {
-  .creg-top-side { flex-direction: row-reverse; align-items: center; gap: 1rem; }
+  .creg-top-side { flex-direction: row-reverse; align-items: flex-start; gap: 1rem; }
 }
 .creg-live {
   display: block;
