@@ -556,14 +556,14 @@ function registryMenu(schema: RegistrySchema, book: string, onGo: (section: stri
     { label: "Загрузить Excel", hidden: !canSetup, onSelect: () => onGo("contracts-import") },
     { label: "Настроить реестр", hidden: !canSetup, onSelect: () => onGo("contracts-setup") },
     {
-      label: "Скачать .xlsx",
+      label: "Скачать Excel",
       onSelect: () => (window.location.href = contractsApi.exportUrl(book ? views.map((item) => item.key) : undefined)),
     },
   ];
 }
 
 /**
- * «Загрузить Excel · Настроить реестр · Скачать .xlsx» — кнопками в строке
+ * «Загрузить Excel · Настроить реестр · Скачать Excel» — кнопками в строке
  * заголовка справа, над «Новый договор», в «Карточках» и «Таблице» (30.09.2026:
  * «неудобно постоянно кликать по троеточию»). На телефоне строки заголовка
  * нет — там те же пункты под «⋯».
