@@ -35,6 +35,12 @@ import { SelectLine } from "@/components/finance/ui/select-line";
  * держит то же правило (`check_grant`). Начальник отдела «Сотрудники и
  * права» не раздаёт вовсе: начальника назначает администратор — строкой
  * «Начальник» в правах отдела.
+ *
+ * Отдел — потолок (29.09.2026): у человека из отдела лично можно только
+ * сузить. Выше отдела выбирает только администратор — запись уходит с
+ * пометкой «шире отдела» и так и подписана в строке. Запись выше отдела без
+ * пометки (отдел сузили потом) подписана «не действует»: «Итог» — по отделу.
+ * Человек без отдела живёт по личным правам, потолка у него нет.
  */
 type Kind = "department" | "employee";
 type Choice = AccessLevel | "inherit";
@@ -46,6 +52,8 @@ const PEOPLE_WORDS = { all: "всех", department: "своего отдела" 
 const ROW_RANK = { own: 0, department: 1, all: 2 } as const;
 const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
 const ABOVE = "Выше ваших прав — открывает администратор";
+const ABOVE_DEPT = "Выше прав отдела — открывает администратор";
+const BEYOND_DEPT = "Шире отдела — только этому человеку";
 
 let catalogCache: Promise<AccessCatalog> | null = null;
 export function loadCatalog(): Promise<AccessCatalog> {
@@ -67,6 +75,8 @@ export function LevelSwitch({
   label,
   disabled,
   cap = "edit",
+  ceiling = null,
+  beyondOk = false,
 }: {
   value: Choice;
   levels: AccessLevel[];
@@ -78,15 +88,23 @@ export function LevelSwitch({
   disabled?: boolean;
   /** Выше этого уровня выбрать нельзя: раздающий сам не выше. */
   cap?: AccessLevel;
+  /** Потолок отдела человека; `null` — отдела нет или это права отдела. */
+  ceiling?: AccessLevel | null;
+  /** Выше потолка можно — пометкой «шире отдела» (администратор). */
+  beyondOk?: boolean;
 }) {
   const items = [
     ...(inherit ? [{ key: "inherit" as Choice, label: "Как у отдела" }] : []),
-    ...levels.map((level) => ({
-      key: level as Choice,
-      label: words[level],
-      disabled: RANK[level] > RANK[cap],
-      title: RANK[level] > RANK[cap] ? ABOVE : undefined,
-    })),
+    ...levels.map((level) => {
+      const aboveCap = RANK[level] > RANK[cap];
+      const aboveDept = ceiling !== null && RANK[level] > RANK[ceiling];
+      return {
+        key: level as Choice,
+        label: words[level],
+        disabled: aboveCap || (aboveDept && !beyondOk),
+        title: aboveCap ? ABOVE : aboveDept ? (beyondOk ? BEYOND_DEPT : ABOVE_DEPT) : undefined,
+      };
+    }),
   ];
   return (
     <SelectLine
@@ -265,25 +283,56 @@ export function RightsMatrix({
   const scope: ContractScope = contractsGrant?.scope ?? {};
   const contractsLevel = data.effective.contracts ?? "none";
 
+  /**
+   * Потолок отдела для раздела у человека: уровень отдела (поле без записи —
+   * как договоры отдела). Роль начальника — люди своего отдела — потолком не
+   * режется. `null` — потолка нет.
+   */
+  const ceilingOf = (resource: string): AccessLevel | null => {
+    if (!person || noDept) return null;
+    if (resource === "people" && own.people?.scope?.rows === "department") return null;
+    if (resource.startsWith("contracts.field.")) return dept[resource]?.level ?? dept.contracts?.level ?? "none";
+    return dept[resource]?.level ?? "none";
+  };
+  const deptRows = dept.contracts?.scope?.rows ?? "all";
+
   const setScope = (next: ContractScope) => {
     const level = own.contracts?.level ?? (person ? dept.contracts?.level : undefined) ?? "view";
-    void save("contracts", {
-      level,
-      scope: { rows: scope.rows ?? "all", entities: scope.entities ?? [], departments: scope.departments ?? [], ...next },
-    });
+    const merged: ContractScope = {
+      rows: scope.rows ?? "all",
+      entities: scope.entities ?? [],
+      departments: scope.departments ?? [],
+      ...next,
+    };
+    delete merged.beyond;
+    // Шире отдела по строкам или уровню — пометкой администратора.
+    const ceiling = ceilingOf("contracts");
+    const beyond =
+      admin &&
+      person &&
+      !noDept &&
+      (ROW_RANK[merged.rows ?? "all"] > ROW_RANK[deptRows] || (ceiling !== null && RANK[level] > RANK[ceiling]));
+    void save("contracts", { level, scope: beyond ? { ...merged, beyond: true } : merged });
   };
 
   const renderRow = (resource: string, title: string, levels: AccessLevel[], words = LEVEL_WORDS, note?: string) => {
     const state = rows[resource] ?? {};
     const deptLevel = dept[resource]?.level ?? (resource.startsWith("contracts.field.") ? null : "none");
+    const ceiling = ceilingOf(resource);
+    const personal = own[resource];
+    const beyond = Boolean(personal?.scope?.beyond);
+    // Записано выше отдела без пометки — отдел сузили потом: не действует.
+    const idle = !beyond && ceiling !== null && personal !== undefined && RANK[personal.level] > RANK[ceiling];
     return (
       <div className="cab-right" key={resource} data-sending={state.sending ? "true" : undefined}>
         <span className="cab-right-title">
           {title}
           {note ? <span className="annot cab-right-note">{note}</span> : null}
+          {beyond ? <span className="annot cab-right-note">шире отдела</span> : null}
           {person && !noDept ? (
             <span className="cab-right-sub fin-soft">
               у отдела{deptTitle ? ` ${deptTitle}` : ""}: {deptLevel ? words[deptLevel as AccessLevel] : "как у договоров"}
+              {idle ? ` · выше отдела не действует` : ""}
             </span>
           ) : null}
         </span>
@@ -295,7 +344,17 @@ export function RightsMatrix({
           label={title}
           disabled={readOnly || state.sending || (head && resource === "people")}
           cap={grantCap(me, resource)}
-          onChange={(next) => void save(resource, next === "inherit" ? null : next)}
+          ceiling={ceiling}
+          beyondOk={admin}
+          onChange={(next) => {
+            if (next === "inherit") return void save(resource, null);
+            if (ceiling !== null && RANK[next] > RANK[ceiling]) {
+              // Выше отдела — только с пометкой «шире отдела» (выбрать может администратор).
+              const kept = resource === "contracts" ? { ...scope } : resource === "people" ? { ...(personal?.scope ?? {}) } : {};
+              return void save(resource, { level: next, scope: { ...kept, beyond: true } });
+            }
+            void save(resource, next);
+          }}
         />
         {person ? (
           <span className="cab-right-total" aria-label="Итог">
@@ -414,7 +473,11 @@ export function RightsMatrix({
                       value={((own.people ?? (person ? dept.people : undefined))?.scope?.rows as "department" | undefined) ?? "all"}
                       onChange={(rowsScope) => {
                         const level = own.people?.level ?? (person ? dept.people?.level : undefined) ?? "view";
-                        void save("people", { level, scope: { rows: rowsScope } });
+                        // «Всех» выше отдела — пометкой «шире отдела»; «своего отдела» — роль
+                        // начальника, потолком не режется.
+                        const top = person && !noDept ? (dept.people?.level ?? "none") : null;
+                        const beyond = rowsScope === "all" && top !== null && RANK[level] > RANK[top];
+                        void save("people", { level, scope: beyond ? { rows: rowsScope, beyond: true } : { rows: rowsScope } });
                       }}
                       role="radiogroup"
                       label="Чьих сотрудников"
@@ -435,7 +498,14 @@ export function RightsMatrix({
                     <SelectLine
                       items={(catalog.row_scopes ?? ["all", "department", "own"]).map((key) => {
                         const wider = !admin && ROW_RANK[key] > ROW_RANK[me?.contracts_scope?.rows ?? "all"];
-                        return { key, label: ROW_WORDS[key], disabled: wider, title: wider ? ABOVE : undefined };
+                        // Шире области отдела — только администратор, пометкой.
+                        const aboveDept = person && !noDept && ROW_RANK[key] > ROW_RANK[deptRows];
+                        return {
+                          key,
+                          label: ROW_WORDS[key],
+                          disabled: wider || (aboveDept && !admin),
+                          title: wider ? ABOVE : aboveDept ? (admin ? BEYOND_DEPT : ABOVE_DEPT) : undefined,
+                        };
                       })}
                       value={scope.rows ?? "all"}
                       onChange={(rowsScope) => setScope({ rows: rowsScope })}

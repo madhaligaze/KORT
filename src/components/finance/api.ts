@@ -1431,6 +1431,8 @@ export type ContractScope = {
   entities?: string[];
   /** Отделы «только просмотр» вдобавок к своим договорам. */
   departments?: string[];
+  /** Личная запись «шире отдела» — пометка администратора, потолок отдела её не режет. */
+  beyond?: boolean;
 };
 export type Grant = { level: AccessLevel; scope?: ContractScope };
 
