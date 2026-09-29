@@ -38,8 +38,13 @@
  * Счётчик `writing` отличает свои записи от человеческих, чтобы они не ушли
  * обратно на сервер.
  */
-import { IUndoRedoService, InterceptorEffectEnum } from "@univerjs/core";
-import { INTERCEPTOR_POINT, SheetInterceptorService } from "@univerjs/preset-sheets-core";
+import { CommandType, ICommandService, IConfigService, IUndoRedoService, InterceptorEffectEnum } from "@univerjs/core";
+import {
+  IMenuManagerService,
+  INTERCEPTOR_POINT,
+  MenuItemType,
+  SheetInterceptorService,
+} from "@univerjs/preset-sheets-core";
 import { SheetsNotePopupService } from "@univerjs/preset-sheets-note";
 
 import type {
@@ -62,10 +67,10 @@ import {
   getRegistry,
   type RegistryState,
 } from "@/components/finance/contracts/store";
-import { parseDay, plural } from "@/components/finance/format";
+import { bareNumber, parseDay, plural } from "@/components/finance/format";
 import { type CellRect, cellRect } from "@/components/univer/cell-rect";
 import { HEADER_STYLE, PAPER, ROW_H, fitWidth, headerHeight, sampled } from "@/components/univer/columns";
-import type { FilterKeeper, FilterStatus } from "@/components/univer/filter";
+import type { FilterKeeper, FilterStatus, SheetRange } from "@/components/univer/filter";
 import { LIST_MUTATION, type ListRange, listRule } from "@/components/univer/lists";
 import type { LookIds, LookKeeper } from "@/components/univer/look";
 import { guardSheets } from "@/components/univer/protect";
@@ -117,6 +122,16 @@ const TAIL_ROWS = 40;
 const FLASH_MS = 1200;
 /** Сколько правка считается «здешней» и не вспыхивает, когда вернётся от сервера. */
 const LOCAL_MS = 15000;
+/** Два щелчка по номеру строки быстрее этого — «открыть карточку». */
+const DOUBLE_MS = 450;
+/** `DeviceInputEventType.Dblclick` Univer: редактор открыт двойным щелчком. */
+const DBLCLICK = 3;
+/** `RANGE_TYPE.ROW` Univer: выделение строк целиком. */
+const RANGE_ROW = 1;
+/** Меню правой кнопки: своя группа и пункты. */
+const MENU_GROUP = "kort.registry.rows";
+const MENU_OPEN = "kort.registry.open-card";
+const MENU_REMOVE = "kort.registry.remove";
 
 export type ColumnKind =
   | "ordinal" | "text" | "money" | "date" | "party" | "list" | "people" | "department" | "choice" | "bool" | "url";
@@ -1044,6 +1059,8 @@ export type Built = {
   book: string;
   /** Лист «По сотрудникам» у «Разовых» (`staff-sheet.ts`); у реестра — нет. */
   staff: StaffMatrix | null;
+  /** «Мои»: какие договоры встают в листы; `null` — все. */
+  only: ((contract: Contract) => boolean) | null;
 };
 
 /**
@@ -1052,7 +1069,12 @@ export type Built = {
  * складываются в словарь книги. Поштучных вызовов Univer нет — на пяти тысячах
  * договоров это разница между долей секунды и минутой.
  */
-export function buildRegistry(whole: RegistryState, pal: Palette, book = ""): Built | null {
+export function buildRegistry(
+  whole: RegistryState,
+  pal: Palette,
+  book = "",
+  only: ((contract: Contract) => boolean) | null = null,
+): Built | null {
   const state = forBook(whole, book);
   const schema = state.schema;
   if (!schema) return null;
@@ -1068,7 +1090,7 @@ export function buildRegistry(whole: RegistryState, pal: Palette, book = ""): Bu
   const buckets = new Map<string, string[]>();
   for (const id of state.order) {
     const contract = state.byId.get(id);
-    if (!contract || contract.deleted) continue;
+    if (!contract || contract.deleted || (only && !only(contract))) continue;
     for (const place of contract.views) {
       const key = `${place.view}#${place.block}`;
       const list = buckets.get(key);
@@ -1184,6 +1206,7 @@ export function buildRegistry(whole: RegistryState, pal: Palette, book = ""): Bu
     rules,
     book,
     staff,
+    only,
     snapshot: {
       id: unitId,
       name: "Реестр договоров",
@@ -1223,6 +1246,8 @@ export type BindingEvents = {
    * спрятать. `temp` — по наведению: уходит, когда мышь ушла на другую ячейку.
    */
   hint?: (at: { sheet: string; row: number; col: number; temp: boolean } | null) => void;
+  /** «Удалить N договоров» из меню правой кнопки — раздел спрашивает подтверждение. */
+  remove?: (items: { id: string; number: string }[]) => void;
 };
 
 const M = {
@@ -1275,8 +1300,6 @@ export class RegistryBinding {
   private queuedCells = new Map<string, Set<string>>();
   private queuedFlush = false;
   private unflash = 0;
-  private followTimer = 0;
-  private followed: string | null = null;
   private disposers: Array<() => void> = [];
   private alive = true;
   /** Правила выпадающих списков на листе: лист → правило → отпечаток. */
@@ -1292,8 +1315,10 @@ export class RegistryBinding {
   private staffRows = 0;
   /** Фильтр в шапке листов из одного блока (`univer/filter.ts`). */
   private filter: FilterKeeper | null = null;
-  /** Листы, где фильтр сняли пунктом ленты, — не ставить его снова сами. */
-  private filterOff = new Set<string>();
+  /** «Мои»: какие договоры встают в лист; `null` — все. */
+  private readonly only: ((contract: Contract) => boolean) | null;
+  /** Последний щелчок по номеру строки — второй подряд открывает карточку. */
+  private lastNumber: { sheet: string; row: number; at: number } | null = null;
 
   constructor(
     private readonly api: UniverApi,
@@ -1308,6 +1333,11 @@ export class RegistryBinding {
     this.book = built.book;
     this.staff = built.staff;
     this.staffRows = built.staff ? built.staff.rows + 40 : 0;
+    this.only = built.only;
+  }
+
+  private activeSheet(): string {
+    return this.api.getActiveWorkbook?.()?.getActiveSheet?.()?.getSheetId?.() ?? "";
   }
 
   /**
@@ -1384,23 +1414,44 @@ export class RegistryBinding {
       }),
     );
     listen(
-      api.addEvent?.(api.Event.SelectionChanged, (event: { worksheet?: UniverApi; selections?: { startRow: number }[] }) => {
-        this.onSelection(event.worksheet?.getSheetId?.() ?? "", event.selections?.[0]?.startRow);
+      api.addEvent?.(
+        api.Event.BeforeSheetEditStart,
+        (event: { worksheet?: UniverApi; column: number; eventType?: number; cancel?: boolean }) => {
+          // Двойной щелчок по номеру строки открывает карточку, а не редактор
+          // ячейки: редактор оставался открытым под карточкой, и напечатанное
+          // потом уходило в «№». Печать с клавиатуры не трогаем — её лист
+          // возвращает сам: «Номер строки ставит лист».
+          if (event.column !== 0 || event.eventType !== DBLCLICK) return;
+          if (this.models.has(event.worksheet?.getSheetId?.() ?? "")) event.cancel = true;
+        },
+      ),
+    );
+    listen(
+      api.addEvent?.(api.Event.SelectionMoveEnd, (event: { worksheet?: UniverApi }) => {
+        // Задачей позже: Univer дорисовывает своё выделение после события, и
+        // расширенное сразу оставалось закрашенным только в колонке «№».
+        const ws = event.worksheet ?? null;
+        window.setTimeout(() => this.wholeRows(ws), 0);
       }),
     );
     listen(
       api.addEvent?.(api.Event.CellClicked, (event: { worksheet?: UniverApi; row: number; column: number }) => {
-        // Номер строки — ручка карточки: колонка защищена, щелчок по ней
-        // ничего другого не делает.
+        // Номер строки — ручка строки, как серый номер слева: щелчок выделяет
+        // строку целиком (`wholeRows`), второй щелчок подряд открывает
+        // карточку. До 29.09.2026 карточка открывалась с первого щелчка и
+        // закрывала собой лист — строки было не отметить, чтобы удалить.
         if (event.column !== 0) return;
         const sheet = event.worksheet?.getSheetId?.() ?? "";
         const slot = this.models.get(sheet)?.slots[event.row];
-        if (slot?.kind === "row" && slot.id) {
-          this.followed = slot.id;
-          this.events.openCard(slot.id, { view: sheet, block: slot.block });
-        }
+        const now = Date.now();
+        const last = this.lastNumber;
+        this.lastNumber = { sheet, row: event.row, at: now };
+        if (!last || last.sheet !== sheet || last.row !== event.row || now - last.at > DOUBLE_MS) return;
+        this.lastNumber = null;
+        if (slot?.kind === "row" && slot.id) this.events.openCard(slot.id, { view: sheet, block: slot.block });
       }),
     );
+    this.contextMenu();
     this.takeOverNotes();
     this.inkMarkers();
     // Тема приложения сменилась — лист следует за ней.
@@ -1418,7 +1469,6 @@ export class RegistryBinding {
     return () => {
       this.alive = false;
       window.clearTimeout(this.unflash);
-      window.clearTimeout(this.followTimer);
       this.disposers.forEach((stop) => stop());
       this.disposers = [];
     };
@@ -1848,21 +1898,31 @@ export class RegistryBinding {
    * Состав листа: договор пришёл в блок (заведён коллегой, сменил вид) —
    * встаёт над карманом блока; ушёл в другой блок того же листа — прежняя
    * строка приглушается с заметкой, а в новом блоке появляется своя.
+   *
+   * Удалённый договор уходит из листа сразу — и свой, и удалённый коллегой.
+   * До 29.09.2026 его строка оставалась приглушённой «Убран» до смены листа,
+   * и удаление выглядело несработавшим, пока страницу не перезагрузят.
    */
   private structure(model: SheetModel, changed: Set<string> | null): void {
     const state = this.ctx.state;
     const view = model.layout.key;
     const additions = new Map<number, Contract[]>();
     const moved: number[] = [];
-    const ids = changed ?? state.byId.keys();
+    const dropped = new Set<string>();
+    const ids = changed ?? new Set([...state.byId.keys(), ...model.rowsById.keys()]);
     for (const id of ids) {
       const contract = state.byId.get(id);
       const places = contract && !contract.deleted
         ? contract.views.filter((place) => place.view === view && place.block < model.layout.blocks.length)
         : [];
       const row = model.rowOf.get(id);
+      if (model.rowsById.has(id) && (!contract || contract.deleted)) {
+        dropped.add(id);
+        continue;
+      }
       if (row === undefined) {
-        if (contract && places.length) {
+        // «Мои»: чужой договор, пришедший в блок, в лист не встаёт.
+        if (contract && places.length && (!this.only || this.only(contract))) {
           const list = additions.get(places[0].block) ?? [];
           list.push(contract);
           additions.set(places[0].block, list);
@@ -1883,6 +1943,21 @@ export class RegistryBinding {
       reindex(model);
       this.paint(model, moved, "diff");
     }
+    if (dropped.size) {
+      const remote = [...dropped].filter((id) => state.departed.has(id));
+      if (remote.length && model.layout.key === this.activeSheet()) {
+        const number = bareNumber(this.ctx.lastSeen.get(remote[0])?.values.number ?? state.byId.get(remote[0])?.values.number);
+        this.events.note(
+          remote.length > 1
+            ? `Убрано ${remote.length} ${plural(remote.length, "договор", "договора", "договоров")}`
+            : `Договор ${number ? `№ ${number} ` : ""}убран`,
+          false,
+        );
+      }
+      this.transform(model, (slots) =>
+        slots.filter((slot) => !((slot.kind === "row" || slot.kind === "gone") && slot.id && dropped.has(slot.id))),
+      );
+    }
     if (!additions.size) return;
     // Пока из кармана этого листа заводится договор, новый договор может
     // оказаться им же — разберёмся, когда заведение закончится.
@@ -1891,15 +1966,25 @@ export class RegistryBinding {
       return;
     }
     for (const list of additions.values()) list.sort((a, b) => a.position - b.position);
+    // Пришедший договор встаёт на своё место по порядку реестра: новый — над
+    // карманом (его номер порядка последний), возвращённый из корзины — туда,
+    // где стоял, а не в конец блока.
+    const positionOf = (id: string | undefined) => (id ? this.ctx.state.byId.get(id)?.position : undefined);
     this.transform(model, (slots) => {
       const present = new Set(slots.filter((slot) => slot.kind === "row").map((slot) => slot.id));
       const out = slots.slice();
       for (const [block, contracts] of additions) {
-        const fresh = contracts.filter((contract) => !present.has(contract.id));
-        if (!fresh.length) continue;
-        const at = out.findIndex((slot) => slot.kind === "pocket" && slot.block === block);
-        if (at < 0) continue;
-        out.splice(at, 0, ...fresh.map((contract): Slot => ({ kind: "row", block, id: contract.id })));
+        for (const contract of contracts) {
+          if (present.has(contract.id)) continue;
+          const at = out.findIndex(
+            (slot) =>
+              slot.block === block &&
+              (slot.kind === "pocket" || (slot.kind === "row" && (positionOf(slot.id) ?? -Infinity) > contract.position)),
+          );
+          if (at < 0) continue;
+          out.splice(at, 0, { kind: "row", block, id: contract.id });
+          present.add(contract.id);
+        }
       }
       return out;
     });
@@ -2327,35 +2412,200 @@ export class RegistryBinding {
     if (state.departed.size || state.fresh.size || state.wasIn?.size) forgetDeparted();
   }
 
-  private onSelection(sheet: string, row: number | undefined): void {
-    if (row === undefined) return;
-    const slot = this.models.get(sheet)?.slots[row];
-    window.clearTimeout(this.followTimer);
-    if (!this.ctx.openId || slot?.kind !== "row" || !slot.id || slot.id === this.ctx.openId) return;
-    const id = slot.id;
-    const block = slot.block;
-    // Карточка следует за листом с задержкой: стрелка по строкам не должна
-    // мигать карточками.
-    this.followTimer = window.setTimeout(() => {
-      if (!this.alive || !this.ctx.openId) return;
-      this.followed = id;
-      this.events.openCard(id, { view: sheet, block });
-    }, 150);
+  /**
+   * Выделение, лёгшее только на колонку «№», становится строками целиком —
+   * как щелчок по серому номеру слева: строки синеют во всю ширину, Shift
+   * добавляет диапазон, Ctrl — ещё строку. Меню правой кнопки берёт строки
+   * из выделения (`selectedContracts`).
+   */
+  private wholeRows(ws: UniverApi | null): void {
+    if (!ws || !this.alive) return;
+    const sheet = ws.getSheetId?.() ?? "";
+    const model = this.models.get(sheet);
+    if (!model) return;
+    type Selection = { range: SheetRange & { rangeType?: number }; primary: unknown; style: unknown };
+    let selections: Selection[] = [];
+    try {
+      selections = (ws.getSelection?.()?._selections ?? []) as Selection[];
+    } catch {
+      return;
+    }
+    if (!selections.length) return;
+    const onlyNumbers = selections.every(
+      (item) => item.range.startColumn === 0 && item.range.endColumn === 0 && !item.range.rangeType,
+    );
+    if (!onlyNumbers) return;
+    const touches = selections.some((item) => {
+      for (let row = item.range.startRow; row <= item.range.endRow; row += 1) {
+        const kind = model.slots[row]?.kind;
+        if (kind === "row" || kind === "gone") return true;
+      }
+      return false;
+    });
+    if (!touches) return;
+    const last = Math.max(model.layout.width, Number(ws.getMaxColumns?.() ?? 0)) - 1;
+    try {
+      this.api.syncExecuteCommand("sheet.operation.set-selections", {
+        unitId: this.unitId,
+        subUnitId: sheet,
+        selections: selections.map((item) => ({
+          range: { ...item.range, startColumn: 0, endColumn: last, rangeType: RANGE_ROW },
+          primary: item.primary ?? null,
+          style: item.style ?? null,
+        })),
+      });
+    } catch (exc) {
+      console.warn("строки не выделились целиком:", exc);
+    }
+  }
+
+  /** Договоры строк выделения на активном листе — без спрятанных фильтром. */
+  selectedContracts(): { id: string; number: string; readonly: boolean }[] {
+    const ws = this.api.getActiveWorkbook?.()?.getActiveSheet?.();
+    const model = ws ? this.models.get(ws.getSheetId()) : undefined;
+    if (!ws || !model) return [];
+    let ranges: SheetRange[] = [];
+    try {
+      ranges = ((ws.getSelection?.()?._selections ?? []) as { range: SheetRange }[]).map((item) => item.range);
+    } catch {
+      ranges = [];
+    }
+    let hidden = new Set<number>();
+    try {
+      hidden = new Set<number>(ws.getFilter?.()?.getFilteredOutRows?.() ?? []);
+    } catch {
+      /* без фильтра */
+    }
+    const seen = new Set<string>();
+    const out: { id: string; number: string; readonly: boolean }[] = [];
+    for (const range of ranges) {
+      for (let row = range.startRow; row <= range.endRow && row < model.slots.length; row += 1) {
+        const slot = model.slots[row];
+        if (slot?.kind !== "row" || !slot.id || seen.has(slot.id) || hidden.has(row)) continue;
+        const contract = this.ctx.state.byId.get(slot.id);
+        if (!contract || contract.deleted) continue;
+        seen.add(slot.id);
+        out.push({ id: slot.id, number: String(contract.values.number ?? ""), readonly: Boolean(contract.readonly) });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Меню правой кнопки — и по ячейкам, и по серым номерам строк: «Открыть
+   * карточку» и «Удалить N договоров». Univer собирает меню заново при каждом
+   * открытии — подпись считает выделение на этот момент. До 29.09.2026 строки
+   * удалялись только из карточки, по одной, через «⋯».
+   */
+  private contextMenu(): void {
+    try {
+      const injector = this.api._injector;
+      const commands = injector.get(ICommandService) as {
+        hasCommand: (id: string) => boolean;
+        registerCommand: (command: Record<string, unknown>) => { dispose: () => void };
+      };
+      const menus = injector.get(IMenuManagerService) as { mergeMenu: (source: Record<string, unknown>) => void };
+      const handlers: [string, () => void][] = [
+        [MENU_OPEN, () => void this.openActive()],
+        [MENU_REMOVE, () => this.askRemove()],
+      ];
+      for (const [id, run] of handlers) {
+        if (commands.hasCommand(id)) continue;
+        const disposable = commands.registerCommand({
+          id,
+          type: CommandType.COMMAND,
+          handler: () => {
+            run();
+            return true;
+          },
+        });
+        this.disposers.push(() => disposable.dispose());
+      }
+      const group = {
+        order: -0.5,
+        [MENU_OPEN]: {
+          order: 0,
+          menuItemFactory: () =>
+            this.alive && this.activeContract()
+              ? { id: MENU_OPEN, type: MenuItemType.BUTTON, title: "Открыть карточку", commandId: MENU_OPEN }
+              : null,
+        },
+        [MENU_REMOVE]: {
+          order: 1,
+          menuItemFactory: () => {
+            if (!this.alive || !this.ctx.state.schema?.access.edit) return null;
+            const count = this.selectedContracts().filter((item) => !item.readonly).length;
+            if (!count) return null;
+            const title = count === 1 ? "Удалить договор" : `Удалить ${count} ${plural(count, "договор", "договора", "договоров")}`;
+            return { id: MENU_REMOVE, type: MenuItemType.BUTTON, title, commandId: MENU_REMOVE };
+          },
+        },
+      };
+      menus.mergeMenu({ "contextMenu.mainArea": { [MENU_GROUP]: group }, "contextMenu.rowHeader": { [MENU_GROUP]: group } });
+      // «Вставить» и «Удалить» ячеек Univer у реестра всегда серые: строки
+      // заводятся в кармане блока, а удаляются договорами — пунктом выше.
+      // Серое «Удалить» рядом с «Удалить 3 договора» только путало.
+      const config = injector.get(IConfigService) as {
+        setConfig: (key: string, value: unknown, options?: { merge: boolean }) => void;
+      };
+      config.setConfig("menu", { "sheet.menu.cell-insert": { hidden: true }, "sheet.menu.delete": { hidden: true } }, { merge: true });
+    } catch (exc) {
+      // Без своих пунктов меню остаётся меню Univer, карточка — по двойному щелчку.
+      console.warn("меню строк не собралось:", exc);
+    }
+  }
+
+  /** Договор строки, на которой стоит курсор листа. */
+  private activeContract(): { id: string; sheet: string; block: number } | null {
+    const ws = this.api.getActiveWorkbook?.()?.getActiveSheet?.();
+    const range = ws?.getActiveRange?.();
+    if (!ws || !range) return null;
+    const sheet = ws.getSheetId();
+    const slot = this.models.get(sheet)?.slots[range.getRow()];
+    if (slot?.kind !== "row" || !slot.id) return null;
+    return { id: slot.id, sheet, block: slot.block };
+  }
+
+  private askRemove(): void {
+    const items = this.selectedContracts().filter((item) => !item.readonly);
+    if (items.length) this.events.remove?.(items);
+  }
+
+  /**
+   * Соседний договор листа для стрелок карточки: строка выше или ниже на
+   * активном листе, минуя спрятанные фильтром и ушедшие.
+   */
+  neighbor(id: string, step: 1 | -1): string | null {
+    const ws = this.api.getActiveWorkbook?.()?.getActiveSheet?.();
+    const model = ws ? this.models.get(ws.getSheetId()) : undefined;
+    const from = model?.rowOf.get(id);
+    if (!ws || !model || from === undefined) return null;
+    let hidden = new Set<number>();
+    try {
+      hidden = new Set<number>(ws.getFilter?.()?.getFilteredOutRows?.() ?? []);
+    } catch {
+      /* без фильтра */
+    }
+    for (let row = from + step; row >= 0 && row < model.slots.length; row += step) {
+      const slot = model.slots[row];
+      if (slot.kind !== "row" || !slot.id || hidden.has(row)) continue;
+      const contract = this.ctx.state.byId.get(slot.id);
+      if (contract && !contract.deleted) return slot.id;
+    }
+    return null;
   }
 
   /**
    * Карточка открыта (или закрыта). Номер строки договора получает фон, пока
-   * карточка открыта; лист прокручивается к строке один раз — при открытии, и
-   * не тогда, когда карточку переключил сам лист выбором строки.
+   * карточка открыта; лист прокручивается к строке — за затемнением видно,
+   * какая строка открыта, и стрелки карточки ведут по листу.
    */
   setOpen(id: string | null): void {
     const previous = this.ctx.openId;
     if (previous === id) return;
     this.ctx.openId = id;
     this.repaintIds([previous, id].filter((item): item is string => Boolean(item)));
-    const followed = this.followed === id;
-    this.followed = null;
-    if (!id || followed) return;
+    if (!id) return;
     const ws = this.api.getActiveWorkbook?.()?.getActiveSheet?.();
     const row = ws ? this.models.get(ws.getSheetId())?.rowOf.get(id) : undefined;
     if (row === undefined || !ws) return;
@@ -2368,16 +2618,11 @@ export class RegistryBinding {
     }
   }
 
-  /** Alt+Enter: карточка договора активной строки. */
+  /** Alt+Enter и «Открыть карточку»: карточка договора активной строки. */
   openActive(): boolean {
-    const ws = this.api.getActiveWorkbook?.()?.getActiveSheet?.();
-    const range = ws?.getActiveRange?.();
-    if (!ws || !range) return false;
-    const sheet = ws.getSheetId();
-    const slot = this.models.get(sheet)?.slots[range.getRow()];
-    if (slot?.kind !== "row" || !slot.id) return false;
-    this.followed = slot.id;
-    this.events.openCard(slot.id, { view: sheet, block: slot.block });
+    const at = this.activeContract();
+    if (!at) return false;
+    this.events.openCard(at.id, { view: at.sheet, block: at.block });
     return true;
   }
 
@@ -2404,9 +2649,10 @@ export class RegistryBinding {
   // ── Фильтр в шапке ──
 
   /**
-   * Фильтр в шапке (`univer/filter.ts`) — на каждом листе из одного блока,
-   * сразу при открытии: воронки в шапке колонок, как «Фильтр» в Excel. Раньше
-   * фильтр включался только пунктом ленты, а пункт раскрывался пустым.
+   * Фильтр в шапке (`univer/filter.ts`) — на листе из одного блока, где
+   * человек его включил воронкой в ленте: воронки в шапке колонок, как
+   * «Фильтр» в Excel. Включённый помнится в браузере и встаёт снова при
+   * открытии листа и после перестройки строк.
    *
    * Диапазон — шапка и строки договоров, без кармана: иначе «(пусто)» в
    * списке значений значило бы пустую строку для нового договора, и снятая
@@ -2419,7 +2665,7 @@ export class RegistryBinding {
 
   private placeFilter(model: SheetModel): void {
     const sheet = model.layout.key;
-    if (!this.filter || !model.layout.single || this.filterOff.has(sheet)) return;
+    if (!this.filter || !model.layout.single || !this.filter.wanted(sheet)) return;
     const header = model.slots.findIndex((slot) => slot.kind === "header");
     if (header < 0) return;
     const pocket = model.slots.findIndex((slot) => slot.kind === "pocket");
@@ -2464,10 +2710,10 @@ export class RegistryBinding {
     }
     if (command === "sheet.command.smart-toggle-filter") {
       if (this.filter?.has(sheet)) {
-        this.filterOff.add(sheet);
+        this.filter.setWanted(sheet, false);
         this.filter.remove(sheet);
       } else {
-        this.filterOff.delete(sheet);
+        this.filter?.setWanted(sheet, true);
         this.placeFilter(model);
       }
       return true;

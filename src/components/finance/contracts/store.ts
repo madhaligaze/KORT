@@ -377,9 +377,12 @@ function applyChanges(batch: ChangesBatch): void {
   }
   for (const id of batch.removed) {
     const before = byId.get(id);
-    if (before) {
+    if (before && !before.deleted) {
       departed.set(id, "убран");
       byId.set(id, { ...before, deleted: true });
+      // Строка чужого удалённого договора уходит сразу — строка у заголовка
+      // говорит, какой это был договор.
+      notes.push({ id, field: "убран", by: "", number: String(before.values.number ?? ""), at: Date.now() });
     }
   }
   emit({
@@ -618,6 +621,36 @@ export async function remove(id: string): Promise<void> {
   const byId = new Map(state.byId);
   byId.delete(id);
   emit({ byId, order: sortOrder(byId) });
+}
+
+/**
+ * Удалить несколько договоров — отмеченные строки листа. По одному запросу
+ * на договор, по три разом: каждый уходит в корзину своим событием журнала,
+ * и отказ одного (договор другого отдела) не держит остальные. Строки уходят
+ * из листа и карточек по мере ответов, а не после последнего.
+ */
+export async function removeMany(
+  ids: readonly string[],
+  progress?: (done: number) => void,
+): Promise<{ done: string[]; failed: { id: string; error: string }[] }> {
+  const done: string[] = [];
+  const failed: { id: string; error: string }[] = [];
+  let next = 0;
+  const worker = async () => {
+    while (next < ids.length) {
+      const id = ids[next];
+      next += 1;
+      try {
+        await remove(id);
+        done.push(id);
+        progress?.(done.length);
+      } catch (exc) {
+        failed.push({ id, error: exc instanceof Error ? exc.message : "не удалился" });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, ids.length) }, worker));
+  return { done, failed };
 }
 
 export async function refreshOne(id: string): Promise<void> {

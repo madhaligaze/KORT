@@ -6,10 +6,13 @@
  * Не шторка справа: глаз не должен весь день уходить к правому краю за
  * главным, что сейчас на экране (фронт-план, правки после Claude Design).
  *
- * * над списком — модальная: затемнение, клик по нему закрывает, фокус заперт;
- * * над листом (`dock="bottom"`) — немодальная, внизу по центру: строка
- *   договора в листе остаётся видна, печатаешь в ячейке — карточка меняется;
+ * * модальная: затемнение, щелчок по нему закрывает, Esc закрывает, фокус
+ *   заперт — и над списком, и над листом;
  * * на телефоне — во весь экран.
+ *
+ * Над листом до 29.09.2026 карточка стояла внизу без затемнения, чтобы
+ * правимая строка оставалась видна. На окне 1280×590 она закрывала почти весь
+ * лист, а закрыть её можно было только крестиком — щелчок мимо уходил в лист.
  *
  * Рендерится порталом в `document.body`: карточка не должна стать предком
  * листа Univer (transform на предке ломает `position: fixed` и замеры холста).
@@ -25,16 +28,14 @@ import { lockScroll } from "@/components/use-scroll-lock";
 type Props = {
   open: boolean;
   onClose: () => void;
-  dock?: "center" | "bottom";
   label: string;
   children: ReactNode;
 };
 
-export function CardLayer({ open, onClose, dock = "center", label, children }: Props) {
+export function CardLayer({ open, onClose, label, children }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<Element | null>(null);
-  const modal = dock === "center";
 
   useEffect(() => {
     if (!open) return;
@@ -44,7 +45,7 @@ export function CardLayer({ open, onClose, dock = "center", label, children }: P
         event.preventDefault();
         onClose();
       }
-      if (event.key === "Tab" && modal && sheet.current) {
+      if (event.key === "Tab" && sheet.current) {
         const focusable = sheet.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
         );
@@ -61,17 +62,16 @@ export function CardLayer({ open, onClose, dock = "center", label, children }: P
       }
     };
     window.addEventListener("keydown", onKey);
-    const narrow = window.matchMedia("(max-width: 639px)").matches;
     // Общим замком: `overflow: hidden` на body страницу не держал (у `html`
     // стоит `overflow-x: clip`), и на телефоне список под карточкой ехал.
-    const unlock = modal || narrow ? lockScroll() : null;
+    const unlock = lockScroll();
     return () => {
       window.removeEventListener("keydown", onKey);
-      unlock?.();
+      unlock();
       const back = returnFocus.current;
       if (back instanceof HTMLElement && document.contains(back)) back.focus({ preventScroll: true });
     };
-  }, [open, onClose, modal]);
+  }, [open, onClose]);
 
   useGSAP(
     () => {
@@ -97,15 +97,8 @@ export function CardLayer({ open, onClose, dock = "center", label, children }: P
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <>
-      {modal ? <div ref={scrim} className="card-scrim" onClick={onClose} aria-hidden="true" /> : null}
-      <div
-        ref={sheet}
-        className="card-sheet"
-        data-dock={dock}
-        role="dialog"
-        aria-modal={modal ? "true" : "false"}
-        aria-label={label}
-      >
+      <div ref={scrim} className="card-scrim" onClick={onClose} aria-hidden="true" />
+      <div ref={sheet} className="card-sheet" role="dialog" aria-modal="true" aria-label={label}>
         {children}
       </div>
     </>,

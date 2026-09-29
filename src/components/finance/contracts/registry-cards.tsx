@@ -26,6 +26,7 @@ import {
 } from "@/components/finance/api";
 import { SearchIcon } from "@/components/icons";
 import { ContractCard, useCardRefresh } from "@/components/finance/contracts/contract-card";
+import { useMine } from "@/components/finance/contracts/mine";
 import {
   bareNumber,
   contractMoney,
@@ -202,11 +203,14 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
   );
 
   const all = useMemo(() => order.map((id) => byId.get(id)).filter((item): item is Contract => !!item && !item.deleted), [order, byId]);
-  const counts = useMemo(() => viewCounts(views, all, needle ? matchesSearch : undefined), [views, all, needle, matchesSearch]);
+  // «Мои» у заголовка реестра: вкладки, счётчики и строки — по своим договорам.
+  const { only: mineOnly } = useMine(me, book);
+  const shownAll = useMemo(() => (mineOnly ? all.filter(mineOnly) : all), [all, mineOnly]);
+  const counts = useMemo(() => viewCounts(views, shownAll, needle ? matchesSearch : undefined), [views, shownAll, needle, matchesSearch]);
 
   const rows = useMemo(() => {
     if (!view) return [] as { contract: Contract; block: number; departed?: string }[];
-    const inside = all
+    const inside = shownAll
       .filter((contract) => contract.views.some((place) => place.view === view.key))
       .filter(matchesSearch)
       .filter((contract) => !issuesOnly || contract.issues.some((issue) => !issue.acknowledged))
@@ -216,31 +220,21 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
         departed: undefined as string | undefined,
       }));
     // Ушедшие из листа строки остаются на месте приглушёнными до смены вкладки.
-    // «Ушедший» — только тот, кто перестал подходить под правило листа или
-    // убран. Отсеянный поиском или «замечаниями» не ушёл: его просто не ищут.
+    // «Ушедший» — только тот, кто перестал подходить под правило листа.
+    // Отсеянный поиском или «замечаниями» не ушёл: его просто не ищут.
+    // Удалённый (своей рукой или коллегой) уходит сразу: до 29.09.2026 он
+    // стоял «убран» до смены вкладки, и удаление выглядело несработавшим.
     const insideIds = new Set(inside.map((row) => row.contract.id));
     const leaving: { contract: Contract; block: number; departed?: string }[] = [];
-    const candidates = new Map<string, number>();
     for (const [id, places] of wasIn) {
-      const place = places.find((item) => item.view === view.key);
-      if (place) candidates.set(id, place.block);
-    }
-    for (const id of removed.keys()) {
-      const place = byId.get(id)?.views.find((item) => item.view === view.key);
-      if (place && !candidates.has(id)) candidates.set(id, place.block);
-    }
-    for (const [id, block] of candidates) {
-      if (insideIds.has(id)) continue;
+      const block = places.find((item) => item.view === view.key)?.block;
+      if (block === undefined || insideIds.has(id)) continue;
       const contract = byId.get(id);
-      if (!contract) continue;
-      if (!contract.deleted && contract.views.some((place) => place.view === view.key)) continue;
-      if (!matchesSearch(contract)) continue;
-      let text = "убран";
-      if (!contract.deleted) {
-        const target = views.find((other) => other.key !== view.key && !other.main && contract.views.some((place) => place.view === other.key));
-        text = target ? `ушёл в «${target.title}»` : "ушёл из листа";
-      } else if (removed.get(id)) text = removed.get(id) ?? text;
-      leaving.push({ contract, block, departed: text });
+      if (!contract || contract.deleted || removed.has(id)) continue;
+      if (contract.views.some((place) => place.view === view.key)) continue;
+      if (!matchesSearch(contract) || (mineOnly && !mineOnly(contract))) continue;
+      const target = views.find((other) => other.key !== view.key && !other.main && contract.views.some((place) => place.view === other.key));
+      leaving.push({ contract, block, departed: target ? `ушёл в «${target.title}»` : "ушёл из листа" });
     }
     const combined = [...inside, ...leaving];
     if (sort) {
@@ -251,15 +245,15 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
       combined.sort((a, b) => a.block - b.block || a.contract.position - b.contract.position);
     }
     return combined;
-  }, [view, all, byId, matchesSearch, issuesOnly, sort, views, removed, wasIn, schema, parties, people]);
+  }, [view, shownAll, byId, matchesSearch, issuesOnly, sort, views, removed, wasIn, schema, parties, people, mineOnly]);
 
   const issueCount = useMemo(
     () =>
-      all
+      shownAll
         .filter((contract) => view && contract.views.some((place) => place.view === view.key))
         .filter(matchesSearch)
         .filter((contract) => contract.issues.some((issue) => !issue.acknowledged)).length,
-    [all, view, matchesSearch],
+    [shownAll, view, matchesSearch],
   );
 
   const ids = rows.filter((row) => !row.departed).map((row) => row.contract.id);
@@ -439,6 +433,8 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
                   Сбросить поиск
                 </button>
               </>
+            ) : mineOnly ? (
+              "Здесь нет договоров, где вы ответственный"
             ) : (
               "В этом листе пока пусто"
             )}

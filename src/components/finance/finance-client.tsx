@@ -72,6 +72,7 @@ import { PlanActualReport } from "@/components/finance/plan-actual";
 import { DictionariesPanel } from "@/components/finance/dictionaries-panel";
 import { Registry, useRegistryBoot } from "@/components/finance/contracts/registry-cards";
 import { ContractCard } from "@/components/finance/contracts/contract-card";
+import { MineSwitch } from "@/components/finance/contracts/mine";
 import { bookTitle } from "@/components/finance/contracts/schema";
 import { boot, ensureSchema, ensureSummary, useRegistry } from "@/components/finance/contracts/store";
 import { OneoffStaff, SummaryLine } from "@/components/finance/contracts/oneoff";
@@ -97,11 +98,19 @@ const RegistrySheet = dynamic(
 );
 
 /**
- * «Реестр · таблица»: лист и карточка поверх него. Карточка встаёт внизу по
- * центру, немодальная: строка договора в листе остаётся видна, и правка в
- * ячейке меняет карточку на глазах (фронт-план, 6.2 и 6.4).
+ * «Реестр · таблица»: лист и карточка договора.
+ *
+ * Карточка — по центру, как в «Карточках», с затемнением: щелчок мимо и Esc
+ * её закрывают, стрелки ведут по строкам листа. До 29.09.2026 она вставала
+ * внизу без затемнения, чтобы правимая строка оставалась видна, — но на окне
+ * 1280×590 закрывала почти весь лист, закрыть её можно было только крестиком,
+ * и открывалась она с первого щелчка по «№», которым отмечают строку.
  */
 function SheetScreen({ me }: { me: Me }) {
+  return <RegistryTable me={me} book="" />;
+}
+
+function RegistryTable({ me, book }: { me: Me; book: string }) {
   useRegistryBoot(me);
   const [openId, setOpenId] = useState<string | null>(() => readParam("id"));
   const open = useCallback((id: string | null) => {
@@ -113,10 +122,22 @@ function SheetScreen({ me }: { me: Me }) {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+  // Соседей открытого договора знает лист: порядок строк, отбор фильтром.
+  const [around, setAround] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null });
+  const prev = openId ? around.prev : null;
+  const next = openId ? around.next : null;
   return (
     <>
-      <RegistrySheet onOpenCard={open} openId={openId} />
-      <ContractCard id={openId} open={!!openId} dock="bottom" book="" onClose={() => open(null)} onCreated={(id) => open(id)} />
+      <RegistrySheet me={me} book={book} onOpenCard={open} openId={openId} onNeighbors={setAround} />
+      <ContractCard
+        id={openId}
+        open={!!openId}
+        book={book}
+        onClose={() => open(null)}
+        onCreated={(id) => open(id)}
+        onPrev={prev ? () => open(prev) : undefined}
+        onNext={next ? () => open(next) : undefined}
+      />
     </>
   );
 }
@@ -128,17 +149,6 @@ function SheetScreen({ me }: { me: Me }) {
  * юротдела. Карточка — та же, что у «Таблицы» реестра.
  */
 function OneoffScreen({ me, onGo }: { me: Me; onGo: (section: string) => void }) {
-  useRegistryBoot(me);
-  const [openId, setOpenId] = useState<string | null>(() => readParam("id"));
-  const open = useCallback((id: string | null) => {
-    setOpenId(id);
-    writeParams({ id }, id !== null);
-  }, []);
-  useEffect(() => {
-    const onPop = () => setOpenId(readParam("id"));
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
   // Сводка по сотрудникам считает остатки — сводка нужна и без её колонок.
   useEffect(() => {
     void ensureSummary();
@@ -148,8 +158,7 @@ function OneoffScreen({ me, onGo }: { me: Me; onGo: (section: string) => void })
       <div className="creg-oneoff-top">
         <SummaryLine onSetup={isAdmin(me) ? () => onGo("contracts-setup") : undefined} />
       </div>
-      <RegistrySheet book="oneoff" onOpenCard={open} openId={openId} />
-      <ContractCard id={openId} open={!!openId} dock="bottom" book="oneoff" onClose={() => open(null)} onCreated={(id) => open(id)} />
+      <RegistryTable me={me} book="oneoff" />
     </>
   );
 }
@@ -1313,6 +1322,7 @@ export function FinanceClient() {
                   </button>
                 ))}
               </nav>
+              {me ? <MineSwitch me={me} book={registry.book} /> : null}
             </div>
           ) : operationActions ? (
             // Журнал: справа от заголовка — новая операция.
@@ -1356,6 +1366,7 @@ export function FinanceClient() {
                   {mode.title}
                 </button>
               ))}
+              {me ? <MineSwitch me={me} book={registry.book} /> : null}
             </nav>
           ) : null}
           <FadeIn key={`body-${section}`}>{content}</FadeIn>

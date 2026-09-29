@@ -3,10 +3,12 @@
  *
  * До 29.09.2026 фильтр жил только в пункте ленты «Сортировка и фильтр», и
  * этот пункт раскрывался пустым (`sheet.tsx`, `mergeSortFilter`): человек
- * нажимал и не понимал, как фильтровать. Теперь лист, которому раздел это
- * разрешил, сразу открывается с воронками в шапке — как «Фильтр» в Excel и
- * Google Таблицах: нажал на воронку колонки — список значений со счётчиками,
- * «Подтвердить».
+ * нажимал и не понимал, как фильтровать. Днём 29.09 лист стал открываться
+ * сразу с воронками в шапке — и вечером это назвали «таблица всё время в
+ * отмеченном состоянии»: воронка в каждой из тридцати колонок, а убранные
+ * воронки после перезагрузки возвращались. Теперь как в Excel и Google
+ * Таблицах: фильтр включают воронкой в ленте («Показать фильтр»), выключают
+ * там же, и выбор помнится в браузере у каждой учётки (`wanted`).
  *
  * Здесь то, чего Univer сам не умеет:
  *
@@ -61,8 +63,31 @@ export type FilterKeeper = {
   /** Снять все условия, воронки остаются. */
   clear: (sheet: string) => void;
   status: (sheet: string) => FilterStatus | null;
+  /** Включил ли человек фильтр на этом листе (помнится в браузере). */
+  wanted: (sheet: string) => boolean;
+  setWanted: (sheet: string, on: boolean) => void;
   stop: () => void;
 };
+
+/** Листы с включённым фильтром — у учётки в этом браузере. */
+function readWanted(address: string): string[] {
+  try {
+    const raw = localStorage.getItem(address);
+    const list = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(list) ? list.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeWanted(address: string, list: string[]): void {
+  try {
+    if (list.length) localStorage.setItem(address, JSON.stringify(list));
+    else localStorage.removeItem(address);
+  } catch {
+    /* выбор живёт до перезагрузки */
+  }
+}
 
 export function keepFilter(
   api: UniverApi,
@@ -72,6 +97,8 @@ export function keepFilter(
   onChange: () => void,
 ): FilterKeeper {
   const address = `filter.${key}`;
+  const wantedAddress = `kort_filter_on:${scope}:${key}`;
+  let wanted = new Set(readWanted(wantedAddress));
   const placed = new Map<string, Placed>();
   let applying = 0;
 
@@ -151,6 +178,12 @@ export function keepFilter(
   return {
     place,
     remove: (sheet) => {
+      // Убранный фильтр забывает и условия: включённый снова начинает с чистого.
+      const saved = { ...readSaved() };
+      if (saved[sheet]) {
+        delete saved[sheet];
+        writeSession(scope, address, saved);
+      }
       if (!filterOf(sheet)) return;
       placed.delete(sheet);
       run(MUTATION.remove, { subUnitId: sheet });
@@ -182,6 +215,13 @@ export function keepFilter(
       const total = Math.max(0, at.range.endRow - at.range.startRow);
       const hidden = (filter.getFilteredOutRows?.() ?? []).length;
       return { sheet, columns, shown: Math.max(0, total - hidden), total };
+    },
+    wanted: (sheet) => wanted.has(sheet),
+    setWanted: (sheet, on) => {
+      wanted = new Set(readWanted(wantedAddress));
+      if (on) wanted.add(sheet);
+      else wanted.delete(sheet);
+      writeWanted(wantedAddress, [...wanted]);
     },
     stop: () => listener?.dispose?.(),
   };

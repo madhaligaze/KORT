@@ -53,7 +53,6 @@ import { MenuPopover } from "@/components/finance/ui/menu-popover";
 type Props = {
   id: string | null;
   open: boolean;
-  dock?: "center" | "bottom";
   /** Новый договор из отбора с блоком: подстановки блока ставит сервер. */
   draftContext?: { view?: string; block?: number };
   /**
@@ -72,7 +71,6 @@ type Props = {
 export function ContractCard({
   id,
   open,
-  dock = "center",
   draftContext,
   book,
   onClose,
@@ -136,7 +134,7 @@ export function ContractCard({
   const number = contract ? String(contract.values.number ?? "") : "";
 
   return (
-    <CardLayer open={open} onClose={onClose} dock={dock} label={number ? `Договор ${number}` : "Новый договор"}>
+    <CardLayer open={open} onClose={onClose} label={number ? `Договор ${number}` : "Новый договор"}>
       <CardScopeContext.Provider value={scope}>
       <div className="card-top">
         <button type="button" className="fin-icon-btn" aria-label="Закрыть" onClick={onClose}>

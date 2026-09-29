@@ -2180,6 +2180,18 @@ label.auth-row-label { cursor: pointer; }
 .fin-view:hover { color: var(--fin-text); }
 .fin-view[aria-current="page"] { font-weight: 650; color: var(--fin-text); border-bottom-color: currentColor; }
 .fin-view:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 3px; }
+/* «Все · Мои» — справа в той же строке, тем же словом с чертой: это отбор
+   вида, как «Карточки · Таблица», а не кнопка действия. Число рядом — сколько
+   договоров в каждом положении, моноширинным, как все идентификаторы. */
+.fin-mine { display: flex; align-items: baseline; gap: 1.25rem; margin-left: auto; }
+.fin-mine .fin-view[aria-checked="true"] { font-weight: 650; color: var(--fin-text); border-bottom-color: currentColor; }
+.fin-mine-n {
+  margin-left: 0.3rem;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--fin-text-soft);
+}
 /* Узкое окно: заголовков нет — виды встают своим рядом под лентой разделов. */
 .fin-modes { display: none; }
 @media (max-width: 767.98px) {
@@ -2983,14 +2995,8 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   color: var(--fin-text);
   overflow: hidden;
 }
-.card-sheet[data-dock="bottom"] {
-  top: auto;
-  bottom: 12px;
-  max-height: 56dvh;
-  translate: -50% 0;
-}
 @media (max-width: 639px) {
-  .card-sheet, .card-sheet[data-dock="bottom"] {
+  .card-sheet {
     inset: 0;
     width: 100%;
     max-height: none;

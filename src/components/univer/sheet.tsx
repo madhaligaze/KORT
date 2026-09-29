@@ -24,9 +24,11 @@ import { UniverSheetsDrawingPreset } from "@univerjs/presets/preset-sheets-drawi
 import UniverPresetSheetsDrawingRuRU from "@univerjs/presets/preset-sheets-drawing/locales/ru-RU";
 import { createUniver, LocaleType, mergeLocales } from "@univerjs/presets";
 import { CommandType, ICommandService, IConfigService } from "@univerjs/core";
-import { IMenuManagerService, MenuItemType } from "@univerjs/preset-sheets-core";
+import { IMenuManagerService, IRenderManagerService, MenuItemType } from "@univerjs/preset-sheets-core";
+import { SheetsFilterService } from "@univerjs/preset-sheets-filter";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { type Observable, distinctUntilChanged, map, of, switchMap } from "rxjs";
 
 import { useSessionScope } from "@/components/session-state";
 import { type ListArrow, type ListWatch, openList, watchLists } from "@/components/univer/lists";
@@ -149,7 +151,7 @@ const LOOK_MENU = new Set([
 ]);
 
 /**
- * «Сортировка и фильтр» — одной кнопкой ленты (28.09.2026: «фильтры и
+ * Фильтр и сортировка — одной воронкой в ленте (28.09.2026: «фильтры и
  * сортировку в одно поле объединить»). У Univer это четыре пункта: сортировка
  * выпадающим списком, фильтр, «очистить», «пересчитать». Свои пункты зовут те
  * же команды Univer — права листа (сортировка закрыта на листе с частями) они
@@ -159,14 +161,24 @@ const LOOK_MENU = new Set([
  * строка с id команды Univer, фасад брал его же id пункта меню, и прятание
  * «прежних» (`SORT_FILTER_ORIGINALS`) прятало и эти: список раскрывался
  * пустым, и фильтр было не включить ничем, кроме Ctrl+Shift+L.
+ *
+ * 29.09.2026 вечером: кнопка была словами «Сортировка и фильтр» в конце
+ * ленты, и на окне ~1000px Univer первой убирал её под «⋮» — что за
+ * троеточием, было не понять. Теперь это значок воронки сразу за
+ * «Отменить/Повторить»: узкий и первым в очереди, под «⋮» не уходит. Пункты —
+ * короткими словами; «Показать фильтр» и «Убрать фильтр» — два пункта, из
+ * которых виден один, по состоянию листа: одна строка «показать или убрать»
+ * не говорила, что сейчас.
  */
 const SORT_FILTER_ID = "kort.sort-filter";
-const SORT_FILTER_ITEMS: { id: string; title: string; action: string }[] = [
-  { id: "kort.sort-filter.filter", title: "Фильтр в шапке — показать или убрать", action: "sheet.command.smart-toggle-filter" },
-  { id: "kort.sort-filter.clear", title: "Показать все строки — сбросить отбор", action: "sheet.command.clear-filter-criteria" },
-  { id: "kort.sort-filter.asc", title: "Сортировать по возрастанию", action: "sheet.command.sort-range-asc-ext" },
-  { id: "kort.sort-filter.desc", title: "Сортировать по убыванию", action: "sheet.command.sort-range-desc-ext" },
-  { id: "kort.sort-filter.custom", title: "Сортировать по нескольким колонкам…", action: "sheet.command.sort-range-custom" },
+type SortFilterShow = "always" | "filter-off" | "filter-on" | "criteria";
+const SORT_FILTER_ITEMS: { id: string; title: string; action: string; icon?: string; show: SortFilterShow }[] = [
+  { id: "kort.sort-filter.on", title: "Показать фильтр", action: "sheet.command.smart-toggle-filter", show: "filter-off" },
+  { id: "kort.sort-filter.clear", title: "Сбросить отбор", action: "sheet.command.clear-filter-criteria", show: "criteria" },
+  { id: "kort.sort-filter.asc", title: "По возрастанию", action: "sheet.command.sort-range-asc-ext", icon: "ExpandAscendingIcon", show: "always" },
+  { id: "kort.sort-filter.desc", title: "По убыванию", action: "sheet.command.sort-range-desc-ext", icon: "ExpandDescendingIcon", show: "always" },
+  { id: "kort.sort-filter.custom", title: "По нескольким колонкам…", action: "sheet.command.sort-range-custom", icon: "CustomSortIcon", show: "always" },
+  { id: "kort.sort-filter.off", title: "Убрать фильтр", action: "sheet.command.smart-toggle-filter", show: "filter-on" },
 ];
 /** Прежние пункты сортировки и фильтра — их заменяет «Сортировка и фильтр». */
 const SORT_FILTER_ORIGINALS = [
@@ -188,13 +200,29 @@ const DATA_ONLY_MENU = new Set([
 const RIBBON_TABS = ["ribbon.start", "ribbon.insert", "ribbon.formulas", "ribbon.data", "ribbon.view", "ribbon.others"];
 
 /**
- * Собрать «Сортировка и фильтр» и спрятать прежние пункты. Подпись — словами,
- * без значка: четыре значка воронок и стрелок читались загадкой.
+ * Собрать воронку «Фильтр и сортировка» и спрятать прежние пункты. Значок —
+ * один, воронка: четыре значка воронок и стрелок, как у Univer, читались
+ * загадкой, а подпись словами не помещалась в ленту.
  */
 function mergeSortFilter(univerAPI: UniverApi, intercept: (command: string) => boolean): void {
   try {
     const injector = univerAPI._injector;
     const commands = injector.get(ICommandService);
+    // Что сейчас на активном листе: есть ли фильтр и отобрано ли что-то. Univer
+    // пересылает модель на каждой мутации фильтра — повторы гасятся.
+    const filters = injector.get(SheetsFilterService) as {
+      activeFilterModel$: Observable<{ hasCriteria$: Observable<boolean> } | null>;
+    };
+    const state$ = filters.activeFilterModel$.pipe(
+      switchMap((model) => (model ? model.hasCriteria$.pipe(map((criteria) => ({ on: true, criteria }))) : of({ on: false, criteria: false }))),
+    );
+    const hidden$ = (show: SortFilterShow): Observable<boolean> | undefined => {
+      if (show === "always") return undefined;
+      return state$.pipe(
+        map((now) => (show === "filter-off" ? now.on : show === "filter-on" ? !now.on : !now.criteria)),
+        distinctUntilChanged(),
+      );
+    };
     // Меню — прямо в службу меню, плоским списком, а не фасадом
     // `createSubmenu`: фасад Univer 0.25 всегда кладёт пункты подменю в
     // «группы» (`…-group-0`), а выпадающий список ленты рисует только прямые
@@ -217,20 +245,28 @@ function mergeSortFilter(univerAPI: UniverApi, intercept: (command: string) => b
       }
       children[item.id] = {
         order: index,
-        menuItemFactory: () => ({ id: item.id, type: MenuItemType.BUTTON, title: item.title, commandId: item.id }),
+        menuItemFactory: () => ({
+          id: item.id,
+          type: MenuItemType.BUTTON,
+          title: item.title,
+          icon: item.icon,
+          commandId: item.id,
+          hidden$: hidden$(item.show),
+        }),
       };
     });
     const menus = injector.get(IMenuManagerService);
-    // Тот же путь, что у фасадного `appendTo("ribbon.data.organization")`.
+    // В группу «Отменить/Повторить»: лента `simple` прячет под «⋮» пункты с
+    // конца, а группа истории — первая.
     menus.mergeMenu({
-      "ribbon.data.organization": {
+      "ribbon.start.history": {
         [SORT_FILTER_ID]: {
-          order: 0,
+          order: 10,
           menuItemFactory: () => ({
             id: SORT_FILTER_ID,
             type: MenuItemType.SUBITEMS,
-            title: "Сортировка и фильтр",
-            tooltip: "Сортировка и фильтр",
+            icon: "FilterIcon",
+            tooltip: "Фильтр и сортировка",
           }),
           ...children,
         },
@@ -242,6 +278,49 @@ function mergeSortFilter(univerAPI: UniverApi, intercept: (command: string) => b
   } catch (exc) {
     // Не собралось — останутся прежние кнопки Univer, это неудобство, не поломка.
     console.warn("«Сортировка и фильтр» не собралась:", exc);
+  }
+}
+
+/**
+ * Рамка диапазона фильтра. Univer обводит весь отфильтрованный диапазон той
+ * же синей рамкой, что и выделение, а у реестра фильтр стоит на всей таблице
+ * с открытия — лист выглядел навсегда выделенным (29.09.2026: «таблица всё
+ * время в отмеченном состоянии», пропадало только вместе с фильтром).
+ * Воронки в шапке остаются, рамки нет.
+ *
+ * Модуль отрисовки фильтра Univer наружу не отдаёт: он находится среди
+ * модулей отрисовки книги по своему полю, и рамка снимается у его класса —
+ * один раз на страницу, для всех листов.
+ */
+let filterFrameQuiet = false;
+
+function quietFilterFrame(univerAPI: UniverApi, unitId: string | undefined): void {
+  if (filterFrameQuiet || !unitId) return;
+  type FilterRender = {
+    _filterRangeShape?: unknown;
+    _renderRange?: unknown;
+    _currentRenderParams?: unknown;
+    _refreshRendering?: (params: unknown) => void;
+  };
+  try {
+    const render = univerAPI._injector.get(IRenderManagerService).getRenderById(unitId);
+    const resolved: Map<unknown, unknown[]> | undefined =
+      render?._injector?.resolvedDependencyCollection?.resolvedDependencies;
+    for (const list of resolved?.values() ?? []) {
+      for (const item of list) {
+        const renderer = item as FilterRender | null;
+        if (!renderer || typeof renderer !== "object" || !("_filterRangeShape" in renderer)) continue;
+        if (typeof renderer._renderRange !== "function") continue;
+        Object.getPrototypeOf(renderer)._renderRange = function renderNoRange() {};
+        filterFrameQuiet = true;
+        // Уже нарисованная рамка снимается перерисовкой: воронки встают снова.
+        renderer._refreshRendering?.(renderer._currentRenderParams ?? null);
+        return;
+      }
+    }
+  } catch (exc) {
+    // Рамка — помеха, а не поломка: лист работает и с ней.
+    console.warn("рамка фильтра осталась:", exc);
   }
 }
 
@@ -310,7 +389,8 @@ const RENDERED = 2;
  *   («Как в системе»); тёмный класс Univer снимается при уходе, иначе
  *   следующий светлый лист получил бы тёмную ленту;
  * * **лента** — одной строкой без вкладок (`ribbonType: "simple"`),
- *   сортировка и фильтр — одной кнопкой «Сортировка и фильтр»;
+ *   сортировка и фильтр — одной воронкой за «Отменить/Повторить»; рамки
+ *   вокруг диапазона фильтра нет (`quietFilterFrame`);
  * * **«На весь экран»** — по центру строки над лентой, своей кнопкой (не
  *   вкладкой Univer). Esc сворачивает; страница под листом не прокручивается;
  * * **скорость прокрутки** — `speed.ts`: ячейка считается один раз на кадр,
@@ -489,6 +569,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
       if (shownSent) return;
       shownSent = true;
       shownFrame = requestAnimationFrame(() => {
+        quietFilterFrame(univerAPI, univerAPI.getActiveWorkbook?.()?.getId?.());
         if (place?.restore()) setFull(true);
         shownFrame = requestAnimationFrame(() => onShownRef.current?.());
       });

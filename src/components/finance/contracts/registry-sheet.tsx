@@ -20,9 +20,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { type ChangeMode as ChangeModeValue, contractsApi } from "@/components/finance/api";
+import { type ChangeMode as ChangeModeValue, type Me, contractsApi, trashApi } from "@/components/finance/api";
+import { isAdmin } from "@/components/finance/access";
 import { ChangeMode } from "@/components/finance/contracts/change-mode";
 import { OtherContracts } from "@/components/finance/contracts/contract-card";
+import { useMine } from "@/components/finance/contracts/mine";
 import {
   RegistryBinding,
   buildRegistry,
@@ -43,9 +45,11 @@ import {
   getRegistry,
   holdLive,
   put,
+  removeMany,
   useRegistry,
 } from "@/components/finance/contracts/store";
-import { formatDay } from "@/components/finance/format";
+import { bareNumber, formatDay, plural } from "@/components/finance/format";
+import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 import { lookStore } from "@/components/finance/look-store";
 import { type FilterStatus, keepFilter } from "@/components/univer/filter";
 import { type LookKeeper, keepLook } from "@/components/univer/look";
@@ -54,15 +58,29 @@ import { UniverSheet, type UniverApi } from "@/components/univer/sheet";
 import { useFillHeight } from "@/components/univer/use-fill-height";
 
 type Props = {
+  me: Me;
   /** Открыть карточку договора (или закрыть — `null`). `ctx` — лист и блок строки. */
   onOpenCard: (id: string | null, ctx?: { view: string; block: number }) => void;
   /** Договор открытой карточки: его строка отмечена, лист к ней прокручивается. */
   openId: string | null;
   /** Книга листов: `""` — реестр («Таблица»), `oneoff` — «Разовые». */
   book?: string;
+  /** Соседи открытой карточки по листу — для её стрелок ↑ ↓. */
+  onNeighbors?: (around: { prev: string | null; next: string | null }) => void;
 };
 
-type Note = { text: string; fail: boolean; at: number };
+/** `undo` — только что удалённые договоры: «Вернуть» из корзины (у администратора). */
+type Note = { text: string; fail: boolean; at: number; undo?: string[] };
+
+type Removal = { items: { id: string; number: string }[] };
+
+/** «№ 12/2024, № 13/2024, № 14/2024 и ещё 5» — какие договоры уйдут. */
+function numberList(items: { number: string }[]): string {
+  const named = items.filter((item) => bareNumber(item.number)).map((item) => `№ ${bareNumber(item.number)}`);
+  const shown = named.slice(0, 3).join(", ");
+  const more = items.length - Math.min(3, named.length);
+  return more > 0 ? `${shown}${shown ? " и ещё " : ""}${more}` : shown;
+}
 
 /** Сколько подсказка ждёт мышь, ушедшую с ячейки, прежде чем погаснуть. */
 const HIDE_DELAY = 420;
@@ -72,8 +90,12 @@ function stillAsking(group: AskGroup): { id: string; key: string }[] {
   return group.items.filter((item) => edits.get(item.id)?.get(item.key)?.state === "asking");
 }
 
-export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
+export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }: Props) {
   const state = useRegistry((value) => value);
+  // «Мои» у заголовка реестра: лист собирается из своих договоров.
+  const { only } = useMine(me, book);
+  const [removal, setRemoval] = useState<Removal | null>(null);
+  const admin = isAdmin(me);
   const { ref: box, height } = useFillHeight(360, 4);
   const [note, setNote] = useState<Note | null>(null);
   const [ask, setAsk] = useState<AskGroup | null>(null);
@@ -171,8 +193,8 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
   const built = useMemo<Built | null>(() => {
     // `generation` — просьба связки собрать книгу заново (лист поменяли в обход).
     if (!ready || !structure || empty || generation < 0) return null;
-    return buildRegistry(getRegistry(), paletteNow(), book);
-  }, [ready, structure, empty, generation, book]);
+    return buildRegistry(getRegistry(), paletteNow(), book, only);
+  }, [ready, structure, empty, generation, book, only]);
 
   const onReady = useCallback(
     (api: UniverApi) => {
@@ -190,6 +212,7 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
             queueMicrotask(() => setFiltered(binding.current?.filterStatus() ?? null));
           },
           rebuild: () => setGeneration((value) => value + 1),
+          remove: (items) => setRemoval({ items }),
           hint: (at) => {
             // Univer прячет заметку, как только мышь ушла с ячейки, — а по
             // дороге к «Учтено» она уходит всегда. Раньше подсказка гасла в
@@ -260,6 +283,74 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
     openRef.current = openId;
     binding.current?.setOpen(openId);
   }, [openId]);
+
+  // Стрелки карточки ведут по строкам листа: соседи пересчитываются, когда
+  // открыт другой договор или строки листа поменялись.
+  useEffect(() => {
+    if (!onNeighbors) return;
+    const now = binding.current;
+    onNeighbors({
+      prev: openId && now ? now.neighbor(openId, -1) : null,
+      next: openId && now ? now.neighbor(openId, 1) : null,
+    });
+  }, [openId, state, built, onNeighbors]);
+
+  /**
+   * Удаление отмеченных строк. Подтверждение закрывается сразу: строки
+   * уходят из листа по мере ответов, счёт — строкой под листом.
+   */
+  const removeRows = useCallback(async (items: Removal["items"]) => {
+    setRemoval(null);
+    const total = items.length;
+    const noun = (count: number) => plural(count, "договор", "договора", "договоров");
+    if (total > 1) setNote({ text: `Удаляем ${total} ${noun(total)}`, fail: false, at: Date.now() });
+    const result = await removeMany(
+      items.map((item) => item.id),
+      (done) => {
+        if (total > 1) setNote({ text: `Удаляем ${total} ${noun(total)} · ${done}`, fail: false, at: Date.now() });
+      },
+    );
+    const done = result.done.length;
+    if (result.failed.length) {
+      const more = result.failed.length > 1 ? ` · ещё отказов: ${result.failed.length - 1}` : "";
+      setNote({
+        text: `${done ? `Удалено ${done} ${noun(done)} · ` : ""}не удалено: ${result.failed[0].error}${more}`,
+        fail: true,
+        at: Date.now(),
+        undo: done ? result.done : undefined,
+      });
+    } else {
+      setNote({
+        text: done === 1 ? "Договор удалён" : `Удалено ${done} ${noun(done)}`,
+        fail: false,
+        at: Date.now(),
+        undo: result.done,
+      });
+    }
+  }, []);
+
+  /**
+   * «Вернуть» — из корзины. Строки приходят обычным опросом (через пару
+   * секунд) и встают на прежние места по порядку реестра: пересборка листа
+   * здесь не нужна — снятая книга ловила бы ещё не отработавшую проверку
+   * списков Univer.
+   */
+  const restoreRows = useCallback(async (ids: string[]) => {
+    setNote({ text: "Возвращаем…", fail: false, at: Date.now() });
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        await trashApi.restore("contract", id);
+      } catch (exc) {
+        failed.push(exc instanceof Error ? exc.message : "не вернулся");
+      }
+    }
+    setNote(
+      failed.length
+        ? { text: `Не вернулось: ${failed[0]}`, fail: true, at: Date.now() }
+        : { text: ids.length === 1 ? "Договор возвращён" : `Возвращено ${ids.length}`, fail: false, at: Date.now() },
+    );
+  }, []);
 
   // «Читаем реестр…» — только если чтение затянулось: быстрый ответ не должен
   // мигать подписью.
@@ -483,6 +574,14 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
         ) : null}
         <p className={note?.fail ? "creg-sheet-note fin-fail" : "creg-sheet-note"} role="status" aria-live="polite">
           {note?.text ?? ""}
+          {note?.undo?.length && admin ? (
+            <>
+              {" · "}
+              <button type="button" className="fin-link-btn" onClick={() => void restoreRows(note.undo ?? [])}>
+                Вернуть
+              </button>
+            </>
+          ) : null}
         </p>
         {keeper && !lookEmpty ? (
           <button
@@ -499,6 +598,28 @@ export function RegistrySheet({ onOpenCard, openId, book = "" }: Props) {
           </button>
         ) : null}
       </div>
+      <ConfirmDialog
+        open={removal !== null}
+        title={
+          removal?.items.length === 1
+            ? `Удалить договор${bareNumber(removal.items[0].number) ? ` № ${bareNumber(removal.items[0].number)}` : ""}?`
+            : `Удалить ${removal?.items.length ?? 0} ${plural(removal?.items.length ?? 0, "договор", "договора", "договоров")}?`
+        }
+        text={[
+          removal && removal.items.length > 1 ? `${numberList(removal.items)}.` : "",
+          admin
+            ? "Уйдут в корзину — вернуть можно сразу, строкой под листом, или из корзины в кабинете."
+            : "Уйдут в корзину — вернуть может администратор.",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        confirm="Удалить"
+        danger
+        onCancel={() => setRemoval(null)}
+        onConfirm={() => {
+          if (removal) void removeRows(removal.items);
+        }}
+      />
       {ask && spot && count
         ? createPortal(
             <div ref={pop}>
