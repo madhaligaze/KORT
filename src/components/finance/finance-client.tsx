@@ -73,7 +73,6 @@ import { PlanActualReport } from "@/components/finance/plan-actual";
 import { DictionariesPanel } from "@/components/finance/dictionaries-panel";
 import { Registry, useRegistryBoot } from "@/components/finance/contracts/registry-cards";
 import { ContractCard } from "@/components/finance/contracts/contract-card";
-import { MineSwitch } from "@/components/finance/contracts/mine";
 import { bookTitle } from "@/components/finance/contracts/schema";
 import { boot, ensureSchema, ensureSummary, useRegistry } from "@/components/finance/contracts/store";
 import { OneoffStaff, SummaryLine } from "@/components/finance/contracts/oneoff";
@@ -1361,7 +1360,6 @@ export function FinanceClient() {
                   </button>
                 ))}
               </nav>
-              {me && section === registry.modes[0].key ? <MineSwitch me={me} book={registry.book} /> : null}
             </div>
           ) : operationActions ? (
             // Журнал: справа от заголовка — новая операция.
@@ -1405,7 +1403,6 @@ export function FinanceClient() {
                   {mode.title}
                 </button>
               ))}
-              {me && section === registry.modes[0].key ? <MineSwitch me={me} book={registry.book} /> : null}
             </nav>
           ) : null}
           <FadeIn key={`body-${section}`}>{content}</FadeIn>

@@ -12,9 +12,13 @@
  * исчезают под глазами: договор, ушедший из листа, стоит приглушённым до смены
  * вкладки. Цвет на экране в нормальном состоянии — только «N замечаний».
  *
- * «С долями N» (29.09.2026) — владельцу, администратору и начальнику отдела:
- * только договоры, где распределены доли исполнителей. Искать их руками по
- * карточкам было тяжело. Доли — те, что открыты этому человеку (`ensureShares`).
+ * «Все · Мои · С долями» — под «Новый договор» (30.09.2026). «С долями» —
+ * совместные договоры: двое исполнителей и больше или заданы доли. Владельцу,
+ * администратору и начальнику — все такие договоры (начальнику — своего
+ * отдела), сотруднику — только те, где он сам исполнитель, и в них только его
+ * доля. Что кому открыто, решает сервер (`/contracts/shares`): отбор — это
+ * «договор есть в его ответе». До 30.09 в ответ шли только договоры с
+ * введёнными суммами, а их на проде не было ни одного — отбор был пуст.
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -30,8 +34,8 @@ import {
 } from "@/components/finance/api";
 import { SearchIcon } from "@/components/icons";
 import { ContractCard, useCardRefresh } from "@/components/finance/contracts/contract-card";
-import { useMine } from "@/components/finance/contracts/mine";
-import { headOnly, isAdmin } from "@/components/finance/access";
+import { MineSwitch, useMine } from "@/components/finance/contracts/mine";
+import { isAdmin } from "@/components/finance/access";
 import {
   bareNumber,
   contractMoney,
@@ -123,9 +127,9 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
   const removed = useRegistry((s) => s.departed);
   const wasIn = useRegistry((s) => s.wasIn);
   const shares = useRegistry((s) => s.shares);
-  // Отбор «С долями» — тем, кто видит доли всех: владельцу, администратору,
-  // начальнику отдела. Сотруднику доли коллег не открыты — отбирать нечего.
-  const seesShares = isAdmin(me) || headOnly(me);
+  // «С долями» — всем, у кого есть свои договоры или открыты все: сотруднику
+  // сервер отдаёт только его совместные договоры и только его долю.
+  const seesShares = isAdmin(me) || Boolean(me.employee?.id);
   useEffect(() => {
     if (seesShares) void ensureShares();
   }, [seesShares]);
@@ -221,10 +225,7 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
   // «Мои» у заголовка реестра: вкладки, счётчики и строки — по своим договорам.
   const { only: mineOnly } = useMine(me, book);
   const mineAll = useMemo(() => (mineOnly ? all.filter(mineOnly) : all), [all, mineOnly]);
-  const hasShares = useCallback(
-    (contract: Contract) => Object.keys(shares?.[contract.id]?.people ?? {}).length > 0,
-    [shares],
-  );
+  const hasShares = useCallback((contract: Contract) => Boolean(shares?.[contract.id]), [shares]);
   // «С долями» сужает всё — строки, счётчики вкладок и замечания: видно, в
   // каких листах договоры с долями, не переключая их по одному.
   const shownAll = useMemo(() => (sharesOnly ? mineAll.filter(hasShares) : mineAll), [mineAll, sharesOnly, hasShares]);
@@ -277,6 +278,22 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
         .filter((contract) => contract.issues.some((issue) => !issue.acknowledged)).length,
     [shownAll, view, matchesSearch],
   );
+
+  // Сколько договоров с долями во всей книге — рядом с «Все» и «Мои».
+  const sharesCount = useMemo(() => {
+    const keys = new Set(views.map((item) => item.key));
+    return all.filter((contract) => contract.views.some((place) => keys.has(place.view)) && hasShares(contract)).length;
+  }, [all, views, hasShares]);
+  const sharesPick = seesShares
+    ? {
+        on: sharesOnly,
+        set: setSharesOnly,
+        count: sharesCount,
+        title: isAdmin(me)
+          ? "Совместные договоры: исполнителей несколько или заданы доли"
+          : "Ваши договоры с долями: исполнителей несколько или задана ваша доля",
+      }
+    : null;
 
   const ids = rows.filter((row) => !row.departed).map((row) => row.contract.id);
   const index = openId ? ids.indexOf(openId) : -1;
@@ -392,13 +409,16 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
     <>
       <div className="creg-top">
         <LiveLine />
-        <div className="creg-top-actions">
-          {canEdit ? (
-            <button type="button" className="btn-primary only-desktop" onClick={newContract}>
-              Новый договор
-            </button>
-          ) : null}
-          <MenuPopover items={menu} />
+        <div className="creg-top-side">
+          <div className="creg-top-actions">
+            {canEdit ? (
+              <button type="button" className="btn-primary only-desktop" onClick={newContract}>
+                Новый договор
+              </button>
+            ) : null}
+            <MenuPopover items={menu} />
+          </div>
+          <MineSwitch me={me} book={book} shares={sharesPick} />
         </div>
       </div>
 
@@ -435,17 +455,6 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
             {issueCount} {plural(issueCount, "замечание", "замечания", "замечаний")}
           </button>
         ) : null}
-        {seesShares ? (
-          <button
-            type="button"
-            className="creg-shares-btn"
-            aria-pressed={sharesOnly}
-            title="Только договоры, где распределены доли исполнителей"
-            onClick={() => setSharesOnly((value) => !value)}
-          >
-            С долями
-          </button>
-        ) : null}
       </div>
 
       <div className="creg-list">
@@ -468,7 +477,7 @@ export function Registry({ me, onGo, book = "" }: { me: Me; onGo: (section: stri
               </>
             ) : sharesOnly ? (
               <>
-                В этом листе договоров с долями нет ·{" "}
+                {isAdmin(me) ? "В этом листе совместных договоров нет" : "В этом листе нет договоров, где у вас доля"} ·{" "}
                 <button type="button" className="fin-link-btn" onClick={() => setSharesOnly(false)}>
                   Показать все
                 </button>

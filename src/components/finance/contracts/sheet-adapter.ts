@@ -363,11 +363,18 @@ function sharesOf(entry: ShareMap, contract: Contract | undefined, ctx: Ctx): { 
     if (amount !== null) return pct ? `${shareNumber(amount)} (${pct})` : shareNumber(amount);
     return pct || "—";
   };
+  const listed = Array.isArray(contract?.values.people) ? (contract?.values.people as string[]) : [];
+  // Совместный договор, где доли ещё не разнесены (сервер отдаёт его без
+  // сумм): так и сказать, а не «Елжас — · Рысбек — · не распределено …».
+  if (!Object.keys(entry.people).length) {
+    if (entry.scope === "own") return { text: "Ваша доля не указана", over: false };
+    const names = listed.map((id) => ctx.people[id]?.name ?? "—");
+    return { text: names.length ? `${names.join(" · ")} — доли не указаны` : "", over: false };
+  }
   if (entry.scope === "own") {
     const mine = Object.values(entry.people)[0];
     return { text: `Ваша доля ${one(mine)}`, over: false };
   }
-  const listed = Array.isArray(contract?.values.people) ? (contract?.values.people as string[]) : [];
   const ids = [...listed, ...Object.keys(entry.people).filter((id) => !listed.includes(id))];
   const parts = ids.map((id) => `${ctx.people[id]?.name ?? "—"} ${entry.people[id] ? one(entry.people[id]) : "—"}`);
   const total = numberOf(contract?.values.amount ?? null);

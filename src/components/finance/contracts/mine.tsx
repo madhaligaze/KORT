@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * «Все · Мои» у заголовка реестра — договоры, где вошедший стоит
+ * «Все · Мои» под «Новый договор» — договоры, где вошедший стоит
  * ответственным (29.09.2026: «одной кнопкой нажать — чтобы отображались
  * только его договора»).
  *
@@ -131,32 +131,60 @@ export function MineToggle({ me, book }: { me: Me; book: string }) {
   );
 }
 
-/** «Все 468 · Мои 12» — у заголовка реестра в «Карточках». */
-export function MineSwitch({ me, book, className }: { me: Me; book: string; className?: string }) {
+/** Третье положение переключателя — «С долями» (отбор держит `Registry`). */
+export type SharesPick = { on: boolean; set: (on: boolean) => void; count: number; title: string };
+
+/**
+ * «Все 468 · Мои 12 · С долями 6» — под «Новый договор» в «Карточках».
+ *
+ * Одно положение из трёх: «С долями» выключает «Мои», «Мои» — «С долями».
+ * До 30.09.2026 «Все · Мои» стояли в строке заголовка, а «С долями» — мелкой
+ * подписью под вкладками, и его было не найти.
+ */
+export function MineSwitch({ me, book, shares, className }: { me: Me; book: string; shares?: SharesPick | null; className?: string }) {
   const mine = useMine(me, book);
   const counts = useMineCounts(me, book);
-  if (!mine.available || !counts.ready) return null;
+  if ((!mine.available && !shares) || !counts.ready) return null;
+  const pick = (next: "all" | "mine" | "shares") => {
+    if (mine.available) mine.set(next === "mine");
+    shares?.set(next === "shares");
+  };
+  const sharesOn = Boolean(shares?.on);
   return (
     <div className={`fin-mine${className ? ` ${className}` : ""}`} role="radiogroup" aria-label="Какие договоры показывать">
       <button
         type="button"
         role="radio"
-        aria-checked={!mine.on}
+        aria-checked={!mine.on && !sharesOn}
         className="fin-view"
-        onClick={() => mine.set(false)}
+        onClick={() => pick("all")}
       >
         Все <span className="fin-mine-n">{counts.all}</span>
       </button>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={mine.on}
-        className="fin-view"
-        title="Договоры, где вы — ответственное лицо"
-        onClick={() => mine.set(true)}
-      >
-        Мои <span className="fin-mine-n">{counts.own}</span>
-      </button>
+      {mine.available ? (
+        <button
+          type="button"
+          role="radio"
+          aria-checked={mine.on && !sharesOn}
+          className="fin-view"
+          title="Договоры, где вы — ответственное лицо"
+          onClick={() => pick("mine")}
+        >
+          Мои <span className="fin-mine-n">{counts.own}</span>
+        </button>
+      ) : null}
+      {shares ? (
+        <button
+          type="button"
+          role="radio"
+          aria-checked={sharesOn}
+          className="fin-view"
+          title={shares.title}
+          onClick={() => pick("shares")}
+        >
+          С долями <span className="fin-mine-n">{shares.count}</span>
+        </button>
+      ) : null}
     </div>
   );
 }

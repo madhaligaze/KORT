@@ -2732,6 +2732,13 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   margin: -0.25rem 0 0.75rem;
 }
 .creg-top-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+/* Справа столбиком: «Новый договор ⋯», под ним «Все · Мои · С долями». */
+.creg-top-side { display: flex; flex-direction: column; align-items: flex-end; gap: 0.625rem; margin-left: auto; }
+.creg-top-side .fin-mine { margin-left: 0; }
+/* Телефон: «Новый договор» внизу экрана — «⋯» и отбор встают одной строкой. */
+@media (max-width: 767.98px) {
+  .creg-top-side { flex-direction: row-reverse; align-items: center; gap: 1rem; }
+}
 .creg-live {
   display: block;
   min-width: 0;
@@ -2823,23 +2830,9 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   cursor: pointer;
 }
 .creg-issues-btn[aria-pressed="true"] { text-decoration: underline; text-underline-offset: 3px; }
-/* Строка отборов под вкладками: «N замечаний» (роза — это отказ) и «С долями»
-   (тушь — это выбор, не отказ). Высота держится и без кнопок: список не
-   прыгает, когда замечаний не стало. */
+/* Строка под вкладками: «N замечаний» (роза — это отказ). Высота держится и
+   без кнопки: список не прыгает, когда замечаний не стало. */
 .creg-filters { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1.25rem; min-height: 1.9rem; }
-.creg-shares-btn {
-  display: inline-block;
-  margin: 0.375rem 0 0.25rem;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  font-size: 0.8125rem;
-  color: var(--fin-text-soft);
-  cursor: pointer;
-}
-.creg-shares-btn:hover { color: var(--fin-text); }
-.creg-shares-btn[aria-pressed="true"] { color: var(--fin-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ─── Список договоров ─── */
 .creg-list { container-type: inline-size; }
