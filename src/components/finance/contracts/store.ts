@@ -456,8 +456,20 @@ function putOne(one: OneContract, keepEdits = true): void {
     merged = { ...incoming, values };
   }
   const wasIn = new Map(state.wasIn);
-  leftViews(wasIn, byId.get(incoming.id), incoming);
+  const previous = byId.get(incoming.id);
+  leftViews(wasIn, previous, incoming);
   byId.set(incoming.id, merged);
+  // Своя правка сдвигает курсор опроса мимо себя — опрос её не принесёт, и
+  // доли не перечитаются. До 30.09.2026 второй исполнитель, вписанный в
+  // листе, у самого вписавшего так и стоял без «доли не указаны», а у коллег
+  // появлялся. Доли зависят от людей и суммы (проценты) — их и сверяем.
+  if (
+    state.shares !== null &&
+    (JSON.stringify(previous?.values.people ?? null) !== JSON.stringify(incoming.values.people ?? null) ||
+      previous?.values.amount !== incoming.values.amount)
+  ) {
+    refreshSharesSoon();
+  }
   emit({
     byId,
     order: sortOrder(byId),

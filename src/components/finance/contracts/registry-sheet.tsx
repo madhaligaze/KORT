@@ -151,6 +151,25 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
     onOpenRef.current = onOpenCard;
   }, [onOpenCard]);
 
+  // Alt+Enter — карточка договора активной строки (в редакторе ячейки Alt+Enter
+  // остаётся переводом строки). Слушатель нативный, в фазе захвата: фокус
+  // стоит в поле ввода самого Univer, у которого своё дерево React, и
+  // `onKeyDownCapture` на рамке до него не доходил — до 30.09.2026 Alt+Enter
+  // не открывал ничего, хотя подсказка под листом его обещала.
+  useEffect(() => {
+    const host = box.current;
+    if (!host) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.altKey || event.key !== "Enter" || !binding.current || binding.current.isEditing()) return;
+      if (binding.current.openActive()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    host.addEventListener("keydown", onKey, true);
+    return () => host.removeEventListener("keydown", onKey, true);
+  }, [box]);
+
   // Живой режим, пока лист открыт: чужие правки приходят опросом раз в 2 с.
   useEffect(() => holdLive(), []);
   // Ответственные в списке ячейки — из справочника сотрудников кабинета.
@@ -566,16 +585,6 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
         ref={box}
         className="creg-sheet-wrap"
         style={{ height }}
-        onKeyDownCapture={(event) => {
-          // Alt+Enter — карточка договора активной строки (в редакторе ячейки
-          // Alt+Enter остаётся переводом строки).
-          if (event.altKey && event.key === "Enter" && binding.current && !binding.current.isEditing()) {
-            if (binding.current.openActive()) {
-              event.preventDefault();
-              event.stopPropagation();
-            }
-          }
-        }}
       >
         {built ? (
           <UniverSheet
