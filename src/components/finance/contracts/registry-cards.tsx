@@ -13,6 +13,7 @@
  * вкладки. Цвет на экране в нормальном состоянии — только «N замечаний».
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   type Contract,
@@ -789,7 +790,7 @@ const Row = memo(function Row({
       {departed ? (
         <span className="creg-note">{departed}</span>
       ) : issues ? (
-        <span className="creg-issues">{`${issues} ${plural(issues, "замечание", "замечания", "замечаний")}`}</span>
+        <IssuesTag issues={contract.issues.filter((issue) => !issue.acknowledged)} />
       ) : (
         <span className="creg-note" title={contract.readonly ? "Договор другого отдела — открыт на просмотр" : undefined}>
           {[settled ? "учтено" : "", contract.readonly ? "просмотр" : ""].filter(Boolean).join(" · ")}
@@ -802,6 +803,59 @@ const Row = memo(function Row({
     </div>
   );
 });
+
+const ISSUES_POP_W = 360;
+
+/**
+ * «1 замечание» в строке — наведение показывает, какое. До 29.09.2026 текст
+ * замечания был виден только в открытой карточке: отобрав «4 замечания»,
+ * человек открывал договоры по одному, чтобы понять, что с каждым не так.
+ *
+ * Слой — порталом в `body` и тем же обликом, что подсказка ячейки листа
+ * (`.creg-hint`): плита реестра обрезает всё, что шире неё (`overflow:
+ * clip`), и плашка у правого края строки пропадала бы молча.
+ */
+function IssuesTag({ issues }: { issues: { code: string; text: string }[] }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [spot, setSpot] = useState<{ left: number; top: number; above: boolean } | null>(null);
+  const show = () => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const above = rect.bottom + 160 > window.innerHeight;
+    const left = Math.max(8, Math.min(rect.right - ISSUES_POP_W, window.innerWidth - ISSUES_POP_W - 8));
+    setSpot({ left: Math.round(left), top: Math.round(above ? rect.top : rect.bottom), above });
+  };
+  // Прокрутили — строка уехала из-под плашки.
+  useEffect(() => {
+    if (!spot) return;
+    const hide = () => setSpot(null);
+    window.addEventListener("scroll", hide, { capture: true, passive: true });
+    return () => window.removeEventListener("scroll", hide, { capture: true });
+  }, [spot]);
+  return (
+    <span ref={ref} className="creg-issues" onPointerEnter={show} onPointerLeave={() => setSpot(null)}>
+      {`${issues.length} ${plural(issues.length, "замечание", "замечания", "замечаний")}`}
+      {spot
+        ? createPortal(
+            <div
+              className="creg-hint creg-issues-pop"
+              role="tooltip"
+              style={{ left: spot.left, top: spot.top, width: ISSUES_POP_W, transform: spot.above ? "translateY(-100%)" : undefined }}
+            >
+              <div className="creg-hint-body">
+                {issues.map((issue) => (
+                  <p key={issue.code} className="creg-issues-line">
+                    {issue.text}
+                  </p>
+                ))}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </span>
+  );
+}
 
 function Highlight({ text, needle }: { text: string; needle: string }) {
   if (!needle) return <>{text}</>;

@@ -703,6 +703,9 @@ export const financeApi = {
     request<{ ok: boolean }>(`/auth/members/${userId}`, { method: "DELETE" }),
   changePassword: (body: { old_password: string; new_password: string }) =>
     request<{ ok: boolean }>("/auth/password", { method: "POST", body: JSON.stringify(body) }),
+  /** Своя почта для входа — с текущим паролем. Сеансы остаются. */
+  changeEmail: (body: { email: string; password: string }) =>
+    request<{ id: string; email: string }>("/auth/email", { method: "POST", body: JSON.stringify(body) }),
   sessions: () => request<{ items: SessionRow[] }>("/auth/sessions"),
   revokeSession: (id: string) =>
     request<{ ok: boolean }>(`/auth/sessions/${id}`, { method: "DELETE" }),

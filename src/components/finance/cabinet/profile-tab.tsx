@@ -43,6 +43,7 @@ export function ProfileTab({
   const employee = me.employee;
   const department = employee?.department;
   const [changing, setChanging] = useState(false);
+  const [changingEmail, setChangingEmail] = useState(false);
   // Владелец, зарегистрированный без имени, заведён сотрудником под своей
   // почтой. Показать почту в строке ФИО — значит выдать её за имя; пустая
   // строка честнее и сама просит её заполнить.
@@ -124,7 +125,26 @@ export function ProfileTab({
         placeholder={ownRecord ? "Не указана" : BY_ADMIN}
         onSave={(value) => saveRecord({ job_title: value })}
       />
-      {email ? <EditLine label="Почта" value={email} onSave={async () => undefined} /> : null}
+      {email ? (
+        // Почта — логин входа. До 29.09.2026 она была только текстом, и
+        // однажды заданную почту сменить было нечем. Меняется с паролем:
+        // человек у чужого открытого браузера не должен переносить учётку.
+        <div className="cab-line cab-line-top">
+          <span className="cab-line-label">Почта</span>
+          <span className="cab-line-value">
+            {changingEmail ? (
+              <EmailForm email={email} onDone={() => setChangingEmail(false)} onChanged={refresh} />
+            ) : (
+              <span className="cab-email">
+                <span className="cab-line-static">{email}</span>
+                <button type="button" className="btn-ghost btn-sm cab-password-open" onClick={() => setChangingEmail(true)}>
+                  Сменить почту
+                </button>
+              </span>
+            )}
+          </span>
+        </div>
+      ) : null}
 
       <div className="cab-line cab-line-top" data-wide={email ? undefined : "true"}>
         <span className="cab-line-label">Пароль</span>
@@ -164,6 +184,83 @@ export function ProfileTab({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** «Сменить почту»: новая почта и текущий пароль; вход дальше — по новой. */
+function EmailForm({ email, onDone, onChanged }: { email: string; onDone: () => void; onChanged: () => Promise<void> }) {
+  const [next, setNext] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+
+  if (done) {
+    return (
+      <span className="cab-line-static">
+        {done}{" "}
+        <button type="button" className="fin-link-btn" onClick={onDone}>
+          Готово
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <form
+      className="cab-password"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setBusy(true);
+        setError("");
+        try {
+          const result = await financeApi.changeEmail({ email: next.trim(), password });
+          await onChanged();
+          setDone(`Почта изменена. Входите с ${result.email}.`);
+        } catch (exc) {
+          setError(exc instanceof Error ? exc.message : "Почта не сменилась");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <label className="auth-field">
+        <span className="eyebrow">Новая почта</span>
+        <input
+          className="input-field"
+          type="email"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          placeholder={email}
+          autoComplete="email"
+          autoFocus
+        />
+      </label>
+      <label className="auth-field">
+        <span className="eyebrow">Пароль</span>
+        <input
+          className="input-field"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+        />
+        <span className="auth-hint">Нынешний — почта это логин.</span>
+      </label>
+      {error ? (
+        <p className="cab-error fin-fail" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <span className="cab-add-actions">
+        <button type="button" className="btn-ghost btn-sm" onClick={onDone}>
+          Отмена
+        </button>
+        <button type="submit" className="btn-primary btn-sm" disabled={busy || !next.trim() || !password}>
+          {busy ? "Меняем…" : "Сменить почту"}
+        </button>
+      </span>
+    </form>
   );
 }
 
