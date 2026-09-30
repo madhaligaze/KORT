@@ -68,7 +68,8 @@ import {
   type ViewBlock,
   contractsApi,
 } from "@/components/finance/api";
-import { departmentText, listText } from "@/components/finance/contracts/schema";
+import { bookDepartmentId, departmentText, listText } from "@/components/finance/contracts/schema";
+import { type BookShare, blockTally, bookAmount, bookPart, bookShareOf, shareNote } from "@/components/finance/contracts/book-share";
 import { STAFF_SHEET, type StaffMatrix, staffMatrix, staffSnapshot } from "@/components/finance/contracts/staff-sheet";
 import {
   create,
@@ -694,7 +695,55 @@ type RenderCtx = {
   flashUntil: Map<string, number>;
   ahead: Map<string, string>;
   places: Map<string, string>;
+  /** Книга листов: в книге одного отдела («Разовые ЮО») сумма - его доля. */
+  book: string;
 };
+
+const NO_DEPARTMENT = { id: "", code: "" };
+const bookDepartments = new WeakMap<RegistrySchema, { id: string; code: string }>();
+
+/** Отдел книги листа (`bookDepartmentId`) - один раз на схему. */
+function bookDepartmentOf(ctx: RenderCtx): { id: string; code: string } {
+  const schema = ctx.state.schema;
+  if (!schema || !ctx.book) return NO_DEPARTMENT;
+  let found = bookDepartments.get(schema);
+  if (!found) {
+    const id = bookDepartmentId(schema, ctx.book);
+    found = id ? { id, code: departmentText(schema, id) } : NO_DEPARTMENT;
+    bookDepartments.set(schema, found);
+  }
+  return found;
+}
+
+/**
+ * Значение ячейки в книге отдела: «Сумма» - доля отдела, «Оплачено» и
+ * «Остаток» из сводки - той же частью договора (`book-share.ts`).
+ */
+function bookValue(key: string, stored: unknown, contract: Contract | undefined, share: BookShare | null): unknown {
+  if (!share || !contract || share.kind !== "share") return stored;
+  if (key === "amount") return bookAmount(contract, share) ?? undefined;
+  if (key === "summary_paid" || key === "summary_remaining") return bookPart(stored, share) ?? undefined;
+  return stored;
+}
+
+/** Хвост названия части с итогом - при переименовании части он не часть названия. */
+const TALLY_TAIL = /\s*·\s*договоров:[\s\S]*$/;
+
+/**
+ * Название части листа с итогом, как в книге юротдела: «Работа идёт - есть
+ * остаток · договоров: 19 · остаток: 25 250 754 ₸» (30.09.2026). Считает
+ * строки, стоящие в части сейчас: при «Мои» - свои.
+ */
+function titleText(model: SheetModel, block: BlockLayout, ctx: RenderCtx): string {
+  const rows: Contract[] = [];
+  for (const slot of model.slots) {
+    if (slot.kind !== "row" || slot.block !== block.index || !slot.id) continue;
+    const contract = ctx.state.byId.get(slot.id);
+    if (contract && !contract.deleted) rows.push(contract);
+  }
+  const withRemaining = block.columns.some((column) => column.key === "summary_remaining");
+  return `${block.title} · ${blockTally(rows, withRemaining, ctx.state.summary, bookDepartmentOf(ctx).id)}`;
+}
 
 type Rendered = {
   part: Part;
@@ -754,7 +803,7 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
   const block = layout.blocks[slot.block] ?? layout.blocks[0];
   if (slot.kind === "title") {
     out.part = "title";
-    faces[0] = { v: block.title, fmt: "" };
+    faces[0] = { v: titleText(model, block, ctx), fmt: "" };
     return out;
   }
   if (slot.kind === "header") {
@@ -793,6 +842,9 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
   const toned = Boolean(
     contract && !away && contract.views.some((place) => place.view === layout.key && place.block === slot.block && place.tone),
   );
+  // Книга одного отдела («Разовые ЮО»): сумма - доля отдела (`book-share.ts`).
+  const department = bookDepartmentOf(ctx);
+  const share = department.id ? bookShareOf(contract, department.id) : null;
 
   const now = Date.now();
   block.columns.forEach((column, index) => {
@@ -805,8 +857,12 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
     } else {
       const pending = edits?.get(column.key);
       const stored = LIVE_KEYS.has(column.key) ? liveValue(state, id, column.key) : contract?.values[column.key];
-      const value = pending && pending.state !== "conflict" ? pending.value : stored;
+      const value = pending && pending.state !== "conflict" ? pending.value : bookValue(column.key, stored, contract, share);
       faces[index] = faceOf(column, value, contract, valueCtx);
+      if (column.key === "amount" && contract) {
+        const about = shareNote(contract, share, department.code);
+        if (about) texts.push(about);
+      }
       if (column.kind === "shares" && stored && sharesOf(stored as ShareMap, contract, valueCtx).over) {
         // Договор подешевел после распределения - доли вместе больше суммы.
         mark += "F";
@@ -1224,6 +1280,7 @@ export function buildRegistry(
     flashUntil: new Map(),
     ahead: new Map(),
     places: placesOf(schema),
+    book,
   };
   const buckets = new Map<string, string[]>();
   for (const id of state.order) {
@@ -2559,6 +2616,8 @@ export class RegistryBinding {
     const rows: number[] = [];
     for (let row = from; row < next.length; row += 1) rows.push(row);
     this.paint(model, rows, "fresh");
+    // Строка пришла или ушла - итог в названии части выше `from` тоже другой.
+    this.paintTitles(model);
     const addMerges = [];
     for (let row = from; row < next.length; row += 1) if (next[row].kind === "title") addMerges.push(mergeRange(row, width));
     if (addMerges.length) this.exec(M.addMerge, { ...unit, ranges: addMerges });
@@ -2713,10 +2772,24 @@ export class RegistryBinding {
       if (changed) {
         const rows = [...changed].flatMap((id) => model.rowsById.get(id) ?? []);
         if (rows.length) this.paint(model, rows, "diff");
+        this.paintTitles(model);
       } else {
         this.paint(model, model.slots.keys(), "diff");
       }
     }
+  }
+
+  /**
+   * Названия частей - их итог («договоров: 19 · остаток: …») зависит от строк
+   * части: правка суммы, пришедшая сводка, договор пришёл или ушёл. Строк
+   * названий на лист - по одной на часть, переписывается только разница.
+   */
+  private paintTitles(model: SheetModel): void {
+    const rows: number[] = [];
+    model.slots.forEach((slot, row) => {
+      if (slot.kind === "title") rows.push(row);
+    });
+    if (rows.length) this.paint(model, rows, "diff");
   }
 
   /**
@@ -2976,7 +3049,7 @@ export class RegistryBinding {
           const known = model.rows[row];
           for (const column of byRow.get(row) ?? []) {
             const spec = block?.columns[column];
-            if (!spec || spec.readOnly) continue;
+            if (!spec || spec.readOnly || this.shareLock(spec, contract)) continue;
             const cell = this.cellAt(ws, row, column);
             if (known && canonOfCell(cell) === known.canon[column]) continue;
             const entry = plan.contracts.get(slot.id) ?? { number: String(contract.values.number ?? ""), keys: new Set<string>(), changes: [] };
@@ -3094,7 +3167,8 @@ export class RegistryBinding {
       return;
     }
     const [{ slot, column, text }] = heads;
-    const clean = text.trim();
+    // В названии части стоит итог («· договоров: 19 · остаток: …») - он не название.
+    const clean = (slot.kind === "title" ? text.replace(TALLY_TAIL, "") : text).trim();
     const block = model.layout.blocks[slot.block];
     if (!block) return;
     if (slot.kind === "title") {
@@ -3271,6 +3345,19 @@ export class RegistryBinding {
     if (heads.length && !fromUndo) this.askHeader(model, heads);
   }
 
+  /**
+   * «Сумма» в книге отдела - доля отдела (`book-share.ts`), а не сумма
+   * договора: напечатанное в ней ушло бы в сумму договора, и 104 400 из
+   * листа сделали бы договор на 348 000 договором на 104 400. Такая ячейка
+   * возвращается со словами; договор одного отдела правится как прежде.
+   */
+  private shareLock(spec: SheetColumn, contract: Contract): string {
+    if (spec.key !== "amount") return "";
+    const department = bookDepartmentOf(this.ctx);
+    if (bookShareOf(contract, department.id)?.kind !== "share") return "";
+    return `Здесь «${spec.label}» - доля ${department.code}: сумму договора и доли правят в карточке, Alt+Enter`;
+  }
+
   /** Правки строки договора. Возвращает текст для строки под листом, если есть. */
   private editRow(
     model: SheetModel,
@@ -3306,6 +3393,12 @@ export class RegistryBinding {
         if (spec?.kind === "ordinal") note = "Номер строки ставит лист";
         else if (spec?.kind === "shares") note = "Доли исполнителей правятся в карточке договора - двойной щелчок по ячейке или Alt+Enter";
         else if (spec) note = `«${spec.label}» - только для чтения`;
+        continue;
+      }
+      const locked = this.shareLock(spec, contract);
+      if (locked) {
+        revert = true;
+        note = locked;
         continue;
       }
       const raw = rawOf(spec, cell);

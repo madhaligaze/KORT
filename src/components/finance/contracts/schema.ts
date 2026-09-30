@@ -136,8 +136,14 @@ export function viewCounts(
  * блок без такого условия или отделы разные - пусто.
  */
 export function bookDepartment(schema: RegistrySchema | null, book: string): string {
+  const id = bookDepartmentId(schema, book);
+  return id ? departmentText(schema, id) : "";
+}
+
+/** То же, идентификатором отдела. Правило одно с сервером (`views.book_department`). */
+export function bookDepartmentId(schema: RegistrySchema | null, book: string): string {
   const views = (schema?.views ?? []).filter((view) => (view.book ?? "") === book);
-  if (!schema || !views.length) return "";
+  if (!schema || !book || !views.length) return "";
   let found: string | null = null;
   for (const view of views) {
     for (const block of view.blocks) {
@@ -153,7 +159,7 @@ export function bookDepartment(schema: RegistrySchema | null, book: string): str
       }
     }
   }
-  return found ? departmentText(schema, found) : "";
+  return found ?? "";
 }
 
 /** Подпись книги в колонке и заголовке: «Реестр», «Разовые ЮО». */

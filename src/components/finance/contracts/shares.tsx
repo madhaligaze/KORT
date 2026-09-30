@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * Доли в карточке договора: кто из исполнителей и какие отделы сколько
- * получают от договора (29.09.2026).
+ * Доли в карточке договора: какие отделы и кто из сотрудников сколько
+ * получают от договора (29.09.2026). С 30.09.2026 отделы - первым блоком,
+ * сотрудники - под ними, и блок людей называется «Сотрудники», а не
+ * «Исполнители» (просьба владельца).
  *
  * Над одним договором работают несколько человек, и доли у них разные:
  * договор на 700 000 - у одного 500 000, у другого 200 000. Людей сколько
@@ -436,52 +438,14 @@ export function Shares({ contractId, seq }: { contractId: string; seq: number })
   if (!showPeople && !showDepartments) return null;
 
   const others = people.count - personRows.length;
+  // Отделы - выше сотрудников (30.09.2026): сначала какая часть договора у
+  // отдела, потом как она делится между людьми.
   return (
     <section>
       <div className="card-section">
         <span>Доли</span>
         <span className="card-section-line" />
       </div>
-      {showPeople ? (
-        people.scope === "own" ? (
-          <div className="share-block">
-            <Bar rows={personRows.map((row) => ({ id: row.id, share: num(row.percent), mine: true }))} total={total} over={false} />
-            {personRows.map((row) => (
-              <div key={row.id} className="share-row" data-mine="true">
-                <span className="share-name">Ваша доля</span>
-                <span className="share-val">{row.entered ? moneyText(row.amount, monthly) || "-" : "не задана"}</span>
-                <span className="share-pct">{row.entered ? percentText(row.percent) : ""}</span>
-              </div>
-            ))}
-            <p className="share-foot">
-              {total !== null ? `из ${moneyText(total, monthly)} · ` : ""}
-              ещё {others} {plural(others, "исполнитель", "исполнителя", "исполнителей")}
-            </p>
-          </div>
-        ) : (
-          <ShareBlock
-            title="Исполнители"
-            rows={personRows}
-            unit={people.unit}
-            summary={people.summary}
-            total={total}
-            monthly={monthly}
-            canEdit={people.can_edit}
-            choices={null}
-            editLabel={personRows.some((row) => row.entered) ? "Изменить" : "Распределить"}
-            onSave={async (unit, items) => {
-              const next = await contractsApi.shares.setPeople(
-                contractId,
-                unit,
-                items.map((item) => ({ employee_id: item.id, value: item.value })),
-              );
-              setData({ id: contractId, value: next });
-              // «По сотрудникам» считает по долям - перечитать сразу.
-              void ensureShares(true);
-            }}
-          />
-        )
-      ) : null}
       {showDepartments && departments ? (
         departmentRows.length ? (
           <ShareBlock
@@ -519,6 +483,46 @@ export function Shares({ contractId, seq }: { contractId: string; seq: number })
               Разделить между отделами
             </button>
           </p>
+        )
+      ) : null}
+      {showPeople ? (
+        people.scope === "own" ? (
+          <div className="share-block">
+            <Bar rows={personRows.map((row) => ({ id: row.id, share: num(row.percent), mine: true }))} total={total} over={false} />
+            {personRows.map((row) => (
+              <div key={row.id} className="share-row" data-mine="true">
+                <span className="share-name">Ваша доля</span>
+                <span className="share-val">{row.entered ? moneyText(row.amount, monthly) || "-" : "не задана"}</span>
+                <span className="share-pct">{row.entered ? percentText(row.percent) : ""}</span>
+              </div>
+            ))}
+            <p className="share-foot">
+              {total !== null ? `из ${moneyText(total, monthly)} · ` : ""}
+              ещё {others} {plural(others, "сотрудник", "сотрудника", "сотрудников")}
+            </p>
+          </div>
+        ) : (
+          <ShareBlock
+            title="Сотрудники"
+            rows={personRows}
+            unit={people.unit}
+            summary={people.summary}
+            total={total}
+            monthly={monthly}
+            canEdit={people.can_edit}
+            choices={null}
+            editLabel={personRows.some((row) => row.entered) ? "Изменить" : "Распределить"}
+            onSave={async (unit, items) => {
+              const next = await contractsApi.shares.setPeople(
+                contractId,
+                unit,
+                items.map((item) => ({ employee_id: item.id, value: item.value })),
+              );
+              setData({ id: contractId, value: next });
+              // «По сотрудникам» считает по долям - перечитать сразу.
+              void ensureShares(true);
+            }}
+          />
         )
       ) : null}
     </section>

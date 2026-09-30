@@ -1151,6 +1151,9 @@ export type Contract = {
   /** Кто вписал отдел договора: отдел → учётка. Сотрудник убирает только
    *  вписанный им самим (и пока без доли); нет ключа - вписал не он. */
   departments_by?: Record<string, string>;
+  /** Доля отдела книги («Разовые ЮО» - доля ЮО): отдел → сумма и процент.
+   *  Только отделы, которыми отобрана книга, и только заданные (`shares.py`). */
+  department_share?: Record<string, { amount: string | null; percent: string | null }>;
   file_snapshot: { paid?: string; remaining?: string; as_of?: string; file?: string };
   position: number;
   source: string;

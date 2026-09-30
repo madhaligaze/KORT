@@ -2926,10 +2926,12 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   top: calc(var(--fin-head-h, 0px) + 2.25rem);
   z-index: 2;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
-  height: 2rem;
-  padding: 0.5rem 12px 0;
+  gap: 0 10px;
+  /* Итог части («договоров: 19 · остаток: …») на телефоне уходит второй строкой. */
+  min-height: 2rem;
+  padding: 0.5rem 12px 0.25rem;
   background: var(--fin-plate);
   border-bottom: 1px solid var(--fin-line);
   font-size: 0.8125rem;

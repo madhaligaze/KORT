@@ -44,6 +44,8 @@ import {
   shortName,
 } from "@/components/finance/format";
 import {
+  bookDepartment,
+  bookDepartmentId,
   counterpartTitle,
   isClosed,
   listText,
@@ -52,6 +54,7 @@ import {
   roleLabels,
   viewCounts,
 } from "@/components/finance/contracts/schema";
+import { blockTally, bookAmount, bookShareOf, shareNote } from "@/components/finance/contracts/book-share";
 import {
   boot,
   ensureShares,
@@ -276,14 +279,15 @@ export function Registry({
     }
     const combined = [...inside, ...leaving];
     if (sort) {
-      combined.sort((a, b) => compare(a.contract, b.contract, sort.key, schema, parties, people) * sort.dir);
+      const department = bookDepartmentId(schema, book);
+      combined.sort((a, b) => compare(a.contract, b.contract, sort.key, schema, parties, people, department) * sort.dir);
     } else {
       // Лист из нескольких блоков показывает блоки подряд, как в файле:
       // сначала номер блока, внутри - порядок реестра.
       combined.sort((a, b) => a.block - b.block || a.contract.position - b.contract.position);
     }
     return combined;
-  }, [view, shownAll, byId, matchesSearch, issuesOnly, sort, views, removed, wasIn, schema, parties, people, mineOnly]);
+  }, [view, shownAll, byId, matchesSearch, issuesOnly, sort, views, removed, wasIn, schema, parties, people, mineOnly, book]);
 
   const issueCount = useMemo(
     () =>
@@ -716,24 +720,41 @@ function Rows({
   const schema = useRegistry((s) => s.schema);
   const parties = useRegistry((s) => s.parties);
   const people = useRegistry((s) => s.people);
+  const summary = useRegistry((s) => s.summary);
   const limit = useProgressive(rows.length, `${view.key}|${needle}|${grouped}`);
+  // «Разовые ЮО»: сумма строки - доля ЮО (`book-share.ts`).
+  const book = view.book ?? "";
+  const department = bookDepartmentId(schema, book);
+  const code = department ? bookDepartment(schema, book) : "";
   const out: React.ReactNode[] = [];
   let lastBlock = -1;
-  const blockCounts: Record<number, number> = {};
-  if (grouped) for (const row of rows) blockCounts[row.block] = (blockCounts[row.block] ?? 0) + 1;
+  // Итог части - по строкам, которые в ней стоят; ушедшая строка ещё видна,
+  // но в части её уже нет.
+  const blockRows = new Map<number, Contract[]>();
+  if (grouped) {
+    for (const row of rows) {
+      if (row.departed) continue;
+      const list = blockRows.get(row.block) ?? [];
+      list.push(row.contract);
+      blockRows.set(row.block, list);
+    }
+  }
   const shown = limit < rows.length ? rows.slice(0, limit) : rows;
   for (const row of shown) {
     if (grouped && row.block !== lastBlock) {
       lastBlock = row.block;
-      const title = view.blocks[row.block]?.title || `Блок ${row.block + 1}`;
+      const block = view.blocks[row.block];
+      const title = block?.title || `Блок ${row.block + 1}`;
+      const withRemaining = Boolean(block?.columns.some((column) => column.key === "summary_remaining"));
       out.push(
         <div key={`block-${row.block}`} className="creg-block-head" role="rowgroup">
           {title}
-          <span>{blockCounts[row.block]}</span>
+          <span>{blockTally(blockRows.get(row.block) ?? [], withRemaining, summary, department)}</span>
         </div>,
       );
     }
     const contract = row.contract;
+    const share = bookShareOf(contract, department);
     const personIds = Array.isArray(contract.values.people) ? (contract.values.people as string[]) : [];
     // Строке отдаются её стороны и люди, а не словари целиком: словари
     // пересобираются на каждый опрос с изменениями, и `memo` перерисовывал бы
@@ -752,6 +773,9 @@ function Rows({
         firstPerson={personIds[0] ? people[personIds[0]]?.name ?? "" : ""}
         peopleTitle={personIds.map((id) => people[id]?.name ?? "").join(", ")}
         peopleCount={personIds.length}
+        amount={bookAmount(contract, share) as string | number | null | undefined}
+        amountNote={shareNote(contract, share, code)}
+        amountUnset={share?.kind === "unset"}
         onOpen={onOpen}
       />,
     );
@@ -804,6 +828,12 @@ type RowProps = {
   firstPerson: string;
   peopleTitle: string;
   peopleCount: number;
+  /** Сумма строки: в книге отдела - его доля (`book-share.ts`), иначе сумма договора. */
+  amount: string | number | null | undefined;
+  /** Откуда сумма, если это не весь договор одного отдела: «Доля ЮО - 30% от 348 000». */
+  amountNote: string;
+  /** Отделов несколько, доли отдела книги нет - стоит вся сумма, приглушённо. */
+  amountUnset: boolean;
   onOpen: (id: string) => void;
 };
 
@@ -821,6 +851,9 @@ const Row = memo(function Row({
   firstPerson,
   peopleTitle,
   peopleCount,
+  amount,
+  amountNote,
+  amountUnset,
   onOpen,
 }: RowProps) {
   const pair: Record<string, Party> = {};
@@ -835,7 +868,6 @@ const Row = memo(function Row({
   // замечание было и его проверили, - открыть и посмотреть можно всегда.
   const settled = contract.issues.length - issues;
   const billing = String(contract.values.billing ?? "");
-  const amount = contract.values.amount;
   const terms = String(contract.values.amount_terms ?? "");
   const planned = String(contract.values.planned_end_at ?? "");
   const overdue = planned && planned < (schema?.today ?? "") && (phase === "active" || phase === "in_progress");
@@ -869,12 +901,12 @@ const Row = memo(function Row({
       <span className="creg-col-kind" title={kind}>
         {kind}
       </span>
-      <span className="creg-money" title={terms || undefined}>
-        {amount !== undefined ? (
-          <>
+      <span className="creg-money" title={[amountNote, terms].filter(Boolean).join("\n") || undefined}>
+        {amount !== undefined && amount !== null ? (
+          <span className={amountUnset ? "fin-muted" : undefined}>
             {contractMoney(amount)}
             {billing === "month" ? <small> /мес</small> : null}
-          </>
+          </span>
         ) : terms ? (
           <span className="fin-muted">{terms}</span>
         ) : (
@@ -979,8 +1011,11 @@ function compare(
   schema: RegistrySchema | null,
   parties: Readonly<Record<string, Party>>,
   people: Readonly<Record<string, PersonRef>>,
+  /** Отдел книги: в «Разовых ЮО» сумма - доля ЮО, по ней и сортируется. */
+  department = "",
 ): number {
   const text = (value: string) => value.toLowerCase();
+  const amountOf = (contract: Contract) => Number(bookAmount(contract, bookShareOf(contract, department)) ?? -1);
   switch (key) {
     case "number":
       return text(bareNumber(a.values.number)).localeCompare(text(bareNumber(b.values.number)), "ru", { numeric: true });
@@ -991,7 +1026,7 @@ function compare(
     case "kind":
       return listText(schema, "type", a.values.type).localeCompare(listText(schema, "type", b.values.type), "ru");
     case "amount":
-      return Number(a.values.amount ?? -1) - Number(b.values.amount ?? -1);
+      return amountOf(a) - amountOf(b);
     case "term":
       return String(a.values.planned_end_at ?? "9999").localeCompare(String(b.values.planned_end_at ?? "9999"));
     case "status":
