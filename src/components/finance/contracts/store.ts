@@ -182,31 +182,80 @@ function sortOrder(byId: ReadonlyMap<string, Contract>): string[] {
 
 let booting: Promise<void> | null = null;
 
-/** Схема и все договоры - по одному запросу. 460 договоров - секунда. */
-export function boot(company: string, me: string | null, force = false): Promise<void> {
-  if (!force && state.company === company && (state.phase === "ready" || booting)) {
+/**
+ * Чей реестр в хранилище: учётка и компания. Каждая смена хозяина - новый
+ * номер, и ответ, запрошенный для прежнего, в хранилище уже не ложится.
+ *
+ * До 01.10.2026 хранилище различало только компанию. Владелец выходил,
+ * сотрудник входил в той же вкладке (компьютер общий, или владелец проверял,
+ * что видит сотрудник) - и сотрудник видел реестр владельца: все договоры,
+ * скрытые от него поля, кнопки настройки. В обратную сторону владелец после
+ * сотрудника с узкой областью видел «Договоров пока нет» вместо своих 463.
+ */
+let epoch = 0;
+/** Права на договоры, с которыми собран реестр (`useRegistryBoot`). */
+let bootedScope: string | undefined;
+
+function claim(company: string | null, me: string | null, phase: RegistryState["phase"]): void {
+  epoch += 1;
+  booting = null;
+  bootedScope = undefined;
+  schemaLoading = null;
+  inflight.clear();
+  paymentsAt = 0;
+  paymentsLoading = null;
+  paymentsClosedFor = null;
+  summaryAt = 0;
+  summaryLoading = null;
+  sharesAt = 0;
+  sharesLoading = null;
+  staffAt = 0;
+  staffLoading = null;
+  if (sharesSoon) clearTimeout(sharesSoon);
+  sharesSoon = 0;
+  state = { ...EMPTY, company, me, phase };
+  listeners.forEach((listener) => listener());
+}
+
+/** Выход из учётки: реестр вышедшего не остаётся в памяти вкладки. */
+export function forgetRegistry(): void {
+  if (state.company !== null || state.me !== null) claim(null, null, "idle");
+}
+
+/**
+ * Схема и все договоры - по одному запросу. 460 договоров - секунда.
+ *
+ * `scope` - права на договоры, с которыми человек пришёл (`me.access` и
+ * `me.contracts_scope`). Сменились - реестр читается заново: сузили область
+ * «до своего отдела», а договоры других отделов стояли на экране до
+ * перезагрузки - номер изменений договоров от смены прав не двигается.
+ */
+export function boot(company: string, me: string | null, force = false, scope?: string): Promise<void> {
+  const same = state.company === company && state.me === me;
+  const rescoped = scope !== undefined && bootedScope !== undefined && scope !== bootedScope;
+  if (!force && !rescoped && same && (state.phase === "ready" || booting)) {
     return booting ?? Promise.resolve();
   }
-  if (state.company !== company) {
-    state = { ...EMPTY, company, me, phase: "boot" };
-    listeners.forEach((listener) => listener());
-  } else {
-    emit({ phase: state.phase === "ready" ? "ready" : "boot", me });
-  }
-  booting = (async () => {
+  if (!same) claim(company, me, "boot");
+  else emit({ phase: state.phase === "ready" ? "ready" : "boot" });
+  if (scope !== undefined) bootedScope = scope;
+  const mine = epoch;
+  const run = (async () => {
     try {
       const [schema, all] = await Promise.all([contractsApi.schema(), contractsApi.all()]);
-      if (state.company !== company) return;
+      if (epoch !== mine) return;
       loadAll(schema, all);
     } catch (exc) {
-      if (state.company !== company) return;
+      if (epoch !== mine) return;
       if (exc instanceof FinanceApiError && exc.status === 401) onAuthLost?.();
       emit({ phase: "error", error: exc instanceof Error ? exc.message : "Реестр не прочитался" });
-    } finally {
-      booting = null;
     }
   })();
-  return booting;
+  booting = run;
+  void run.finally(() => {
+    if (booting === run) booting = null;
+  });
+  return run;
 }
 
 function loadAll(schema: RegistrySchema, all: ContractsAll): void {
@@ -247,8 +296,10 @@ function placementKey(schema: RegistrySchema | null): string {
 }
 
 export async function reloadSchema(): Promise<void> {
+  const mine = epoch;
   try {
     const schema = await contractsApi.schema();
+    if (epoch !== mine) return;
     const moved = state.phase === "ready" && placementKey(state.schema) !== placementKey(schema);
     emit({ schema, schemaRev: schema.schema_rev });
     // Номер схемы двигает и смена прав на договоры - пусть рама перечитает права.
@@ -267,28 +318,31 @@ let schemaLoading: Promise<void> | null = null;
  * схему не сбрасывает, а перечитывает.
  */
 export function ensureSchema(company: string, me: string | null): Promise<void> {
-  if (state.company === company && (state.schema || schemaLoading)) return schemaLoading ?? Promise.resolve();
-  if (state.company !== company) {
-    state = { ...EMPTY, company, me };
-    listeners.forEach((listener) => listener());
-  }
-  schemaLoading = (async () => {
+  const same = state.company === company && state.me === me;
+  if (same && (state.schema || schemaLoading)) return schemaLoading ?? Promise.resolve();
+  if (!same) claim(company, me, "idle");
+  const mine = epoch;
+  const run = (async () => {
     try {
       const schema = await contractsApi.schema();
-      if (state.company === company && !state.schema) emit({ schema, schemaRev: schema.schema_rev });
+      if (epoch === mine && !state.schema) emit({ schema, schemaRev: schema.schema_rev });
     } catch {
       /* подпись останется общей */
-    } finally {
-      schemaLoading = null;
     }
   })();
-  return schemaLoading;
+  schemaLoading = run;
+  void run.finally(() => {
+    if (schemaLoading === run) schemaLoading = null;
+  });
+  return run;
 }
 
 /** Перечитать всё - после загрузки Excel или сведения значений. */
 export async function reloadAll(): Promise<void> {
   if (!state.company) return;
+  const mine = epoch;
   const [schema, all] = await Promise.all([contractsApi.schema(), contractsApi.all()]);
+  if (epoch !== mine) return;
   loadAll(schema, all);
 }
 
@@ -301,8 +355,11 @@ let poller: Poller | null = null;
 
 async function pollOnce(): Promise<PollOutcome> {
   if (state.phase !== "ready") return "ok";
+  const mine = epoch;
   try {
     const batch = await contractsApi.changes(state.seq);
+    // Пока шёл опрос, сменилась учётка: ответ - про чужой реестр.
+    if (epoch !== mine) return "ok";
     applyChanges(batch);
     // Договор поменялся - могли поменяться и доли (их правка двигает номер
     // договора): лист и «По сотрудникам» видят их без перезагрузки.
@@ -313,6 +370,7 @@ async function pollOnce(): Promise<PollOutcome> {
     flushQueued();
     return "ok";
   } catch (exc) {
+    if (epoch !== mine) return "ok";
     if (exc instanceof FinanceApiError && exc.status === 401) {
       onAuthLost?.();
       return "stop";
@@ -559,9 +617,12 @@ function send(id: string): void {
   if (!contract) return;
   inflight.add(id);
   for (const [key, item] of batch) setEdit(id, key, { ...item, state: "sending" });
+  const mine = epoch;
   contractsApi
     .patch(id, values, contract.seq, mode ?? null)
     .then((one) => {
+      // Учётку сменили, пока правка летела: её ответ в чужой реестр не ложится.
+      if (epoch !== mine) return;
       inflight.delete(id);
       for (const [key] of batch) {
         const now = state.edits.get(id)?.get(key);
@@ -572,6 +633,7 @@ function send(id: string): void {
       send(id);
     })
     .catch((exc: unknown) => {
+      if (epoch !== mine) return;
       inflight.delete(id);
       if (exc instanceof FinanceApiError) {
         const body = (exc.body ?? {}) as { code?: string; fields?: string[]; conflicts?: string[] } & Partial<OneContract>;
@@ -633,7 +695,9 @@ export async function create(
   values: Record<string, unknown>,
   ctx?: { view?: string; block?: number; source?: string; before?: string | null },
 ): Promise<string> {
+  const mine = epoch;
   const one = await contractsApi.create(values, ctx);
+  if (epoch !== mine) return one.contract.id;
   putOne(one, false);
   const fresh = new Set(state.fresh);
   fresh.add(one.contract.id);
@@ -654,7 +718,9 @@ export function dropMany(ids: readonly string[]): void {
 }
 
 export async function remove(id: string): Promise<void> {
+  const mine = epoch;
   await contractsApi.remove(id);
+  if (epoch !== mine) return;
   const byId = new Map(state.byId);
   byId.delete(id);
   emit({ byId, order: sortOrder(byId) });
@@ -691,8 +757,10 @@ export async function removeMany(
 }
 
 export async function refreshOne(id: string): Promise<void> {
+  const mine = epoch;
   try {
-    putOne(await contractsApi.one(id));
+    const one = await contractsApi.one(id);
+    if (epoch === mine) putOne(one);
   } catch {
     /* договор мог уйти - опрос покажет */
   }
@@ -706,7 +774,7 @@ export function put(one: OneContract): void {
 const PAYMENTS_TTL = 30_000;
 let paymentsAt = 0;
 let paymentsLoading: Promise<void> | null = null;
-/** Журнал не открыт (403) - не спрашивать заново до смены компании. */
+/** Журнал не открыт (403) - не спрашивать заново до смены компании или учётки. */
 let paymentsClosedFor: string | null = null;
 
 /**
@@ -722,16 +790,17 @@ export function ensurePayments(force = false): Promise<void> {
   if (state.schema?.access.payments === false) return Promise.resolve();
   const fresh = state.payments !== null && Date.now() - paymentsAt < PAYMENTS_TTL;
   if (!force && (paymentsLoading || fresh)) return paymentsLoading ?? Promise.resolve();
+  const mine = epoch;
   paymentsLoading = (async () => {
     try {
       const result = await contractsApi.payments.all();
-      if (state.company !== company) return;
+      if (epoch !== mine) return;
       paymentsAt = Date.now();
       emit({ payments: result.contracts });
     } catch (exc) {
-      if (exc instanceof FinanceApiError && exc.status === 403) paymentsClosedFor = company;
+      if (epoch === mine && exc instanceof FinanceApiError && exc.status === 403) paymentsClosedFor = company;
     } finally {
-      paymentsLoading = null;
+      if (epoch === mine) paymentsLoading = null;
     }
   })();
   return paymentsLoading;
@@ -756,10 +825,11 @@ export function ensureSummary(force = false): Promise<void> {
   if (!company) return Promise.resolve();
   const fresh = state.summary !== null && Date.now() - summaryAt < SUMMARY_TTL;
   if (!force && (summaryLoading || fresh)) return summaryLoading ?? Promise.resolve();
+  const mine = epoch;
   summaryLoading = (async () => {
     try {
       const result = await contractsApi.summary(force);
-      if (state.company !== company) return;
+      if (epoch !== mine) return;
       summaryAt = Date.now();
       emit({ summary: result.source ? result.contracts : null, summarySource: result.source });
       const rev = result.source?.rev ?? "";
@@ -767,7 +837,7 @@ export function ensureSummary(force = false): Promise<void> {
     } catch {
       /* колонка «по сводке» останется пустой до следующей попытки */
     } finally {
-      summaryLoading = null;
+      if (epoch === mine) summaryLoading = null;
     }
   })();
   return summaryLoading;
@@ -798,16 +868,17 @@ export function ensureShares(force = false): Promise<void> {
   if (!company) return Promise.resolve();
   const fresh = state.shares !== null && Date.now() - sharesAt < SHARES_TTL;
   if (!force && (sharesLoading || fresh)) return sharesLoading ?? Promise.resolve();
+  const mine = epoch;
   sharesLoading = (async () => {
     try {
       const result = await contractsApi.shares.all();
-      if (state.company !== company) return;
+      if (epoch !== mine) return;
       sharesAt = Date.now();
       emit({ shares: result.contracts });
     } catch {
       /* «По сотрудникам» посчитает договоры целиком, как до долей */
     } finally {
-      sharesLoading = null;
+      if (epoch === mine) sharesLoading = null;
     }
   })();
   return sharesLoading;
@@ -827,14 +898,14 @@ let staffLoading: Promise<void> | null = null;
  * после загрузки Excel пропадали все, кто ещё не стоял в договорах.
  */
 export function ensureStaff(force = false): Promise<void> {
-  // Смена компании сбрасывает `staff` в `null` - справочник читается заново.
+  // Смена компании или учётки сбрасывает `staff` в `null` - справочник читается заново.
   const fresh = state.staff !== null && Date.now() - staffAt < STAFF_TTL;
   if (!force && (staffLoading || fresh)) return staffLoading ?? Promise.resolve();
-  const company = state.company;
+  const mine = epoch;
   staffLoading = (async () => {
     try {
       const result = await contractsApi.people();
-      if (state.company !== company) return;
+      if (epoch !== mine) return;
       const people: Record<string, PersonRef> = { ...state.people };
       for (const person of result.people) people[person.id] = person;
       staffAt = Date.now();
@@ -842,7 +913,7 @@ export function ensureStaff(force = false): Promise<void> {
     } catch {
       /* выбор покажет тех, кто уже есть в договорах */
     } finally {
-      staffLoading = null;
+      if (epoch === mine) staffLoading = null;
     }
   })();
   return staffLoading;

@@ -96,9 +96,11 @@ function writeSort(view: string, sort: { key: SortKey; dir: 1 | -1 } | null): vo
 export function useRegistryBoot(me: Me): void {
   const company = me.company?.id ?? null;
   const user = me.user?.id ?? null;
+  // Права на договоры: сменились - реестр читается заново (`boot`).
+  const scope = JSON.stringify([me.access?.contracts ?? null, me.contracts_scope ?? null]);
   useEffect(() => {
-    if (company) void boot(company, user);
-  }, [company, user]);
+    if (company) void boot(company, user, false, scope);
+  }, [company, user, scope]);
   useEffect(() => holdLive(), []);
 }
 
@@ -363,6 +365,27 @@ export function Registry({
       </div>
     );
   }
+  if (phase === "ready" && schema && !view) {
+    // Все листы книги убраны (в «Разовых» их убирают по одному из листа или
+    // настройки). До 01.10.2026 здесь стояло «Читаем реестр…» с нулевой
+    // прозрачностью - пустой экран навсегда; «Таблица» того же реестра уже
+    // говорила, в чём дело.
+    return (
+      <p className="creg-empty">
+        Листов в этой книге нет
+        {schema.access.setup ? (
+          <>
+            {" · "}
+            <button type="button" className="fin-link-btn" onClick={() => onGo("contracts-setup")}>
+              Настроить реестр
+            </button>
+          </>
+        ) : (
+          " - их заводит владелец или администратор"
+        )}
+      </p>
+    );
+  }
   if (phase !== "ready" || !schema || !view) {
     return <div className="creg-empty" style={{ opacity: slowPhase ? 1 : 0, transition: "opacity .3s" }}>Читаем реестр…</div>;
   }
@@ -468,7 +491,11 @@ export function Registry({
             </label>
           </div>
           <div className="creg-filters">
-            {issueCount > 0 ? (
+            {/* Включённый отбор держит кнопку, даже когда замечаний не
+                осталось: до 01.10.2026 последнее «Учтено» прятало её, отбор
+                оставался включённым (и переживал перезагрузку), и лист
+                выглядел пустым - «В этом листе пока пусто», выключить нечем. */}
+            {issueCount > 0 || issuesOnly ? (
               <button
                 type="button"
                 className="creg-issues-btn"
@@ -500,6 +527,13 @@ export function Registry({
                       Ничего не нашлось ·{" "}
                       <button type="button" className="fin-link-btn" onClick={() => setQuery("")}>
                         Сбросить поиск
+                      </button>
+                    </>
+                  ) : issuesOnly ? (
+                    <>
+                      Замечаний в этом листе нет ·{" "}
+                      <button type="button" className="fin-link-btn" onClick={() => setIssuesOnly(false)}>
+                        Показать все
                       </button>
                     </>
                   ) : sharesOnly ? (

@@ -74,7 +74,7 @@ import { DictionariesPanel } from "@/components/finance/dictionaries-panel";
 import { Registry, RegistryActions, useRegistryBoot } from "@/components/finance/contracts/registry-cards";
 import { ContractCard } from "@/components/finance/contracts/contract-card";
 import { bookTitle } from "@/components/finance/contracts/schema";
-import { boot, ensureSchema, ensureSummary, useRegistry } from "@/components/finance/contracts/store";
+import { boot, ensureSchema, ensureSummary, forgetRegistry, useRegistry } from "@/components/finance/contracts/store";
 import { OneoffStaff, SummaryLine } from "@/components/finance/contracts/oneoff";
 import { RegistryImport } from "@/components/finance/contracts/import/registry-import";
 import { RegistrySetup } from "@/components/finance/contracts/setup/registry-setup";
@@ -1170,6 +1170,7 @@ export function FinanceClient() {
                 // запоминает своё место.
                 dropAllSessions();
                 forgetLooks();
+                forgetRegistry();
                 setAuthNotice("");
                 // Выходят из кабинета, и раздел «кабинет» оставался выбранным:
                 // следующий вход - свой или чужой - открывался кабинетом, а не

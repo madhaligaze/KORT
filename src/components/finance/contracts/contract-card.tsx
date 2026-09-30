@@ -94,10 +94,33 @@ export function ContractCard({
   const parties = useRegistry((s) => s.parties);
   const edits = useRegistry((s) => (id ? s.edits.get(id) : undefined));
   const online = useRegistry((s) => s.live.online);
+  const phase = useRegistry((s) => s.phase);
   const [creating, setCreating] = useState(false);
   const [draftError, setDraftError] = useState("");
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<{ id: string; text: string } | null>(null);
+  /**
+   * Договор по ссылке, которого нет в реестре: удалён, не открыт человеку или
+   * ещё не пришёл опросом - что из трёх, решает сервер.
+   *
+   * До 01.10.2026 такая карточка открывалась пустой формой «Новый договор»:
+   * ссылка из журнала действий на удалённый договор, ссылка коллеги на договор
+   * другого отдела - и первое напечатанное поле заводило новый договор.
+   */
+  const [lost, setLost] = useState<string | null>(null);
+  const missing = id !== null && (!contract || contract.deleted);
+  useEffect(() => {
+    if (!open || !id || contract || phase !== "ready") return;
+    let alive = true;
+    contractsApi
+      .one(id)
+      .then((one) => alive && put(one))
+      .catch(() => alive && setLost(id));
+    return () => {
+      alive = false;
+    };
+  }, [open, id, contract, phase]);
 
   useEffect(() => {
     if (open) void ensureStaff();
@@ -134,7 +157,11 @@ export function ContractCard({
   const number = contract ? String(contract.values.number ?? "") : "";
 
   return (
-    <CardLayer open={open} onClose={onClose} label={number ? `Договор ${number}` : "Новый договор"}>
+    <CardLayer
+      open={open}
+      onClose={onClose}
+      label={number ? `Договор ${number}` : missing ? "Договор" : "Новый договор"}
+    >
       <CardScopeContext.Provider value={scope}>
       <div className="card-top">
         <button type="button" className="fin-icon-btn" aria-label="Предыдущий договор" disabled={!onPrev} onClick={onPrev}>
@@ -143,13 +170,13 @@ export function ContractCard({
         <button type="button" className="fin-icon-btn" aria-label="Следующий договор" disabled={!onNext} onClick={onNext}>
           <ArrowDownIcon size={16} />
         </button>
-        <span className="card-top-num">{contract ? number || "Без номера" : "Новый договор"}</span>
+        <span className="card-top-num">{contract ? number || "Без номера" : missing ? "Договор" : "Новый договор"}</span>
         <span className={`card-top-state ${topState?.cls ?? ""}`}>{topState?.text ?? ""}</span>
         <MenuPopover
           items={[
             {
               label: "Скопировать ссылку",
-              hidden: !contract,
+              hidden: !contract || missing,
               onSelect: () => {
                 const url = new URL(window.location.href);
                 url.searchParams.set("s", "contracts");
@@ -160,7 +187,7 @@ export function ContractCard({
             {
               label: "Удалить договор",
               danger: true,
-              hidden: !contract || !schema?.access.edit || scope.readonly,
+              hidden: !contract || missing || !schema?.access.edit || scope.readonly,
               onSelect: () => setConfirmRemove(true),
             },
           ]}
@@ -170,6 +197,26 @@ export function ContractCard({
         </button>
       </div>
 
+      {missing ? (
+        <div className="card-body" key={id ?? "new"}>
+          {contract?.deleted || lost === id ? (
+            <>
+              <h2 className="card-title" tabIndex={-1} data-empty="true">
+                Договора нет в реестре
+              </h2>
+              <p className="card-readonly">Его удалили или он вам не открыт.</p>
+            </>
+          ) : phase === "error" ? (
+            <h2 className="card-title" tabIndex={-1} data-empty="true">
+              Реестр не прочитался
+            </h2>
+          ) : (
+            <h2 className="card-title" tabIndex={-1} data-empty="true">
+              Читаем договор…
+            </h2>
+          )}
+        </div>
+      ) : (
       <div className="card-body" key={id ?? "new"}>
         <h2 className="card-title" tabIndex={-1} data-empty={title ? undefined : "true"}>
           {title || "Новый договор"}
@@ -177,6 +224,7 @@ export function ContractCard({
         {contract ? <PartiesLine contractId={contract.id} /> : null}
         {scope.readonly ? <p className="card-readonly">Договор другого отдела - открыт вам только на просмотр</p> : null}
         {draftError ? <p className="ifield-error">{draftError}</p> : null}
+        {removeError && removeError.id === contract?.id ? <p className="ifield-error">{removeError.text}</p> : null}
         {contract ? <Issues contractId={contract.id} onOpen={onOpen ?? onCreated} /> : null}
 
         <div className="card-grid">
@@ -204,6 +252,7 @@ export function ContractCard({
           </>
         ) : null}
       </div>
+      )}
 
       <ConfirmDialog
         open={confirmRemove}
@@ -216,6 +265,7 @@ export function ContractCard({
         onConfirm={async () => {
           if (!contract) return;
           setRemoving(true);
+          setRemoveError(null);
           try {
             // Через точку восстановления, как удаление из листа: вернуть договор
             // может тот, кто удалил, а не только администратор из корзины.
@@ -226,6 +276,11 @@ export function ContractCard({
             dropMany([contract.id]);
             setConfirmRemove(false);
             onClose();
+          } catch (exc) {
+            // Отказ - словами в карточке. До 01.10.2026 он пропадал молча:
+            // окно «Удалить?» оставалось открытым, и почему - не говорилось.
+            setConfirmRemove(false);
+            setRemoveError({ id: contract.id, text: exc instanceof Error ? exc.message : "Договор не удалился" });
           } finally {
             setRemoving(false);
           }
@@ -377,11 +432,15 @@ function Issues({ contractId, onOpen }: { contractId: string; onOpen: (id: strin
   const contract = useRegistry((s) => s.byId.get(contractId));
   const canEdit = useRegistry((s) => !!s.schema?.access.edit) && !contract?.readonly;
   const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
   if (!contract || !contract.issues.length) return null;
   const acknowledge = async (code: string, on: boolean) => {
     setBusy(code);
+    setError("");
     try {
       put(await contractsApi.acknowledge(contractId, code, on));
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Отметка не сохранилась");
     } finally {
       setBusy("");
     }
@@ -406,6 +465,11 @@ function Issues({ contractId, onOpen }: { contractId: string; onOpen: (id: strin
           ) : null}
         </div>
       ))}
+      {error ? (
+        <p className="ifield-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
