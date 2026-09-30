@@ -4,8 +4,8 @@
  * Выбор значения: сторона, значение списка, ответственные.
  *
  * Паттерн ARIA combobox: ↑/↓, Enter, Esc. Список подсказывает, а не
- * запрещает: новое значение — строка «+ Завести «ввод»» внизу. Похожая
- * сторона — вопрос «Это ТОО «Атриум плюс»?», молча не выбирается ничего
+ * запрещает: новое значение - строка «+ Завести «ввод»» внизу. Похожая
+ * сторона - вопрос «Это ТОО «Атриум плюс»?», молча не выбирается ничего
  * (правило «не угадывать»).
  */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
@@ -168,13 +168,13 @@ type PartyPickerProps = {
   own: Party[];
   /** Поле закрыто на наши юрлица: контрагентов в выборе нет. */
   ownOnly?: boolean;
-  /** Завести наше юрлицо прямо из выбора — только тому, кто настраивает реестр. */
+  /** Завести наше юрлицо прямо из выбора - только тому, кто настраивает реестр. */
   onCreateOwn?: (name: string) => void;
   onPick: (choice: PartyChoice) => void;
   onCancel: () => void;
 };
 
-/** Наши юрлица — первой группой в первом слоте, после контрагентов — во втором. */
+/** Наши юрлица - первой группой в первом слоте, после контрагентов - во втором. */
 export function PartyPicker({ slot, label, own, ownOnly = false, onCreateOwn, onPick, onCancel }: PartyPickerProps) {
   const [found, setFound] = useState<Party[]>([]);
   const [similar, setSimilar] = useState<{ name: string; candidates: Party[] } | null>(null);
@@ -223,8 +223,8 @@ export function PartyPicker({ slot, label, own, ownOnly = false, onCreateOwn, on
         createLabel={(text) => `+ Завести «${text}» нашим юрлицом`}
         emptyText={
           own.length
-            ? "Не наше юрлицо — здесь только наши"
-            : "Наших юрлиц ещё нет — их заводят в настройке реестра"
+            ? "Не наше юрлицо - здесь только наши"
+            : "Наших юрлиц ещё нет - их заводят в настройке реестра"
         }
         onPick={(option) => onPick({ id: option.id })}
         onCreate={(text) => onCreateOwn?.(text)}
@@ -268,7 +268,7 @@ export function PartyPicker({ slot, label, own, ownOnly = false, onCreateOwn, on
             return;
           }
         } catch {
-          /* без подсказки — заводим как написано */
+          /* без подсказки - заводим как написано */
         }
         onPick({ name: text });
       }}

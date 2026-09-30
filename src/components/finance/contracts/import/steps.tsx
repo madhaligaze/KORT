@@ -6,7 +6,7 @@
  * правила.
  *
  * Не блокирующие пункты видны и меняются, но «Завести» не держат: их
- * умолчание ничего не теряет (статус сохраняется как написан, дата — со
+ * умолчание ничего не теряет (статус сохраняется как написан, дата - со
  * смыслом «не ясен», строка вне главного листа заводится, в расхождении верен
  * главный лист). Правила листов держат «Завести» там, где предложенное
  * правило приносит лишних или теряет строк больше допуска: лист, который после
@@ -234,7 +234,7 @@ export function StatusesStep({ items, decisions, decide }: { items: StatusItem[]
   );
 }
 
-/** Пустые смыслы не отправляются: «не назначено» — это отсутствие ключа. */
+/** Пустые смыслы не отправляются: «не назначено» - это отсутствие ключа. */
 function pick(meaning: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(meaning).filter(([, value]) => value !== "" && value !== undefined && value !== null));
 }
@@ -291,7 +291,7 @@ export function EndDatesStep({
         расторжение {counts.terminated ?? 0} · исполнение {counts.fulfilled ?? 0} · не ясно {counts.unknown ?? 0}
       </p>
       <p className={`${styles.line} fin-soft`}>
-        Смысл даты — по статусу и виду: недействующий — расторжение; исполнен и разовая — исполнение.
+        Смысл даты - по статусу и виду: недействующий - расторжение; исполнен и разовая - исполнение.
       </p>
       {rows.length ? (
         <table className="proto-table">
@@ -463,7 +463,7 @@ export function OrphansStep({
       ) : null}
       {numberOnly.length ? (
         <div>
-          <p className={styles.subhead}>Тот же номер, но стороны другие — заведутся отдельно</p>
+          <p className={styles.subhead}>Тот же номер, но стороны другие - заведутся отдельно</p>
           <PairTable
             items={numberOnly}
             mainSheet={mainSheet}
@@ -483,7 +483,7 @@ const LOOSE_WORDS: Record<string, string> = {
 };
 
 function parties(executor: unknown, customer: unknown): string {
-  return `${text(executor) || "—"} → ${text(customer) || "—"}`;
+  return `${text(executor) || "-"} → ${text(customer) || "-"}`;
 }
 
 /** Пара «строка листа ↔ строка главного»: стороны обеих рядом, чтобы сравнить глазами. */
@@ -649,7 +649,7 @@ export function diffsSummary(items: DiffItem[], mainSheet: string, decisions: De
 // ── 09 Правила листов и блоков ───────────────────────────────────────────────
 
 function briefText(brief: Brief): string {
-  const why = [brief.type ? `вид — ${text(brief.type)}` : "", brief.subject ? `предмет — ${text(brief.subject)}` : ""]
+  const why = [brief.type ? `вид - ${text(brief.type)}` : "", brief.subject ? `предмет - ${text(brief.subject)}` : ""]
     .filter(Boolean)
     .join(", ");
   return `${text(brief.number) || brief.ref}${why ? ` (${why})` : ""}`;
@@ -684,9 +684,9 @@ export function pendingRules(pending: string[], decisions: Decisions): string[] 
 }
 
 /**
- * Написания из файла для фразы правила: виды, статусы, отделы — из пункта 04,
- * предметы — полным списком из того же пункта (`subjects`); у старого отчёта
- * без него — из правил и примеров строк.
+ * Написания из файла для фразы правила: виды, статусы, отделы - из пункта 04,
+ * предметы - полным списком из того же пункта (`subjects`); у старого отчёта
+ * без него - из правил и примеров строк.
  */
 function valueOptions(
   items: RuleItem[],

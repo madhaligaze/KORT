@@ -6,19 +6,19 @@ import { ChoiceSelect } from "@/components/choice-select";
 import { PhoneInput, formatPhone, phoneDigits, phoneValue } from "@/components/finance/ui/phone-input";
 
 /**
- * Строка «подпись · значение», которая в покое — текст (фронт-план, 6.9).
+ * Строка «подпись · значение», которая в покое - текст (фронт-план, 6.9).
  *
- * Правится там, где человеку это можно: нажал — поле на месте текста,
- * Enter или уход из поля — сохранено, Esc — отмена. Кнопки «Сохранить» нет:
+ * Правится там, где человеку это можно: нажал - поле на месте текста,
+ * Enter или уход из поля - сохранено, Esc - отмена. Кнопки «Сохранить» нет:
  * пока запрос в полёте, под значением прочерчивается волосяная линия;
- * отказ — текстом сервера под полем, розой.
+ * отказ - текстом сервера под полем, розой.
  */
 type Option = { value: string; label: string };
 
 type Props = {
   label: string;
   value: string;
-  /** Как показать значение в покое; по умолчанию — само значение. */
+  /** Как показать значение в покое; по умолчанию - само значение. */
   shown?: ReactNode;
   editable?: boolean;
   kind?: "text" | "phone" | "select";
@@ -37,7 +37,7 @@ export function EditLine({
   editable = false,
   kind = "text",
   options = [],
-  placeholder = "—",
+  placeholder = "-",
   onSave,
   mono,
   wide,
@@ -79,8 +79,8 @@ export function EditLine({
 
   const rest =
     shown ?? (value ? (kind === "phone" ? formatPhone(value) : (options.find((o) => o.value === value)?.label ?? value)) : "");
-  // Пункт со значением "" — «пустое разрешено», его подпись — подсказка
-  // («Без отдела»). В список он не идёт, в покое — приглушён, как любое
+  // Пункт со значением "" - «пустое разрешено», его подпись - подсказка
+  // («Без отдела»). В список он не идёт, в покое - приглушён, как любое
   // пустое (стандарт `ChoiceSelect`).
   const blank = kind === "select" ? options.find((o) => o.value === "") : undefined;
   const emptyText = blank?.label ?? placeholder;
@@ -162,8 +162,8 @@ export function EditLine({
       data-editing={editing ? "true" : undefined}
     >
       <span className="cab-line-label">{label}</span>
-      {/* Подсказка действия — только в листе профиля (`.cab-fields`): там
-          поле — ячейка, и пустая ячейка без «Добавить» выглядела прочерком,
+      {/* Подсказка действия - только в листе профиля (`.cab-fields`): там
+          поле - ячейка, и пустая ячейка без «Добавить» выглядела прочерком,
           а не полем. В строках карточки сотрудника её не видно. */}
       {editable && !editing ? (
         <span className="cab-line-act" aria-hidden="true">

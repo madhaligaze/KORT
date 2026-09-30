@@ -2,12 +2,12 @@
  * Лист «По сотрудникам» в табличном виде «Разовых» (28.09.2026: «блок по
  * сотрудникам вывести листом в табличном виде»).
  *
- * У юротдела BBC это два листа книги — «Сводка (общий) по сотрудникам» и
+ * У юротдела BBC это два листа книги - «Сводка (общий) по сотрудникам» и
  * «Сводка (на исполн) по Сотр.»; здесь обе сводки на одном листе друг под
  * другом, как блоки реестра: название, шапка, строки, итог. Лист только для
- * чтения — это формулы, а не данные: цифры считает `staff.ts` из хранилища,
+ * чтения - это формулы, а не данные: цифры считает `staff.ts` из хранилища,
  * тот же подсчёт, что у таблиц в карточном виде. Правка договора, приход
- * сводки или чужая правка — лист переписывается по месту (`RegistryBinding`).
+ * сводки или чужая правка - лист переписывается по месту (`RegistryBinding`).
  */
 import { HEADER_STYLE, PAPER, ROW_H } from "@/components/univer/columns";
 import { MONEY_PATTERN, WHOLE_PATTERN } from "@/components/univer/sheet-model";
@@ -25,7 +25,7 @@ export type StaffMatrix = {
   cells: Record<number, Record<number, StaffCell>>;
   rows: number;
   cols: number;
-  /** Отпечаток значений — лист переписывается, только если он поменялся. */
+  /** Отпечаток значений - лист переписывается, только если он поменялся. */
   sig: string;
 };
 
@@ -63,11 +63,11 @@ export function staffMatrix(source: StaffSource, book = "oneoff"): StaffMatrix {
     return { cells, rows: row, cols, sig: JSON.stringify(cells) };
   }
   const { rows, totals, months, older, olderOf } = table;
-  // Итог — по договорам один раз (`staff.ts`, `totals`), не сумма строк:
+  // Итог - по договорам один раз (`staff.ts`, `totals`), не сумма строк:
   // договор на двоих стоит в строке каждого.
   const shared = (count: number) =>
     count > 0
-      ? text(`${count} ${plural(count, "договор", "договора", "договоров")} на нескольких ответственных — в строке каждого, в итоге один раз`)
+      ? text(`${count} ${plural(count, "договор", "договора", "договоров")} на нескольких ответственных - в строке каждого, в итоге один раз`)
       : null;
 
   put([text(`Все договоры · ${rows.length} ${plural(rows.length, "человек", "человека", "человек")}`, TITLE)]);
@@ -91,7 +91,7 @@ export function staffMatrix(source: StaffSource, book = "oneoff"): StaffMatrix {
   put([shared(totals.shared)]);
 
   const open = rows.filter((item) => item.openContracts > 0);
-  put([text("На исполнении — по месяцу в сводке", TITLE)]);
+  put([text("На исполнении - по месяцу в сводке", TITLE)]);
   put(
     ["Сотрудник", "Клиентов", "Договоров", "Сумма", "Нет в сводке", ...(older ? ["Раньше"] : []), ...months.map((month) => month.toLowerCase())].map(
       (label) => text(label, HEADER_STYLE),

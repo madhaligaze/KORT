@@ -9,7 +9,7 @@
  * отчёт, пришедший позже, не затирает решение, принятое раньше.
  *
  * Пока решение не подтверждено сервером, экран показывает его сразу: к
- * решениям партии поверх накладывается очередь. Отказ сети не теряет ничего —
+ * решениям партии поверх накладывается очередь. Отказ сети не теряет ничего -
  * неотправленное возвращается в голову очереди, и «Повторить» шлёт его снова.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -31,7 +31,7 @@ export function useDecisions(initial: ContractImportBatch) {
   const [batch, setBatch] = useState(initial);
   const [queued, setQueued] = useState<Decisions>({});
   const [sending, setSending] = useState(false);
-  /** Отказ: `retry` — сеть или сервер лёг, повтор поможет; иначе решение отвергнуто. */
+  /** Отказ: `retry` - сеть или сервер лёг, повтор поможет; иначе решение отвергнуто. */
   const [error, setError] = useState<{ text: string; retry: boolean } | null>(null);
 
   const batchRef = useRef(initial);
@@ -54,7 +54,7 @@ export function useDecisions(initial: ContractImportBatch) {
       window.clearTimeout(timer.current);
       timer.current = null;
     }
-    // Запрос уже летит — пришедшее за это время он заберёт следующим кругом.
+    // Запрос уже летит - пришедшее за это время он заберёт следующим кругом.
     if (inflight.current) return;
     while (Object.keys(pending.current).length) {
       const payload = pending.current;
@@ -79,7 +79,7 @@ export function useDecisions(initial: ContractImportBatch) {
           setQueued({ ...pending.current });
           setError({ text: failure.message, retry: false });
         } else {
-          // Раньше отправленное — вниз, пришедшее после — поверх: порядок решений не меняется.
+          // Раньше отправленное - вниз, пришедшее после - поверх: порядок решений не меняется.
           pending.current = mergeDecisions(payload, pending.current);
           setError({ text: failure.message, retry: true });
         }
@@ -116,8 +116,8 @@ export function useDecisions(initial: ContractImportBatch) {
     void send();
   }, [send]);
 
-  // Ушли со страницы или с экрана, не дождавшись 300 мс, — решение всё равно
-  // уходит: `keepalive` переживает выгрузку страницы, обычный запрос — нет.
+  // Ушли со страницы или с экрана, не дождавшись 300 мс, - решение всё равно
+  // уходит: `keepalive` переживает выгрузку страницы, обычный запрос - нет.
   useEffect(() => {
     const leave = () => {
       if (!Object.keys(pending.current).length) return;
@@ -132,7 +132,7 @@ export function useDecisions(initial: ContractImportBatch) {
           body: JSON.stringify({ decisions: payload }),
         });
       } catch {
-        /* страница уже выгружается — больше сделать нечего */
+        /* страница уже выгружается - больше сделать нечего */
       }
     };
     window.addEventListener("pagehide", leave);

@@ -5,15 +5,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { type AutotagPreview, financeApi, formatMoney } from "@/components/finance/api";
 
 /**
- * Авторазметка статей — первый проход по неразмеченному.
+ * Авторазметка статей - первый проход по неразмеченному.
  *
  * Группы, а не строки: две тысячи строк никто не проверит, а «Такси и
- * каршеринг — 519 операций, 800 568 ₸, например TTP*ANYTIME.KZ» проверяется
+ * каршеринг - 519 операций, 800 568 ₸, например TTP*ANYTIME.KZ» проверяется
  * одним взглядом. Широкие группы («Покупки без уточнения») предлагаются, но
- * не отмечены: они правдивы и ничего не сообщают — в отчёте такая статья
+ * не отмечены: они правдивы и ничего не сообщают - в отчёте такая статья
  * занимает место «Без категории», не объясняя больше.
  *
- * Отменяется целиком из «Истории» — одна запись на всю разметку.
+ * Отменяется целиком из «Истории» - одна запись на всю разметку.
  */
 export function AutotagCard({ onChanged }: { onChanged: () => void }) {
   const [data, setData] = useState<AutotagPreview | null>(null);
@@ -26,7 +26,7 @@ export function AutotagCard({ onChanged }: { onChanged: () => void }) {
     try {
       const next = await financeApi.autotagPreview();
       setData(next);
-      // Широкие группы по умолчанию выключены — человек включает их сам.
+      // Широкие группы по умолчанию выключены - человек включает их сам.
       setOff(new Set(next.groups.filter((group) => group.broad).map((group) => `${group.side}|${group.category}`)));
       setError("");
     } catch (exc) {

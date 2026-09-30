@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────
-   Line icons — stroke-based, currentColor, 1.6 weight.
+   Line icons - stroke-based, currentColor, 1.6 weight.
    Replaces emoji glyphs across the chrome for a consistent,
    premium look. Size defaults to 16px; pass `size` to override.
    ───────────────────────────────────────────────────────────── */
@@ -26,7 +26,7 @@ function Svg({ size = 16, children, ...props }: IconProps & { children: React.Re
   );
 }
 
-/** Стрелка «туда» — в строках указателя разделов и на кнопках перехода. */
+/** Стрелка «туда» - в строках указателя разделов и на кнопках перехода. */
 export function ArrowRightIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -35,7 +35,7 @@ export function ArrowRightIcon(props: IconProps) {
   );
 }
 
-/** Atlas brand glyph — a cross intersected by a vertical bar. */
+/** Atlas brand glyph - a cross intersected by a vertical bar. */
 export function BrandMark({ size = 16, ...props }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -157,7 +157,7 @@ export function PeopleIcon(props: IconProps) {
   );
 }
 
-/** Один человек — личный кабинет в раме на телефоне. */
+/** Один человек - личный кабинет в раме на телефоне. */
 export function PersonIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -316,7 +316,7 @@ export function RefreshIcon(props: IconProps) {
   );
 }
 
-/** «Реестр» — лист с загнутым углом и росчерком подписи. */
+/** «Реестр» - лист с загнутым углом и росчерком подписи. */
 export function ContractIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -327,7 +327,7 @@ export function ContractIcon(props: IconProps) {
   );
 }
 
-/** «Реестр · таблица» — рамка листа и росчерк: отличается от «Таблицы» журнала. */
+/** «Реестр · таблица» - рамка листа и росчерк: отличается от «Таблицы» журнала. */
 export function ContractGridIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -338,7 +338,7 @@ export function ContractGridIcon(props: IconProps) {
   );
 }
 
-/** «Разовые» — лист с печатью: разовая услуга, исполненная и закрытая. */
+/** «Разовые» - лист с печатью: разовая услуга, исполненная и закрытая. */
 export function OneoffIcon(props: IconProps) {
   return (
     <Svg {...props}>

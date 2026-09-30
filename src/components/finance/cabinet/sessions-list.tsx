@@ -8,8 +8,8 @@ import { ago, deviceOf, when } from "@/components/finance/cabinet/status";
 /**
  * Сеансы: устройство, адрес, последнее действие, «Завершить» (фронт-план, 6.9).
  *
- * Свои (`employeeId` пуст) — текущий помечен « · этот», и «Завершить» у него
- * нет: выйти можно кнопкой «Выйти». Сеансы сотрудника — у каждого
+ * Свои (`employeeId` пуст) - текущий помечен « · этот», и «Завершить» у него
+ * нет: выйти можно кнопкой «Выйти». Сеансы сотрудника - у каждого
  * «Завершить», и один «Завершить все» для всех разом (сервер закрывает все
  * сеансы человека в компании).
  */
@@ -64,7 +64,7 @@ export function SessionsList({ employeeId, onChanged }: { employeeId?: string; o
             {deviceOf(item.user_agent)}
             {item.current ? <span className="fin-soft"> · этот</span> : null}
           </span>
-          <span className="fin-mono fin-soft cab-session-ip">{item.ip || "—"}</span>
+          <span className="fin-mono fin-soft cab-session-ip">{item.ip || "-"}</span>
           <span className="cab-row-note fin-soft">
             {item.last_seen_at ? `последнее действие ${ago(item.last_seen_at)}` : `вход ${when(item.created_at)}`}
           </span>

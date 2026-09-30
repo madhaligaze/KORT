@@ -44,7 +44,7 @@ function periodRange(key: PeriodKey): { from?: string; to?: string } {
 /**
  * Журнал операций.
  *
- * Порядок строк — от новых к старым, и это не вкусовщина: работают в конце
+ * Порядок строк - от новых к старым, и это не вкусовщина: работают в конце
  * книги. Урок «Книг», где список открывался на операциях трёхлетней давности.
  *
  * Ожидания (план) не выносятся в отдельный список, а стоят в общем потоке
@@ -68,7 +68,7 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
    *
    * Раньше «Показать ещё» сдвигало смещение, и вместо добавления строк
    * страница подменялась следующей: первые 250 исчезали, вернуться к ним было
-   * нечем. А смена фильтра смещение не сбрасывала — фильтр, под который
+   * нечем. А смена фильтра смещение не сбрасывала - фильтр, под который
    * попадает десять операций, открывался на «второй странице» и показывал
    * «операций нет». Теперь раскрытие копится, а любой фильтр начинает с начала.
    */
@@ -278,13 +278,13 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
                     {sign} {formatMoney(operation.amount)}
                   </td>
                   <td>{account}</td>
-                  <td>{operation.counterparty || "—"}</td>
-                  <td>{operation.category || (operation.kind === "transfer" ? "перевод" : "—")}</td>
+                  <td>{operation.counterparty || "-"}</td>
+                  <td>{operation.category || (operation.kind === "transfer" ? "перевод" : "-")}</td>
                   <td>
                     {operation.projects.length ? (
                       operation.projects.map((project) => project.name).join(", ")
                     ) : (
-                      <span style={{ color: "var(--text-muted)" }}>—</span>
+                      <span style={{ color: "var(--text-muted)" }}>-</span>
                     )}
                     {operation.split_state === "mismatch" ? (
                       <span className="block text-xs fin-out">разнесено больше суммы</span>
@@ -305,7 +305,7 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
                         type="button"
                         className="fin-chip"
                         onClick={() => remove(operation)}
-                        title="Удалить операцию — в корзину"
+                        title="Удалить операцию - в корзину"
                       >
                         Удалить
                       </button>

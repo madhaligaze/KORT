@@ -28,13 +28,13 @@ const OP_TITLES: Record<string, string> = {
 /**
  * Автоправила разметки.
  *
- * Экран устроен от задачи, а не от сущности: сверху — «с чего начать»,
+ * Экран устроен от задачи, а не от сущности: сверху - «с чего начать»,
  * подсказки по неразмеченным операциям с суммами, и рядом кнопка, которая
  * превращает подсказку в правило одним нажатием. Список правил ниже.
  *
  * У каждого правила стоит счётчик срабатываний. Он важнее, чем кажется:
  * правило, не совпавшее ни разу, выглядит работающим, и человек уверен, что
- * разметка идёт, — а в отчёте продолжает расти «Без категории».
+ * разметка идёт, - а в отчёте продолжает расти «Без категории».
  */
 export function RulesPanel({
   dictionaries,
@@ -49,7 +49,7 @@ export function RulesPanel({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
 
-  // Новое правило — черновик переживает перезагрузку (`session-state.tsx`).
+  // Новое правило - черновик переживает перезагрузку (`session-state.tsx`).
   const [keyword, setKeyword] = useSessionState("rules.new.keyword", "");
   const [field, setField] = useSessionState("rules.new.field", "comment");
   const [op, setOp] = useSessionState("rules.new.op", "contains");
@@ -96,8 +96,8 @@ export function RulesPanel({
       const done = await financeApi.applyRules({ only_uncategorized: true });
       setResult(
         done.updated
-          ? `Разметили операций: ${done.updated} — ${Object.entries(done.by_rule)
-              .map(([name, count]) => `${name} — ${count}`)
+          ? `Разметили операций: ${done.updated} - ${Object.entries(done.by_rule)
+              .map(([name, count]) => `${name} - ${count}`)
               .join(", ")}`
           : "Ни одна операция не подошла под правила",
       );
@@ -309,7 +309,7 @@ export function RulesPanel({
   );
 }
 
-/** «1 операция», «4 операции», «12 операций» — число в строке подсказки. */
+/** «1 операция», «4 операции», «12 операций» - число в строке подсказки. */
 function operations(n: number): string {
   const mod10 = n % 10;
   const mod100 = n % 100;

@@ -14,7 +14,7 @@ const REQUEST_STRIP_HEADERS = new Set([
 // Headers we never copy from the backend response back to the browser.
 // `content-encoding` / `content-length` MUST be stripped: Node's fetch (undici)
 // transparently decompresses the upstream body, so `response.body` is already
-// decoded — but the original `Content-Encoding: gzip` header is still present.
+// decoded - but the original `Content-Encoding: gzip` header is still present.
 // Forwarding it makes the browser try to gunzip plain bytes → ERR_CONTENT_DECODING_FAILED.
 // Dropping it lets the frontend edge re-compress correctly for the browser.
 const RESPONSE_STRIP_HEADERS = new Set([
@@ -112,10 +112,10 @@ async function proxyRequest(
         : "Unknown proxy error";
     console.error(`Proxy error calling ${targetUrl}:`, errorMsg);
 
-    // Ни адреса, ни текста ошибки в ответ браузеру: `targetUrl` — это внутренний
+    // Ни адреса, ни текста ошибки в ответ браузеру: `targetUrl` - это внутренний
     // адрес API внутри Docker/Railway, а `errorMsg` регулярно содержит его же.
     // Читать это будет человек, которому нужно знать одно: сервер не ответил.
-    // Разбираться будет тот, у кого есть лог сервера, — там оба и лежат.
+    // Разбираться будет тот, у кого есть лог сервера, - там оба и лежат.
     return NextResponse.json(
       {
         detail: aborted

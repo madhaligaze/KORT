@@ -2,13 +2,13 @@
  * Экран загрузки реестра: то, чего нет в общем блоке `.proto-*` globals.css.
  *
  * Классы здесь не слоёные, как и globals.css, поэтому утилиты Tailwind на них
- * не действуют (ловушка каскада из CLAUDE.md) — прятать и показывать только
+ * не действуют (ловушка каскада из CLAUDE.md) - прятать и показывать только
  * этими правилами. Там, где общий класс задаёт то же свойство (`.proto-item`,
  * `.fin-apply-bar`, `.proto-table select`), правило здесь стоит через
  * `.screen`: две ступени специфичности не зависят от порядка файлов в сборке.
  *
  * Свойства, которые двигает GSAP (transform линий, opacity путей карты), здесь
- * не задаются — см. правило 1 о GSAP в CLAUDE.md.
+ * не задаются - см. правило 1 о GSAP в CLAUDE.md.
  */
 
 .screen { display: block; min-width: 0; padding-bottom: 1rem; color: var(--fin-text); }
@@ -189,7 +189,7 @@
 }
 .mapNode[data-hot="off"] { opacity: 0.35; }
 
-/* Карта линиями — только там, где ей есть место; уже — список «колонка → поле». */
+/* Карта линиями - только там, где ей есть место; уже - список «колонка → поле». */
 @container (min-width: 720px) {
   .map { display: grid; grid-template-columns: minmax(0, 1fr) 16% minmax(0, 0.72fr); align-items: stretch; }
   .mapMid { display: block; }
@@ -265,7 +265,7 @@
 .finaleFailed { width: 100%; }
 
 @media (max-width: 639px) {
-  /* Касание — не меньше 44px; и 16px в полях, иначе iOS увеличивает страницу. */
+  /* Касание - не меньше 44px; и 16px в полях, иначе iOS увеличивает страницу. */
   .choiceItem { min-height: 2.75rem; }
   .screen .select, .screen .input { height: 2.75rem; font-size: 16px; }
   .diffRow { grid-template-columns: minmax(0, 1fr); }

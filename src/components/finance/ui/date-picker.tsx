@@ -4,18 +4,18 @@
  * Календарь под полем даты (30.09.2026: «чтоб не надо было печатать ни год,
  * ни месяц, ни день»).
  *
- * Открывается сам, когда поле получает фокус; день — одним щелчком. Далёкая
- * дата (договор 2021 года) — щелчок по «Сентябрь 2026» открывает месяцы,
- * второй — годы: два-три щелчка вместо листания по месяцу. Печать остаётся —
+ * Открывается сам, когда поле получает фокус; день - одним щелчком. Далёкая
+ * дата (договор 2021 года) - щелчок по «Сентябрь 2026» открывает месяцы,
+ * второй - годы: два-три щелчка вместо листания по месяцу. Печать остаётся -
  * кто набирает «15.07.26», тому календарь не мешает, а только встаёт на
- * набранную дату. Клавиатура — из поля: стрелки двигают день (и сразу пишут
- * его в поле), PageUp/PageDown — месяц, с Shift — год, Enter — как у поля.
+ * набранную дату. Клавиатура - из поля: стрелки двигают день (и сразу пишут
+ * его в поле), PageUp/PageDown - месяц, с Shift - год, Enter - как у поля.
  *
- * Облик — по правилам «Сцены»: без скруглений и заливок; выбранный день —
- * рамкой и весом, сегодня — чертой под числом. Порталом в `body` и
+ * Облик - по правилам «Сцены»: без скруглений и заливок; выбранный день -
+ * рамкой и весом, сегодня - чертой под числом. Порталом в `body` и
  * `position: fixed`: карточка договора прокручивается своим телом и обрезала
  * бы календарь. Щелчок по календарю не уводит фокус из поля (`pointerdown`
- * без действия по умолчанию) — иначе поле потеряло бы фокус и записало
+ * без действия по умолчанию) - иначе поле потеряло бы фокус и записало
  * недонабранное.
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
@@ -53,7 +53,7 @@ function shift(day: Day, days: number): Day {
   return { y: next.getFullYear(), m: next.getMonth(), d: next.getDate() };
 }
 
-/** Тот же день через `months` месяцев; 31-е в коротком месяце — последнее число. */
+/** Тот же день через `months` месяцев; 31-е в коротком месяце - последнее число. */
 function shiftMonths(day: Day, months: number): Day {
   const first = new Date(day.y, day.m + months, 1);
   const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
@@ -76,7 +76,7 @@ type CalendarProps = {
   id?: string;
   /** Поле, под которым встаёт календарь. */
   anchor: RefObject<HTMLElement | null>;
-  /** Выбранная дата (ISO) — рамкой. */
+  /** Выбранная дата (ISO) - рамкой. */
   value: string | null;
   /** Курсор клавиатуры (ISO): что стрелки уже набрали в поле. */
   cursor?: string | null;
@@ -94,7 +94,7 @@ export function DateCalendar({ id, anchor, value, cursor, onPick, onClear, onClo
   const box = useRef<HTMLDivElement>(null);
   const now = today();
 
-  // Курсор ушёл в другой месяц (стрелки, набор) — страница за ним.
+  // Курсор ушёл в другой месяц (стрелки, набор) - страница за ним.
   const focusKey = `${focus.y}-${focus.m}`;
   const [shownFor, setShownFor] = useState(focusKey);
   if (shownFor !== focusKey) {
@@ -102,7 +102,7 @@ export function DateCalendar({ id, anchor, value, cursor, onPick, onClear, onClo
     setPage({ y: focus.y, m: focus.m });
   }
 
-  // Место — под полем, а если снизу не хватает окна — над ним; следом за
+  // Место - под полем, а если снизу не хватает окна - над ним; следом за
   // прокруткой карточки и сменой размера окна.
   useLayoutEffect(() => {
     const measure = () => {
@@ -132,7 +132,7 @@ export function DateCalendar({ id, anchor, value, cursor, onPick, onClear, onClo
     };
   }, [anchor, mode, page]);
 
-  // Щелчок мимо поля и календаря — закрыть.
+  // Щелчок мимо поля и календаря - закрыть.
   useEffect(() => {
     const outside = (event: PointerEvent) => {
       const target = event.target as Node;
@@ -146,7 +146,7 @@ export function DateCalendar({ id, anchor, value, cursor, onPick, onClear, onClo
   if (typeof document === "undefined") return null;
 
   const title =
-    mode === "days" ? `${MONTHS[page.m]} ${page.y}` : mode === "months" ? String(page.y) : `${page.y - (page.y % 12)} — ${page.y - (page.y % 12) + 11}`;
+    mode === "days" ? `${MONTHS[page.m]} ${page.y}` : mode === "months" ? String(page.y) : `${page.y - (page.y % 12)} - ${page.y - (page.y % 12) + 11}`;
   const step = (direction: 1 | -1) => {
     if (mode === "days") {
       const next = new Date(page.y, page.m + direction, 1);
@@ -264,9 +264,9 @@ export function DateCalendar({ id, anchor, value, cursor, onPick, onClear, onClo
 }
 
 /**
- * Клавиши календаря из поля ввода: стрелки — день, PageUp/PageDown — месяц
- * (с Shift — год). Возвращает новую дату для поля или `null`, если клавиша не
- * календарная — тогда её обрабатывает поле.
+ * Клавиши календаря из поля ввода: стрелки - день, PageUp/PageDown - месяц
+ * (с Shift - год). Возвращает новую дату для поля или `null`, если клавиша не
+ * календарная - тогда её обрабатывает поле.
  */
 export function calendarKey(event: { key: string; shiftKey: boolean }, text: string, fallback: string | null): string | null {
   const base = dayOf(parseDay(text) ?? fallback) ?? today();
@@ -289,8 +289,8 @@ export function calendarKey(event: { key: string; shiftKey: boolean }, text: str
 }
 
 /**
- * Поле даты с календарём для форм, где дата — часть большей записи
- * («Изменение с …», дата соглашения при разборе): значение — текст
+ * Поле даты с календарём для форм, где дата - часть большей записи
+ * («Изменение с …», дата соглашения при разборе): значение - текст
  * «дд.мм.гггг», как у простого поля, выбор в календаре его заполняет.
  */
 export function DateInput({

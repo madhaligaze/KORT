@@ -2,7 +2,7 @@
 
 /**
  * «Раскрытие» из словаря движений: высота от старой к новой и прозрачность
- * содержимого, 0,28 с. Высоту твинит только этот контейнер — внутри протокола
+ * содержимого, 0,28 с. Высоту твинит только этот контейнер - внутри протокола
  * нет листа Univer, поэтому высоту здесь можно.
  *
  * Свёрнутое содержимое размонтируется после движения, а не до: иначе пункт
@@ -14,7 +14,7 @@ import { gsap, prefersReducedMotion, useGSAP } from "@/components/motion/gsap";
 
 export function Unfold({ open, id, children }: { open: boolean; id?: string; children: ReactNode }) {
   const [mounted, setMounted] = useState(open);
-  // Раскрыли — содержимое появляется в том же рендере, до движения.
+  // Раскрыли - содержимое появляется в том же рендере, до движения.
   if (open && !mounted) setMounted(true);
   const box = useRef<HTMLDivElement>(null);
   const first = useRef(true);

@@ -18,17 +18,17 @@ import { ArrowDownIcon, ArrowUpIcon, CloseIcon } from "@/components/icons";
 import { useSessionState } from "@/components/session-state";
 
 /**
- * Карточка сотрудника — по центру, как карточка договора (фронт-план, 6.9).
+ * Карточка сотрудника - по центру, как карточка договора (фронт-план, 6.9).
  *
- * Статус — одна строка словами. Главной кнопкой становится то, что нужно
+ * Статус - одна строка словами. Главной кнопкой становится то, что нужно
  * сейчас: «Сбросить пароль» при запросе, «Открыть доступ снова» при
- * истёкшем окне, «Открыть вход» у человека без доступа. Опасное — через
+ * истёкшем окне, «Открыть вход» у человека без доступа. Опасное - через
  * подтверждение, текст которого говорит последствие заранее.
  *
  * Администратор не видит «Сбросить пароль» у владельца и других
  * администраторов; пароль владельца сбрасывается только на сервере.
  *
- * Учётка ждёт пароль — главной становится «Скопировать приглашение»: вход
+ * Учётка ждёт пароль - главной становится «Скопировать приглашение»: вход
  * открыт, но человек об этом не знает, и спрашивать ему было не с чего
  * («откуда я знаю какой пароль», 26.09). Ссылка открывает вход сразу на
  * «Придумайте пароль» с номером.
@@ -38,7 +38,7 @@ type Confirm = "reset" | "block" | "end" | "close-access" | "archive" | null;
 
 const WINDOW_HOURS = 72;
 
-/** Открытых разделов у человека — без полей договора: они не раздел. */
+/** Открытых разделов у человека - без полей договора: они не раздел. */
 function openSections(data: SubjectAccess): number {
   return Object.entries(data.effective).filter(([key, level]) => !key.startsWith("contracts.field.") && level !== "none")
     .length;
@@ -52,7 +52,7 @@ function inviteText(employee: EmployeeRow, company: string): string {
     `Вам открыт вход в учёт${company ? ` «${company}»` : ""}.`,
     `Откройте ссылку и придумайте пароль${until}:`,
     link,
-    `Логин — ваш номер ${formatPhone(employee.phone)}.`,
+    `Логин - ваш номер ${formatPhone(employee.phone)}.`,
   ].join("\n");
 }
 
@@ -76,8 +76,8 @@ export function EmployeeCard({
   onChanged: (row: EmployeeRow) => void;
 }) {
   // Вкладка карточки и начатое «Открыть вход» переживают перезагрузку
-  // (`session-state.tsx`). Форма входа — своя у каждого сотрудника: ключ
-  // сменился — значение перечитано, сбрасывать её эффектом не нужно (эффект
+  // (`session-state.tsx`). Форма входа - своя у каждого сотрудника: ключ
+  // сменился - значение перечитано, сбрасывать её эффектом не нужно (эффект
   // стёр бы и восстановленное).
   const [tab, setTab] = useSessionState<Tab>("emp.tab", "profile");
   const [confirm, setConfirm] = useState<Confirm>(null);
@@ -86,7 +86,7 @@ export function EmployeeCard({
   const [opening, setOpening] = useSessionState(`emp.${employee?.id ?? "none"}.opening`, false);
   const [digits, setDigits] = useSessionState(`emp.${employee?.id ?? "none"}.phone`, "");
   const [note, setNote] = useState("");
-  /** Сколько разделов открыто; `null` — не спрашивали (нет учётки, админ). */
+  /** Сколько разделов открыто; `null` - не спрашивали (нет учётки, админ). */
   const [sections, setSections] = useState<number | null>(null);
 
   useEffect(() => {
@@ -116,7 +116,7 @@ export function EmployeeCard({
   const owner = isOwner(me);
   const self = employee.account?.user_id === me.user?.id;
   const role = employee.account?.role ?? "employee";
-  // Администратор не трогает владельца и других администраторов; себя —
+  // Администратор не трогает владельца и других администраторов; себя -
   // через «Моё», а не через карточку.
   const touchable = manage && !self && (role === "employee" || (owner && role === "admin"));
   const status = employeeStatus(employee);
@@ -161,7 +161,7 @@ export function EmployeeCard({
       await navigator.clipboard.writeText(text);
       setNote("приглашение скопировано");
     } catch {
-      setError("Скопировать не получилось — браузер не дал доступ к буферу");
+      setError("Скопировать не получилось - браузер не дал доступ к буферу");
     }
   };
   const whatsapp = () => {
@@ -196,7 +196,7 @@ export function EmployeeCard({
     }
     actions.push({ key: "archive", label: "Удалить", run: () => setConfirm("archive") });
   }
-  /** Почему кнопок нет — иначе пустая карточка выглядит сломанной. */
+  /** Почему кнопок нет - иначе пустая карточка выглядит сломанной. */
   const untouchable =
     manage && !self && hasAccount && !touchable
       ? role === "owner"
@@ -213,7 +213,7 @@ export function EmployeeCard({
     },
     archive: {
       title: `Удалить · ${short}`,
-      text: "Человек уйдёт из списка в корзину, вход закроется. В договорах имя останется. Вернуть — из корзины в личном кабинете.",
+      text: "Человек уйдёт из списка в корзину, вход закроется. В договорах имя останется. Вернуть - из корзины в личном кабинете.",
       confirm: "Удалить",
       run: () =>
         void act(() => peopleApi.employees.archive(employee.id)).then((ok) => {
@@ -234,7 +234,7 @@ export function EmployeeCard({
     },
     "close-access": {
       title: `Закрыть доступ · ${short}`,
-      text: "Учётка перестанет открываться, сеансы закроются. В справочнике человек останется — например, ответственным в договорах.",
+      text: "Учётка перестанет открываться, сеансы закроются. В справочнике человек останется - например, ответственным в договорах.",
       confirm: "Закрыть доступ",
       run: () => void act(() => peopleApi.employees.update(employee.id, { access: false })),
     },
@@ -274,7 +274,7 @@ export function EmployeeCard({
         <p className="cab-card-line fin-soft">
           {[employee.job_title, department?.code, employee.phone ? formatPhone(employee.phone) : ""]
             .filter(Boolean)
-            .join(" · ") || "—"}
+            .join(" · ") || "-"}
           {hasAccount && role !== "employee" ? <span className="annot cab-card-role">{ROLE_TITLES[role]}</span> : null}
         </p>
 
@@ -300,7 +300,7 @@ export function EmployeeCard({
         {untouchable ? <p className="cab-card-note fin-soft">{untouchable}</p> : null}
         {sections === 0 && hasAccount && employee.status !== "blocked" ? (
           <p className="cab-card-note fin-wait">
-            Разделов не открыто — войдёт в пустой кабинет ·{" "}
+            Разделов не открыто - войдёт в пустой кабинет ·{" "}
             <button type="button" className="fin-link-btn" onClick={() => setTab("access")}>
               Доступ
             </button>

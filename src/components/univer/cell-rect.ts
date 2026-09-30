@@ -1,5 +1,5 @@
 /**
- * Где ячейка листа на экране — для слоёв поверх холста (стрелка списка,
+ * Где ячейка листа на экране - для слоёв поверх холста (стрелка списка,
  * вопрос реестра «опечатка или с даты»).
  *
  * Тот же расчёт, что у всплывающих слоёв самого Univer: координата ячейки на
@@ -8,10 +8,10 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type UniverApi = any;
 
-/** Прямоугольник ячейки в координатах окна; `visible: false` — ячейка вне видимой части листа. */
+/** Прямоугольник ячейки в координатах окна; `visible: false` - ячейка вне видимой части листа. */
 export type CellRect = { left: number; top: number; right: number; bottom: number; visible: boolean };
 
-/** Холст листа — самый большой `canvas` внутри листа (у Univer их несколько). */
+/** Холст листа - самый большой `canvas` внутри листа (у Univer их несколько). */
 function canvasIn(host: HTMLElement | null): HTMLCanvasElement | null {
   let best: HTMLCanvasElement | null = null;
   let area = 0;
@@ -26,13 +26,13 @@ function canvasIn(host: HTMLElement | null): HTMLCanvasElement | null {
 }
 
 /**
- * Прокрутка основной области листа в координатах холста — по состоянию
+ * Прокрутка основной области листа в координатах холста - по состоянию
  * прокрутки и накопленным высотам строк и ширинам колонок.
  *
  * Подписка `onScroll` здесь не годится: связка листа запускается сразу после
  * создания книги, когда отрисовки ещё нет, и Univer тихо возвращает пустую
  * подписку. Прокрутка оставалась нулевой, слой вопроса реестра считал ячейку
- * суммы (колонка M, правее экрана) невидимой и закрывал вопрос в тот же кадр —
+ * суммы (колонка M, правее экрана) невидимой и закрывал вопрос в тот же кадр -
  * правка снималась, как по Esc, и человек видел, что сумма просто не меняется.
  */
 function viewportScroll(ws: UniverApi): { x: number; y: number } {
@@ -54,8 +54,8 @@ function viewportScroll(ws: UniverApi): { x: number; y: number } {
 }
 
 /**
- * Ячейка активного листа на экране. `null` — лист не тот, что открыт, или
- * отрисовки ещё нет. `host` — узел, внутри которого Univer нарисовал лист.
+ * Ячейка активного листа на экране. `null` - лист не тот, что открыт, или
+ * отрисовки ещё нет. `host` - узел, внутри которого Univer нарисовал лист.
  */
 export function cellRect(api: UniverApi, host: HTMLElement | null, sheet: string, row: number, column: number): CellRect | null {
   const ws = api.getActiveWorkbook?.()?.getActiveSheet?.();
@@ -84,7 +84,7 @@ export function cellRect(api: UniverApi, host: HTMLElement | null, sheet: string
       visible = visible && row >= range.startRow && row <= range.endRow && column >= range.startColumn && column <= range.endColumn;
     }
   } catch {
-    /* без видимого диапазона — по холсту */
+    /* без видимого диапазона - по холсту */
   }
   return { left, top, right, bottom, visible };
 }

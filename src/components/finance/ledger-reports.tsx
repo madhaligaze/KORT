@@ -119,7 +119,7 @@ export function BalanceReport({ revision }: { revision: number }) {
  * Финансовые показатели.
  *
  * Считаются из природы статей, а не из их названий. Показатель, для которого
- * нет данных, не показывается нулём: «маржа 0%» там, где нет выручки, — это не
+ * нет данных, не показывается нулём: «маржа 0%» там, где нет выручки, - это не
  * ноль, а неправда.
  */
 export function IndicatorsReport({ revision }: { revision: number }) {
@@ -163,7 +163,7 @@ export function IndicatorsReport({ revision }: { revision: number }) {
           ←
         </button>
         <span className="text-sm" style={{ color: "var(--text-primary)" }}>
-          {formatDate(edges.from)} — {formatDate(edges.to)}
+          {formatDate(edges.from)} - {formatDate(edges.to)}
         </span>
         <button type="button" className="btn-ghost text-xs" onClick={() => setShift((was) => was + 1)}>
           →
@@ -177,7 +177,7 @@ export function IndicatorsReport({ revision }: { revision: number }) {
         ].map(([label, value]) => (
           <div key={label} className="fin-kpi">
             <span className="fin-kpi-label">{label}</span>
-            <span className="fin-kpi-value">{value === null ? "—" : `${String(value).replace(".", ",")}%`}</span>
+            <span className="fin-kpi-value">{value === null ? "-" : `${String(value).replace(".", ",")}%`}</span>
           </div>
         ))}
       </div>
@@ -204,7 +204,7 @@ export function IndicatorsReport({ revision }: { revision: number }) {
   );
 }
 
-/** Выписка по счёту — для сверки с банком: только факт и только один счёт. */
+/** Выписка по счёту - для сверки с банком: только факт и только один счёт. */
 export function StatementReport({ accounts, revision }: { accounts: Account[]; revision: number }) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [shift, setShift] = useState(0);
@@ -249,7 +249,7 @@ export function StatementReport({ accounts, revision }: { accounts: Account[]; r
           ←
         </button>
         <span className="text-sm" style={{ color: "var(--text-primary)" }}>
-          {formatDate(edges.from)} — {formatDate(edges.to)}
+          {formatDate(edges.from)} - {formatDate(edges.to)}
         </span>
         <button type="button" className="btn-ghost text-xs" onClick={() => setShift((was) => was + 1)}>
           →
@@ -297,8 +297,8 @@ export function StatementReport({ accounts, revision }: { accounts: Account[]; r
                       {formatMoney(row.amount)}
                     </td>
                     <td className="fin-num">{formatMoney(row.balance)}</td>
-                    <td>{row.counterparty || "—"}</td>
-                    <td>{row.category || "—"}</td>
+                    <td>{row.counterparty || "-"}</td>
+                    <td>{row.category || "-"}</td>
                     <td style={{ whiteSpace: "normal", maxWidth: "18rem" }}>{row.comment}</td>
                   </tr>
                 ))}
@@ -378,7 +378,7 @@ export function HistoryPanel({ revision, onChanged }: { revision: number; onChan
                   <td style={{ whiteSpace: "nowrap" }}>
                     {item.at ? `${formatDate(item.at.slice(0, 10))} ${item.at.slice(11, 16)}` : ""}
                   </td>
-                  <td>{item.actor || "—"}</td>
+                  <td>{item.actor || "-"}</td>
                   <td style={{ whiteSpace: "normal" }}>
                     {item.title}
                     {item.undone_at ? " · отменено" : ""}

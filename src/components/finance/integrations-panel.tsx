@@ -23,11 +23,11 @@ const WAY_TITLES: Record<string, string> = {
  *
  * У каждого банка честно написано, чем он подключается. Публичного API для
  * малого бизнеса у банков Казахстана нет, и кнопка «подключить Kaspi», которая
- * ничего не подключает, — худшее, что можно сделать с учётом: человек решит,
+ * ничего не подключает, - худшее, что можно сделать с учётом: человек решит,
  * что операции приходят сами, и перестанет сверять выписку.
  *
  * Что есть на самом деле: выписка файлом (у всех банков), книга Google и наш
- * адрес приёма — туда операции присылает скрипт клиента, шина или выгрузка из
+ * адрес приёма - туда операции присылает скрипт клиента, шина или выгрузка из
  * 1С, с токеном этого подключения.
  */
 export function IntegrationsPanel({
@@ -42,7 +42,7 @@ export function IntegrationsPanel({
   const [items, setItems] = useState<Integration[]>([]);
   const [catalog, setCatalog] = useState<BankOption[]>([]);
   // Начатое подключение переживает перезагрузку (`session-state.tsx`).
-  // Токен — нет: он показывается один раз и в хранилище вкладки не ложится.
+  // Токен - нет: он показывается один раз и в хранилище вкладки не ложится.
   const [picked, setPicked] = useSessionState<BankOption | null>("intg.picked", null);
   const [way, setWay] = useSessionState("intg.new.way", "statement");
   const [accountId, setAccountId] = useSessionState("intg.new.account", "");
@@ -120,7 +120,7 @@ export function IntegrationsPanel({
       {token ? (
         <div className="fin-card p-3 flex flex-col gap-2" style={{ borderColor: "var(--accent-line)" }}>
           <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-            Токен «{token.title}» — сохраните сейчас, второй раз он не покажется
+            Токен «{token.title}» - сохраните сейчас, второй раз он не покажется
           </p>
           <code className="fin-code">{token.value}</code>
           <pre className="fin-code">{`curl -X POST ${inbox} \\
@@ -240,7 +240,7 @@ export function IntegrationsPanel({
                   </span>
                 </td>
                 <td>{WAY_TITLES[item.kind] ?? item.kind}</td>
-                <td>{item.account || "—"}</td>
+                <td>{item.account || "-"}</td>
                 <td className="fin-num">{item.received}</td>
                 <td>{item.last_seen_at ? formatDate(item.last_seen_at.slice(0, 10)) : "ещё не было"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>

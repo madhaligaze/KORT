@@ -4,29 +4,29 @@
  *
  * Книга = отборы
  * ──────────────
- * Каждый отбор — лист Univer в порядке `position`, вкладки — родная нижняя
+ * Каждый отбор - лист Univer в порядке `position`, вкладки - родная нижняя
  * лента, как в Excel, откуда человек пришёл. У каждого блока своя шапка,
  * потому что роли сторон и порядок колонок задаёт блок: в «Заказчик ГК /
- * Заказчик ГК» колонка F — «Заказчик», G — «Исполнитель», наоборот против
+ * Заказчик ГК» колонка F - «Заказчик», G - «Исполнитель», наоборот против
  * «Сводной». Раскладка блока: строка названия → шапка → строки договоров →
  * карман (пустая строка для нового договора этого блока) → отступ.
  *
- * Адрес ячейки — поле, а не колонка
+ * Адрес ячейки - поле, а не колонка
  * ─────────────────────────────────
- * Колонка F в двух блоках одного листа — разные поля. Правка ячейки
+ * Колонка F в двух блоках одного листа - разные поля. Правка ячейки
  * переводится в поле договора только через карту `(блок, колонка) → поле`
  * (`ViewLayout.blocks[i].columns`). Номер колонки как адрес поля не
- * используется нигде — правило проекта «колонки по названиям, не по номерам»
+ * используется нигде - правило проекта «колонки по названиям, не по номерам»
  * относится и к своему листу.
  *
- * Адрес строки — `custom` первой ячейки
+ * Адрес строки - `custom` первой ячейки
  * ─────────────────────────────────────
  * `{ cid }` у договора, `{ block }` у названия блока, `{ header }` у шапки,
- * `{ pocket }` у кармана. Первая колонка — всегда служебная «№» (если в шапке
+ * `{ pocket }` у кармана. Первая колонка - всегда служебная «№» (если в шапке
  * файла её нет, лист ставит её сам): она защищена от правки, и вставка из
  * буфера не может переписать адрес строки. Сортировка Univer переносит `custom`
  * только внутри сортируемого диапазона, поэтому после неё лист читает адреса
- * заново: вся ширина — порядок принят, часть ширины — строки разъехались бы, и
+ * заново: вся ширина - порядок принят, часть ширины - строки разъехались бы, и
  * лист возвращает их на место.
  *
  * Лист пишет в себя только мутациями
@@ -35,15 +35,15 @@
  * коллеги. Счётчик `writing` отличает свои записи от человеческих, чтобы они
  * не ушли обратно на сервер.
  *
- * Замков нет — есть предупреждения
+ * Замков нет - есть предупреждения
  * ───────────────────────────────
  * До 29.09.2026 лист был защищён механизмом Univer: замки на вкладках, отказ
  * «нет разрешения на установку стилей» на заливке строки, выделенной по «№».
- * Теперь защиты нет вовсе. Оформление — личный вид (`univer/look.ts`);
+ * Теперь защиты нет вовсе. Оформление - личный вид (`univer/look.ts`);
  * значение в колонке «только чтение» лист возвращает сам словами под листом;
  * а то, что меняет таблицу для всех (строки, колонки, шапка, листы, вставка
  * во много договоров), лист перехватывает до исполнения (`univer/guard.ts`),
- * объясняет последствия окном и делает сам — с точкой восстановления на
+ * объясняет последствия окном и делает сам - с точкой восстановления на
  * сервере (`contracts/restore.py`): вернуть можно Ctrl+Z или из кабинета.
  */
 import { CommandType, ICommandService, IConfigService, IUndoRedoService, InterceptorEffectEnum } from "@univerjs/core";
@@ -115,18 +115,18 @@ import {
 
 /** Служебная колонка «№». Полем договора не является: её ставит лист. */
 export const ORDINAL_KEY = "row_number";
-/** «Как было в файле» — снимок на день выгрузки, только чтение. */
+/** «Как было в файле» - снимок на день выгрузки, только чтение. */
 const SNAPSHOT_KEYS = new Set(["paid_snapshot", "remaining_snapshot"]);
 /**
- * Приходят своим запросом, а не с договором: «по выписке» — из журнала
- * операций, «(сводка)» — из книги-сводки компании.
+ * Приходят своим запросом, а не с договором: «по выписке» - из журнала
+ * операций, «(сводка)» - из книги-сводки компании.
  */
 const LIVE_KEYS = new Set(["paid", "remaining", "summary_paid", "summary_remaining", "__shares"]);
 /**
- * «Доли исполнителей» — колонка, которую ставит сам лист в конце каждой
+ * «Доли исполнителей» - колонка, которую ставит сам лист в конце каждой
  * части (29.09.2026: «раз доли есть в карточке, пусть будут и в таблице»).
  * Не поле реестра: приходит своим запросом (`ensureShares`) и только то, что
- * открыто этому человеку — сотруднику своя доля, начальнику и
+ * открыто этому человеку - сотруднику своя доля, начальнику и
  * администратору все. Правится в карточке: у распределения своё правило
  * (не больше суммы договора и 100%), ячейка его не удержит.
  */
@@ -155,7 +155,7 @@ const TAIL_ROWS = 40;
 const FLASH_MS = 1200;
 /** Сколько правка считается «здешней» и не вспыхивает, когда вернётся от сервера. */
 const LOCAL_MS = 15000;
-/** Два щелчка по номеру строки быстрее этого — «открыть карточку». */
+/** Два щелчка по номеру строки быстрее этого - «открыть карточку». */
 const DOUBLE_MS = 450;
 /** `DeviceInputEventType.Dblclick` Univer: редактор открыт двойным щелчком. */
 const DBLCLICK = 3;
@@ -187,7 +187,7 @@ export type BlockLayout = {
   headerHeight: number;
   /** Сторона, где у договоров блока стоит наше юрлицо (подстановка блока `own_side`). */
   ownSide: "executor" | "customer" | null;
-  /** Выбор списков в блоке (`choices`): поле → значения; нет — весь список. */
+  /** Выбор списков в блоке (`choices`): поле → значения; нет - весь список. */
   choices: Record<string, string[]> | null;
 };
 
@@ -197,7 +197,7 @@ export type ViewLayout = {
   main: boolean;
   blocks: BlockLayout[];
   width: number;
-  /** Один блок — шапка закрепляется и сортировка открыта. */
+  /** Один блок - шапка закрепляется и сортировка открыта. */
   single: boolean;
 };
 
@@ -253,7 +253,7 @@ const EMPTY_BLOCK: ViewBlock = {
 
 export function layoutOf(schema: RegistrySchema, view: RegistryView): ViewLayout {
   const fields = new Map(schema.fields.map((field) => [field.key, field]));
-  // Отбор без своих колонок — поля схемы в их порядке (скрытых в листе нет).
+  // Отбор без своих колонок - поля схемы в их порядке (скрытых в листе нет).
   const defaults = [...schema.fields]
     .filter((field) => !field.hidden && !EXPLICIT_ONLY.has(field.key))
     .sort((a, b) => a.position - b.position)
@@ -263,7 +263,7 @@ export function layoutOf(schema: RegistrySchema, view: RegistryView): ViewLayout
     const columns: SheetColumn[] = [];
     for (const item of block.columns.length ? block.columns : defaults) {
       const field = fields.get(item.key) ?? null;
-      // Поля нет в схеме — значит, человеку оно не открыто: колонки нет вовсе.
+      // Поля нет в схеме - значит, человеку оно не открыто: колонки нет вовсе.
       if (item.key !== ORDINAL_KEY && (!field || field.hidden)) continue;
       if (item.key === ORDINAL_KEY && columns.length) continue;
       const kind = kindOf(item.key, field);
@@ -277,13 +277,13 @@ export function layoutOf(schema: RegistrySchema, view: RegistryView): ViewLayout
         readOnly: kind === "ordinal" || SNAPSHOT_KEYS.has(item.key) || !field?.editable || !schema.access.edit,
       });
     }
-    // Адрес строки живёт в первой ячейке — она обязана быть служебной.
+    // Адрес строки живёт в первой ячейке - она обязана быть служебной.
     if (columns[0]?.kind !== "ordinal") {
       columns.unshift({
         key: ORDINAL_KEY, label: "№", width: DEFAULT_WIDTH.ordinal, kind: "ordinal", field: null, readOnly: true,
       });
     }
-    // Доли исполнителей — последней колонкой каждой части, только чтение.
+    // Доли исполнителей - последней колонкой каждой части, только чтение.
     columns.push({
       key: SHARES_KEY, label: SHARES_LABEL, width: DEFAULT_WIDTH.shares, kind: "shares", field: null, readOnly: true,
     });
@@ -307,7 +307,7 @@ export function layoutsOf(schema: RegistrySchema): ViewLayout[] {
 /**
  * Отпечаток раскладки: лист пересобирается целиком, только если он поменялся.
  *
- * Новое значение списка или переименованный контрагент — не повод пересоздать
+ * Новое значение списка или переименованный контрагент - не повод пересоздать
  * книгу (секунда и потерянная прокрутка): их лист перепишет по месту.
  */
 export function structureKey(schema: RegistrySchema): string {
@@ -336,7 +336,7 @@ type Ctx = {
   people: Readonly<Record<string, PersonRef>>;
 };
 
-/** Сумма из строки сервера («999.00») или из напечатанного («1 500 000»); не число — `null`. */
+/** Сумма из строки сервера («999.00») или из напечатанного («1 500 000»); не число - `null`. */
 function numberOf(raw: unknown): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (typeof raw !== "string") return null;
@@ -351,9 +351,9 @@ function shareNumber(value: number): string {
 
 /**
  * Доли договора строкой ячейки: «Елжас 500 000 (71,4%) · Рысбек 200 000
- * (28,6%)», у кого не задана — прочерк, в конце — что не распределено. У
- * сотрудника, которому открыта только своя, — «Ваша доля …»: чужих сумм в
- * листе нет, как и в ответе сервера. `over` — вместе больше суммы договора.
+ * (28,6%)», у кого не задана - прочерк, в конце - что не распределено. У
+ * сотрудника, которому открыта только своя, - «Ваша доля …»: чужих сумм в
+ * листе нет, как и в ответе сервера. `over` - вместе больше суммы договора.
  */
 function sharesOf(entry: ShareMap, contract: Contract | undefined, ctx: Ctx): { text: string; over: boolean } {
   const one = (share: { amount: string | null; percent: string | null } | undefined): string => {
@@ -361,22 +361,22 @@ function sharesOf(entry: ShareMap, contract: Contract | undefined, ctx: Ctx): { 
     const percent = numberOf(share?.percent ?? null);
     const pct = percent !== null ? `${percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%` : "";
     if (amount !== null) return pct ? `${shareNumber(amount)} (${pct})` : shareNumber(amount);
-    return pct || "—";
+    return pct || "-";
   };
   const listed = Array.isArray(contract?.values.people) ? (contract?.values.people as string[]) : [];
   // Совместный договор, где доли ещё не разнесены (сервер отдаёт его без
-  // сумм): так и сказать, а не «Елжас — · Рысбек — · не распределено …».
+  // сумм): так и сказать, а не «Елжас - · Рысбек - · не распределено …».
   if (!Object.keys(entry.people).length) {
     if (entry.scope === "own") return { text: "Ваша доля не указана", over: false };
-    const names = listed.map((id) => ctx.people[id]?.name ?? "—");
-    return { text: names.length ? `${names.join(" · ")} — доли не указаны` : "", over: false };
+    const names = listed.map((id) => ctx.people[id]?.name ?? "-");
+    return { text: names.length ? `${names.join(" · ")} - доли не указаны` : "", over: false };
   }
   if (entry.scope === "own") {
     const mine = Object.values(entry.people)[0];
     return { text: `Ваша доля ${one(mine)}`, over: false };
   }
   const ids = [...listed, ...Object.keys(entry.people).filter((id) => !listed.includes(id))];
-  const parts = ids.map((id) => `${ctx.people[id]?.name ?? "—"} ${entry.people[id] ? one(entry.people[id]) : "—"}`);
+  const parts = ids.map((id) => `${ctx.people[id]?.name ?? "-"} ${entry.people[id] ? one(entry.people[id]) : "-"}`);
   const total = numberOf(contract?.values.amount ?? null);
   const amounts = Object.values(entry.people).map((share) => numberOf(share.amount));
   const percents = Object.values(entry.people).map((share) => numberOf(share.percent));
@@ -402,13 +402,13 @@ function isEmpty(value: unknown): boolean {
  *
  * Одна функция на сборку листа, на чужую правку и на ответ сервера: иначе
  * значение, пришедшее после правки, выглядело бы иначе, чем то же значение при
- * открытии листа, — дата текстом вместо даты, сумма без разрядов.
+ * открытии листа, - дата текстом вместо даты, сумма без разрядов.
  */
 function faceOf(column: SheetColumn, value: unknown, contract: Contract | undefined, ctx: Ctx): Face {
   if (column.kind === "money") {
     if (isEmpty(value)) {
       // Сумма, которая в файле была условием («20% от поступлений»), стоит
-      // текстом в той же колонке — как в файле.
+      // текстом в той же колонке - как в файле.
       const terms = column.key === "amount" ? contract?.values.amount_terms : undefined;
       return typeof terms === "string" && terms ? { v: terms, fmt: "" } : EMPTY_FACE;
     }
@@ -453,7 +453,7 @@ function faceOf(column: SheetColumn, value: unknown, contract: Contract | undefi
   }
 }
 
-/** Сравнимый отпечаток значения ячейки: число — числом, текст — текстом. */
+/** Сравнимый отпечаток значения ячейки: число - числом, текст - текстом. */
 function canonOf(value: unknown): string {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value === "number") return `n:${Math.round(value * 100) / 100}`;
@@ -523,10 +523,10 @@ export function paletteNow(): Palette {
     flash: canvas(cssHex("--fin-flash-hex", dark ? "#232521" : "#eceade")),
     fail: canvas(cssHex("--fin-fail-hex", dark ? "#ff6f5e" : "#c2331f")),
     failBg: canvas(cssHex("--fin-fail-bg-hex", dark ? "#2a1a17" : "#f7e3dc")),
-    // Строка «исполнен» — зелёная, как условное форматирование книги
+    // Строка «исполнен» - зелёная, как условное форматирование книги
     // юротдела (#93C47D). Единственный зелёный листа, и он о закрытой работе.
     done: canvas(cssHex("--fin-done-hex", dark ? "#26361f" : "#c3dcb2")),
-    // Уголок заметки — тушью, а не жёлтым Univer: цвет в листе только у отказа.
+    // Уголок заметки - тушью, а не жёлтым Univer: цвет в листе только у отказа.
     mark: cssHex("--fin-mark-hex", dark ? "#9d9a86" : "#6b6a60"),
     markFail: cssHex("--fin-fail-hex", dark ? "#ff6f5e" : "#c2331f"),
   };
@@ -536,14 +536,14 @@ type Style = Record<string, unknown>;
 type Part = "title" | "header" | "body" | "empty";
 
 /**
- * Стиль ячейки. Флаги: F — замечание или отказ, M — приглушено (ждёт ответа
- * «опечатка или с даты», договор ушёл), L — вспышка чужой правки, O — строка
- * открытой карточки, G — строка подсвечена правилом блока (`paint`, «исполнен»),
- * R — договор другого отдела, только просмотр.
+ * Стиль ячейки. Флаги: F - замечание или отказ, M - приглушено (ждёт ответа
+ * «опечатка или с даты», договор ушёл), L - вспышка чужой правки, O - строка
+ * открытой карточки, G - строка подсвечена правилом блока (`paint`, «исполнен»),
+ * R - договор другого отдела, только просмотр.
  */
 function cellStyle(part: Part, column: SheetColumn | null, fmt: Face["fmt"], flags: string, pal: Palette): Style | null {
   if (part === "title") return { bg: { rgb: PAPER.titleBg }, bl: 1, vt: 2 };
-  // Шапка — общий стиль листов (`univer/columns.ts`).
+  // Шапка - общий стиль листов (`univer/columns.ts`).
   if (part === "header") return { ...HEADER_STYLE };
   const style: Style = {};
   if (column?.kind === "ordinal") {
@@ -553,8 +553,8 @@ function cellStyle(part: Part, column: SheetColumn | null, fmt: Face["fmt"], fla
   } else if (column?.readOnly) {
     style.cl = { rgb: PAPER.soft };
   }
-  // Значение не выходит за свою колонку и не переносится — стандарт ячеек
-  // листов (`WRAP_CLIP` в общем корне). Полный текст — в строке формул и в
+  // Значение не выходит за свою колонку и не переносится - стандарт ячеек
+  // листов (`WRAP_CLIP` в общем корне). Полный текст - в строке формул и в
   // карточке; ширину колонки подгоняет `fitLayout`.
   if (column && column.kind !== "ordinal") style.tb = WRAP_CLIP;
   if (fmt === "money") Object.assign(style, { n: { pattern: MONEY_PATTERN }, ht: 3 });
@@ -585,7 +585,7 @@ type Slot = {
   block: number;
   /** Договор строки (`row`, `gone`). */
   id?: string;
-  /** Заведена здесь из кармана — не приглушается, пока человек не ушёл с листа. */
+  /** Заведена здесь из кармана - не приглушается, пока человек не ушёл с листа. */
   here?: boolean;
   /** `gone`: «Ушёл в «Заказчик ГК / Купля-продажа»». */
   text?: string;
@@ -593,7 +593,7 @@ type Slot = {
   job?: { later: Record<string, string> } | null;
   /**
    * Пустая строка, вставленная человеком посреди блока (`pocket`): место для
-   * нового договора здесь. Главный карман блока — нижний, без пометки: на него
+   * нового договора здесь. Главный карман блока - нижний, без пометки: на него
    * смотрят фильтр и новые договоры коллег.
    */
   extra?: boolean;
@@ -604,7 +604,7 @@ type RowState = { canon: string[]; marks: string[]; notes: Map<number, string> |
 /** Новый договор из строки листа: значения по ключам полей и карман, если печатали в нём. */
 type CreateJob = { pocket: Slot | null; values: Record<string, string> };
 
-/** Что сделает правка многих ячеек — для окна до записи (`warnBulk`). */
+/** Что сделает правка многих ячеек - для окна до записи (`warnBulk`). */
 type BulkPlan = {
   contracts: Map<string, { number: string; keys: Set<string>; changes: { label: string; before: string; after: string }[] }>;
   cells: number;
@@ -617,7 +617,7 @@ type BulkPlan = {
 type SheetModel = {
   layout: ViewLayout;
   slots: Slot[];
-  /** Что лежит в ячейках сейчас (по нашему знанию) — для сравнения. */
+  /** Что лежит в ячейках сейчас (по нашему знанию) - для сравнения. */
   rows: (RowState | undefined)[];
   /** Договор → строка живой записи. */
   rowOf: Map<string, number>;
@@ -717,7 +717,7 @@ function placesOf(schema: RegistrySchema): Map<string, string> {
   return places;
 }
 
-/** Почему строка больше не в своём блоке — или пусто, если она на месте. */
+/** Почему строка больше не в своём блоке - или пусто, если она на месте. */
 function awayText(layout: ViewLayout, slot: Slot, contract: Contract | undefined, ctx: RenderCtx): string {
   if (slot.kind === "gone") return slot.text ?? "";
   if (!slot.id) return "";
@@ -777,8 +777,8 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
   const notes = new Map<number, string>();
   const valueCtx: Ctx = { schema, parties: state.parties, people: state.people };
 
-  // Замечание ложится на колонку своего поля; поля в блоке нет — на номер.
-  // Отмеченное «Учтено» не горит, но остаётся заметкой: уголок ячейки —
+  // Замечание ложится на колонку своего поля; поля в блоке нет - на номер.
+  // Отмеченное «Учтено» не горит, но остаётся заметкой: уголок ячейки -
   // флажок «здесь было и проверено», наведение показывает, что и о ком.
   const issueCols = new Map<number, string[]>();
   const settledCols = new Map<number, string[]>();
@@ -789,7 +789,7 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
     list.push(issue.acknowledged ? `Учтено: ${issue.text}` : issue.text);
     target.set(column, list);
   }
-  // Подсветка строки правилом блока (`paint`) — тон считает сервер.
+  // Подсветка строки правилом блока (`paint`) - тон считает сервер.
   const toned = Boolean(
     contract && !away && contract.views.some((place) => place.view === layout.key && place.block === slot.block && place.tone),
   );
@@ -808,9 +808,9 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
       const value = pending && pending.state !== "conflict" ? pending.value : stored;
       faces[index] = faceOf(column, value, contract, valueCtx);
       if (column.kind === "shares" && stored && sharesOf(stored as ShareMap, contract, valueCtx).over) {
-        // Договор подешевел после распределения — доли вместе больше суммы.
+        // Договор подешевел после распределения - доли вместе больше суммы.
         mark += "F";
-        texts.push("Доли вместе больше суммы договора — поправьте их в карточке");
+        texts.push("Доли вместе больше суммы договора - поправьте их в карточке");
       }
       if (pending?.state === "failed") {
         mark += "F";
@@ -820,7 +820,7 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
         const theirs = faceText(faceOf(column, pending.theirs, contract, valueCtx));
         const mine = faceText(faceOf(column, pending.value, contract, valueCtx));
         texts.push(
-          `Только что изменено${pending.by ? ` · ${pending.by}` : ""}: ${theirs}. Ваше: ${mine} — напечатайте снова, чтобы поставить своё`,
+          `Только что изменено${pending.by ? ` · ${pending.by}` : ""}: ${theirs}. Ваше: ${mine} - напечатайте снова, чтобы поставить своё`,
         );
       } else if (pending?.state === "asking") {
         mark += "M";
@@ -832,7 +832,7 @@ function render(model: SheetModel, row: number, ctx: RenderCtx): Rendered {
       const later = ctx.ahead.get(`${id}|${column.key}`);
       if (later) texts.push(later);
     }
-    // Учтённое — на своей колонке, в том числе на «№», если поля в блоке нет.
+    // Учтённое - на своей колонке, в том числе на «№», если поля в блоке нет.
     texts.push(...(settledCols.get(index) ?? []));
     if (toned) mark += "G";
     if (contract?.readonly) mark += "R";
@@ -855,7 +855,7 @@ function issueColumn(block: BlockLayout, field: string): number {
 
 /**
  * Что говорит подсказка ячейки: строки заметки, которые не замечания
- * (отказ правки, «с даты …», «ушёл в …»), и замечания колонки — горящие и
+ * (отказ правки, «с даты …», «ушёл в …»), и замечания колонки - горящие и
  * учтённые, с договорами, о которых они.
  */
 export type CellHint = {
@@ -872,7 +872,7 @@ type CellData = { v?: string | number; t?: number; s?: Style | string; custom?: 
 
 /**
  * Стили повторяются: на лист их десяток-другой вариантов. Ключ собирается
- * строкой из того, от чего стиль зависит, — без `JSON.stringify` на каждую из
+ * строкой из того, от чего стиль зависит, - без `JSON.stringify` на каждую из
  * сотни тысяч ячеек книги в пять тысяч договоров.
  */
 const styleMemo = new Map<string, Style | null>();
@@ -942,13 +942,13 @@ function noteOf(sheet: string, row: number, column: number, text: string) {
 // ── Выпадающие списки ────────────────────────────────────────────────────────
 //
 // Колонка со справочником выбирается, а не печатается («Настройки реестра»
-// BBC): статус, отдел, ответственный, наше юрлицо, вид и предмет. Правило —
+// BBC): статус, отдел, ответственный, наше юрлицо, вид и предмет. Правило -
 // проверкой данных Univer на строки блока, потому что колонка F в двух блоках
-// одного листа — разные поля.
+// одного листа - разные поля.
 //
 // Как список выглядит и ведёт себя (текст без капсулы, подсказка, а не
-// запрет, стрелка у выбранной ячейки, печать без списка) — общий стандарт
-// листов, `univer/lists.ts`. Здесь — что предлагать и на каких строках:
+// запрет, стрелка у выбранной ячейки, печать без списка) - общий стандарт
+// листов, `univer/lists.ts`. Здесь - что предлагать и на каких строках:
 // **правило живёт по строкам блока** и пересчитывается, когда строки
 // переложились или поменялся справочник.
 
@@ -957,11 +957,11 @@ const DV_RESOURCE = "SHEET_DATA_VALIDATION_PLUGIN";
 export type Choices = { values: string[]; closed: boolean };
 
 /**
- * Что предлагает выпадающий список колонки; `null` — списка у колонки нет.
+ * Что предлагает выпадающий список колонки; `null` - списка у колонки нет.
  *
  * Список наших юрлиц встаёт на колонку нашей стороны: в блоке, где она
- * задана (`ownSide` — «Заказчик ГК»: наше ТОО в колонке заказчика), — на неё;
- * иначе — на сторону, закрытую настройкой на наши юрлица.
+ * задана (`ownSide` - «Заказчик ГК»: наше ТОО в колонке заказчика), - на неё;
+ * иначе - на сторону, закрытую настройкой на наши юрлица.
  */
 export function choicesOf(
   column: SheetColumn,
@@ -975,23 +975,23 @@ export function choicesOf(
   let values: string[] = [];
   switch (column.kind) {
     case "list":
-      // Выбор, ограниченный блоком (`choices`): в «Разовых» статус — два значения.
+      // Выбор, ограниченный блоком (`choices`): в «Разовых» статус - два значения.
       values = (schema.lists[column.key] ?? []).filter((item) => !only || only.includes(item.id)).map((item) => item.value);
       break;
     case "department":
       // Один отдел из списка; «HR, ЮО» и «ОБО, НО, ЮО, HR» вписывают через
-      // запятую (как людей) или в карточке — у таких строк списка нет.
+      // запятую (как людей) или в карточке - у таких строк списка нет.
       values = schema.departments.map((item) => item.code);
       break;
     case "people":
       // Один человек из списка. Множественный список Univer пишет в ячейку
       // JSON («["Жанара","Нурболат"]») и считает «Елжас, Тимур» ошибкой из-за
-      // пробела после запятой; двое ответственных — у шести договоров из
+      // пробела после запятой; двое ответственных - у шести договоров из
       // 423, их правят вводом через запятую или в карточке.
       values = (state.staff ?? Object.values(state.people)).map((person) => person.name);
       break;
     case "party":
-      // Контрагентов тысячи, и их ищет сервер по написанию: список — только
+      // Контрагентов тысячи, и их ищет сервер по написанию: список - только
       // когда сторона закрыта на наши юрлица.
       if (ownSide ? column.key !== ownSide : field.fill !== "own") return null;
       values = schema.own_entities.map((item) => item.name);
@@ -1016,7 +1016,7 @@ type RuleSpec = { uid: string; sig: string; rule: Record<string, unknown> };
 type Range = ListRange;
 
 /**
- * Строка — покупка по этой стороне: напротив стоит наше юрлицо, а здесь — нет.
+ * Строка - покупка по этой стороне: напротив стоит наше юрлицо, а здесь - нет.
  * Исполнитель покупки законно чужой (сервер: `_OTHER_SIDE`), и список наших
  * юрлиц на его ячейке отмечал бы красным углом верную запись.
  */
@@ -1031,10 +1031,10 @@ function isPurchaseRow(model: SheetModel, row: number, key: string, state: Regis
 }
 
 /**
- * Какие чужие отделы договора пропадут от напечатанного в ячейке — кодами.
- * Убрать отдел может владелец или администратор, а сотрудник — только
+ * Какие чужие отделы договора пропадут от напечатанного в ячейке - кодами.
+ * Убрать отдел может владелец или администратор, а сотрудник - только
  * вписанный им самим (`departments_by`). Чужой лист возвращает сам, не
- * отправляя правку, которая получила бы отказ, — иначе в ячейке оставалось бы
+ * отправляя правку, которая получила бы отказ, - иначе в ячейке оставалось бы
  * «HR», а у договора «HR, ЮО».
  */
 function droppedDepartments(
@@ -1058,7 +1058,7 @@ function droppedDepartments(
     .map((id) => departments.find((item) => item.id === id)?.code ?? id);
 }
 
-/** В строке несколько значений (ответственных, пунктов списка) — одиночный список их не покажет. */
+/** В строке несколько значений (ответственных, пунктов списка) - одиночный список их не покажет. */
 function isCrowdRow(model: SheetModel, row: number, key: string, state: RegistryState): boolean {
   const slot = model.slots[row];
   if (slot?.kind !== "row" || !slot.id) return false;
@@ -1078,7 +1078,7 @@ function skipRow(model: SheetModel, row: number, column: SheetColumn, block: Blo
   return false;
 }
 
-/** Строки `top…bottom` без пропущенных — отрезками подряд; хвост листа — одним. */
+/** Строки `top…bottom` без пропущенных - отрезками подряд; хвост листа - одним. */
 function rangesWithout(model: SheetModel, top: number, bottom: number, column: number, skip: (row: number) => boolean): Range[] {
   const out: Range[] = [];
   let start = -1;
@@ -1112,7 +1112,7 @@ function blockRows(model: SheetModel): Map<number, { top: number; bottom: number
     const head = header.get(block);
     if (head === undefined) return;
     const next = first.get(block + 1);
-    // Хвост листа под последним блоком — его карман: печать там заводит
+    // Хвост листа под последним блоком - его карман: печать там заводит
     // договор последнего блока (`blockAt`), и список там тоже нужен.
     const bottom = next !== undefined ? next - 1 : model.rowCount - 1;
     if (bottom > head) out.set(block, { top: head + 1, bottom });
@@ -1142,13 +1142,13 @@ function rulesOf(model: SheetModel, state: RegistryState, extra?: ReadonlyMap<st
 }
 
 /**
- * Ширины колонок и высоты шапок — по тому, что в колонках лежит.
+ * Ширины колонок и высоты шапок - по тому, что в колонках лежит.
  *
  * Только при сборке книги: отпечаток раскладки (`structureKey`) о ширинах по
  * содержимому не знает, иначе каждая правка, удлинившая значение, пересобирала
  * бы книгу целиком и сбрасывала прокрутку. У справочных колонок (сторона,
- * список, человек) мерится самое длинное значение — их немного и все должны
- * читаться, как и номер договора (с пределом уже); у свободного текста —
+ * список, человек) мерится самое длинное значение - их немного и все должны
+ * читаться, как и номер договора (с пределом уже); у свободного текста -
  * девятое из десяти, чтобы один абзац примечания не растягивал колонку.
  */
 function fitLayout(layout: ViewLayout, buckets: Map<string, string[]>, ctx: RenderCtx): ViewLayout {
@@ -1167,7 +1167,7 @@ function fitLayout(layout: ViewLayout, buckets: Map<string, string[]>, ctx: Rend
         const face = faceOf(column, value, contract, valueCtx);
         if (face.v !== null) texts.push(faceText(face));
       }
-      // Номер договора — текст, но идентификатор: его читают целиком. Предел
+      // Номер договора - текст, но идентификатор: его читают целиком. Предел
       // уже, чем у текста: у BBC есть «номера» в полстроки, и по ним колонка
       // номера становилась шире «Заказчика».
       const number = column.key === "number";
@@ -1193,18 +1193,18 @@ export type Built = {
   first: string;
   /** Правила выпадающих списков, уже лежащие в снимке: лист → правило → отпечаток. */
   rules: Map<string, Map<string, string>>;
-  /** Книга листов (`""` — реестр, `oneoff` — «Разовые»); `state` уже урезан по ней. */
+  /** Книга листов (`""` - реестр, `oneoff` - «Разовые»); `state` уже урезан по ней. */
   book: string;
-  /** Лист «По сотрудникам» у «Разовых» (`staff-sheet.ts`); у реестра — нет. */
+  /** Лист «По сотрудникам» у «Разовых» (`staff-sheet.ts`); у реестра - нет. */
   staff: StaffMatrix | null;
-  /** «Мои»: какие договоры встают в листы; `null` — все. */
+  /** «Мои»: какие договоры встают в листы; `null` - все. */
   only: ((contract: Contract) => boolean) | null;
 };
 
 /**
  * Книга целиком одним проходом: договоры раскладываются по корзинам
  * «отбор#блок» за один обход реестра, ячейки собираются в снимок, стили
- * складываются в словарь книги. Поштучных вызовов Univer нет — на пяти тысячах
+ * складываются в словарь книги. Поштучных вызовов Univer нет - на пяти тысячах
  * договоров это разница между долей секунды и минутой.
  */
 export function buildRegistry(
@@ -1303,7 +1303,7 @@ export function buildRegistry(
 
     const columnData: Record<number, { w: number }> = {};
     for (let column = 0; column < layout.width; column += 1) {
-      // Колонка общая у всех блоков листа — по самому широкому из них.
+      // Колонка общая у всех блоков листа - по самому широкому из них.
       const widths = layout.blocks.map((block) => block.columns[column]?.width ?? 0);
       columnData[column] = { w: Math.max(...widths) || DEFAULT_WIDTH.text };
     }
@@ -1331,7 +1331,7 @@ export function buildRegistry(
     rules.set(layout.key, new Map(specs.map((spec) => [spec.uid, spec.sig])));
   }
 
-  // «Разовые»: сводки по сотрудникам — последним листом книги, как у юротдела.
+  // «Разовые»: сводки по сотрудникам - последним листом книги, как у юротдела.
   const staff = book === "oneoff" && layouts.length ? staffMatrix(state, book) : null;
   if (staff) sheets[STAFF_SHEET] = staffSnapshot(staff);
 
@@ -1369,24 +1369,24 @@ export type AskGroup = {
 };
 
 export type BindingEvents = {
-  /** Строка под листом: «Заводим 12 договоров · 5», отказ сервера. Пусто — убрать. */
+  /** Строка под листом: «Заводим 12 договоров · 5», отказ сервера. Пусто - убрать. */
   note: (text: string, fail?: boolean) => void;
   /** Правка стороны или суммы ждёт ответа «опечатка или с даты». */
   ask: (group: AskGroup) => void;
   openCard: (id: string, ctx: { view: string; block: number }) => void;
-  /** Активный лист сменился — чтобы пересборка вернулась на него же. */
+  /** Активный лист сменился - чтобы пересборка вернулась на него же. */
   sheet: (view: string) => void;
-  /** Лист поменяли в обход нас (вставили строку) — собрать книгу заново. */
+  /** Лист поменяли в обход нас (вставили строку) - собрать книгу заново. */
   rebuild: () => void;
   /**
    * Подсказка ячейки: Univer собирался показать свою заметку (наведение или
-   * выбор ячейки) — вместо неё раздел показывает свою, с «Учтено». `null` —
-   * спрятать. `temp` — по наведению: уходит, когда мышь ушла на другую ячейку.
+   * выбор ячейки) - вместо неё раздел показывает свою, с «Учтено». `null` -
+   * спрятать. `temp` - по наведению: уходит, когда мышь ушла на другую ячейку.
    */
   hint?: (at: { sheet: string; row: number; col: number; temp: boolean } | null) => void;
   /**
-   * Выделена ровно одна строка договора целиком — раздел может подсказать,
-   * что строк можно отметить несколько. `null` — выделение другое.
+   * Выделена ровно одна строка договора целиком - раздел может подсказать,
+   * что строк можно отметить несколько. `null` - выделение другое.
    */
   rowTip?: (at: { sheet: string; row: number } | null) => void;
   /**
@@ -1394,11 +1394,11 @@ export type BindingEvents = {
    * изменится, «Отмена» и «ОК». Своё у каждой команды.
    */
   warn?: (spec: SheetWarningSpec) => void;
-  /** Изменение сделано и запомнено точкой восстановления — строка «… · Вернуть» и Ctrl+Z. */
+  /** Изменение сделано и запомнено точкой восстановления - строка «… · Вернуть» и Ctrl+Z. */
   changed?: (point: PointRef | null, text: string) => void;
   /**
    * Ctrl+Z, когда своя история листа пуста: вернуть последнее изменение по
-   * точке восстановления. `true` — было что вернуть, отмена Univer не нужна.
+   * точке восстановления. `true` - было что вернуть, отмена Univer не нужна.
    */
   undo?: () => boolean;
 };
@@ -1433,7 +1433,7 @@ function cellsOf(matrix: unknown): Array<[number, number]> {
   return out;
 }
 
-/** Первая строка, с которой два расклада расходятся; `-1` — одинаковы. */
+/** Первая строка, с которой два расклада расходятся; `-1` - одинаковы. */
 function firstDiff(a: Slot[], b: Slot[]): number {
   const limit = Math.min(a.length, b.length);
   for (let index = 0; index < limit; index += 1) if (a[index] !== b[index]) return index;
@@ -1444,12 +1444,12 @@ function contractsWord(count: number): string {
   return `${count} ${plural(count, "договор", "договора", "договоров")}`;
 }
 
-/** «у 1 договора», «у 3 договоров» — родительный падеж. */
+/** «у 1 договора», «у 3 договоров» - родительный падеж. */
 function contractsOf(count: number): string {
   return `${count} ${plural(count, "договора", "договоров", "договоров")}`;
 }
 
-/** «в 1 договоре», «в 3 договорах» — предложный падеж. */
+/** «в 1 договоре», «в 3 договорах» - предложный падеж. */
 function contractsIn(count: number): string {
   return `${count} ${plural(count, "договоре", "договорах", "договорах")}`;
 }
@@ -1458,19 +1458,19 @@ function valuesWord(count: number): string {
   return `${count} ${plural(count, "значение", "значения", "значений")}`;
 }
 
-/** «Лист», «лист» и ещё N — длинный перечень листов в окне короче. */
+/** «Лист», «лист» и ещё N - длинный перечень листов в окне короче. */
 function shortList(items: string[], limit = 4): string {
   const shown = items.slice(0, limit).join(", ");
   return items.length > limit ? `${shown} и ещё ${items.length - limit}` : shown;
 }
 
-/** «№ ЮО/88» — номер договора для окна; без номера — пусто. */
+/** «№ ЮО/88» - номер договора для окна; без номера - пусто. */
 function numberLabel(item: { number: string }): string {
   const bare = bareNumber(item.number);
   return bare ? `№ ${bare}` : "";
 }
 
-/** «№ 12, № 13, № 14 и ещё 5» — какие договоры задевает изменение. */
+/** «№ 12, № 13, № 14 и ещё 5» - какие договоры задевает изменение. */
 function numberList(items: { number: string }[]): string {
   const named = items.map(numberLabel).filter(Boolean);
   const shown = named.slice(0, 3).join(", ");
@@ -1483,15 +1483,15 @@ export class RegistryBinding {
   private readonly models: Map<string, SheetModel>;
   private readonly ctx: RenderCtx;
   private readonly unitId: string;
-  /** Больше нуля — лист пишет в себя сам, и эти правки не человеческие. */
+  /** Больше нуля - лист пишет в себя сам, и эти правки не человеческие. */
   private writing = 0;
   private editing: { sheet: string; row: number; col: number } | null = null;
   /**
-   * Строки, которые перерисовка отложила до выхода из редактора ячейки, — с
+   * Строки, которые перерисовка отложила до выхода из редактора ячейки, - с
    * режимом. Возврат напечатанного («Номер строки ставит лист», «убрать отдел
    * может только администратор») идёт `force`, пока редактор ещё числится
    * открытым: до 30.09.2026 отложенное догонялось `diff`, отпечаток ячейки был
-   * прежним — и напечатанное «77» или «HR» оставалось в ячейке под словами
+   * прежним - и напечатанное «77» или «HR» оставалось в ячейке под словами
    * отказа.
    */
   private deferred = new Map<string, "diff" | "force">();
@@ -1509,16 +1509,16 @@ export class RegistryBinding {
   private extra = new Map<string, string[]>();
   /** Книга листов: хранилище общее, а лист видит только свою. */
   private readonly book: string;
-  /** Личный вид листа — его команды оформления правкой не считаются. */
+  /** Личный вид листа - его команды оформления правкой не считаются. */
   private look: LookKeeper | null = null;
   /** Лист «По сотрудникам» (у «Разовых»): что в нём сейчас и сколько в нём строк. */
   private staff: StaffMatrix | null;
   private staffRows = 0;
   /** Фильтр в шапке листов из одного блока (`univer/filter.ts`). */
   private filter: FilterKeeper | null = null;
-  /** «Мои»: какие договоры встают в лист; `null` — все. */
+  /** «Мои»: какие договоры встают в лист; `null` - все. */
   private readonly only: ((contract: Contract) => boolean) | null;
-  /** Последний щелчок по номеру строки — второй подряд открывает карточку. */
+  /** Последний щелчок по номеру строки - второй подряд открывает карточку. */
   private lastNumber: { sheet: string; row: number; at: number } | null = null;
 
   constructor(
@@ -1542,7 +1542,7 @@ export class RegistryBinding {
   }
 
   /**
-   * Сводки по сотрудникам — по хранилищу: правка ответственного, суммы,
+   * Сводки по сотрудникам - по хранилищу: правка ответственного, суммы,
    * статуса или пришедшая сводка оплат меняют цифры. Переписываются только
    * значения, и только если они разошлись с листом.
    */
@@ -1574,7 +1574,7 @@ export class RegistryBinding {
     const api = this.api;
     const workbook = api.getActiveWorkbook?.();
     // Тему холста переключает общий корень листов (`univer/sheet.tsx`); здесь
-    // только свои цвета ячеек — см. `retheme`.
+    // только свои цвета ячеек - см. `retheme`.
     if (active && this.models.has(active)) {
       const sheet = workbook?.getSheetBySheetId?.(active);
       if (sheet) workbook.setActiveSheet(sheet);
@@ -1591,7 +1591,7 @@ export class RegistryBinding {
       api.addEvent?.(
         api.Event.SheetEditStarted,
         (event: { worksheet?: UniverApi; row: number; column: number }) => {
-          // Печать в ячейке со списком — печать, а не выбор: это делает общий
+          // Печать в ячейке со списком - печать, а не выбор: это делает общий
           // корень листов (`univer/lists.ts`).
           const sheet = event.worksheet?.getSheetId?.() ?? "";
           this.editing = { sheet, row: event.row, col: event.column };
@@ -1600,7 +1600,7 @@ export class RegistryBinding {
     );
     listen(
       api.addEvent?.(api.Event.SheetEditEnded, () => {
-        // Значение из редактора ложится командой чуть позже события — даём
+        // Значение из редактора ложится командой чуть позже события - даём
         // ему лечь, потом дописываем то, что ждало выхода из редактора.
         window.setTimeout(() => {
           this.editing = null;
@@ -1621,8 +1621,8 @@ export class RegistryBinding {
           const sheet = event.worksheet?.getSheetId?.() ?? "";
           const model = this.models.get(sheet);
           // Доли правятся в карточке: у распределения своё правило (не больше
-          // суммы договора и 100%), ячейка его не удержит. Двойной щелчок —
-          // карточка договора, печать — подсказка словами, редактора нет.
+          // суммы договора и 100%), ячейка его не удержит. Двойной щелчок -
+          // карточка договора, печать - подсказка словами, редактора нет.
           const slot = model && typeof event.row === "number" ? model.slots[event.row] : undefined;
           const spec = slot ? model?.layout.blocks[slot.block]?.columns[event.column] : undefined;
           if (spec?.kind === "shares") {
@@ -1630,13 +1630,13 @@ export class RegistryBinding {
             if (slot?.kind === "row" && slot.id && event.eventType === DBLCLICK) {
               this.events.openCard(slot.id, { view: sheet, block: slot.block });
             } else {
-              this.events.note("Доли исполнителей правятся в карточке договора — двойной щелчок по ячейке или Alt+Enter", false);
+              this.events.note("Доли исполнителей правятся в карточке договора - двойной щелчок по ячейке или Alt+Enter", false);
             }
             return;
           }
           // Двойной щелчок по номеру строки открывает карточку, а не редактор
           // ячейки: редактор оставался открытым под карточкой, и напечатанное
-          // потом уходило в «№». Печать с клавиатуры не трогаем — её лист
+          // потом уходило в «№». Печать с клавиатуры не трогаем - её лист
           // возвращает сам: «Номер строки ставит лист».
           if (event.column !== 0 || event.eventType !== DBLCLICK) return;
           if (model) event.cancel = true;
@@ -1656,10 +1656,10 @@ export class RegistryBinding {
     );
     listen(
       api.addEvent?.(api.Event.CellClicked, (event: { worksheet?: UniverApi; row: number; column: number }) => {
-        // Номер строки — ручка строки, как серый номер слева: щелчок выделяет
+        // Номер строки - ручка строки, как серый номер слева: щелчок выделяет
         // строку целиком (`wholeRows`), второй щелчок подряд открывает
         // карточку. До 29.09.2026 карточка открывалась с первого щелчка и
-        // закрывала собой лист — строки было не отметить, чтобы удалить.
+        // закрывала собой лист - строки было не отметить, чтобы удалить.
         if (event.column !== 0) return;
         const sheet = event.worksheet?.getSheetId?.() ?? "";
         const slot = this.models.get(sheet)?.slots[event.row];
@@ -1674,12 +1674,12 @@ export class RegistryBinding {
     this.contextMenu();
     this.takeOverNotes();
     this.inkMarkers();
-    // Тема приложения сменилась — лист следует за ней.
+    // Тема приложения сменилась - лист следует за ней.
     if (typeof MutationObserver !== "undefined") {
       const observer = new MutationObserver(() => this.retheme());
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
       this.disposers.push(() => observer.disconnect());
-      // «Как в системе»: тема меняется без атрибута — вслед за системой.
+      // «Как в системе»: тема меняется без атрибута - вслед за системой.
       const system = window.matchMedia?.("(prefers-color-scheme: dark)");
       const onSystem = () => this.retheme();
       system?.addEventListener?.("change", onSystem);
@@ -1699,7 +1699,7 @@ export class RegistryBinding {
   private guard: CommandGuard | null = null;
   /** Идёт отмена или возврат Univer: то, что они кладут в лист, окном не спрашивается. */
   private undoing = 0;
-  /** Массовая правка уже подтверждена окном — второй раз не спрашивать. */
+  /** Массовая правка уже подтверждена окном - второй раз не спрашивать. */
   private confirmed = false;
 
   private canEdit(): boolean {
@@ -1710,16 +1710,16 @@ export class RegistryBinding {
     return Boolean(this.ctx.state.schema?.access.setup);
   }
 
-  /** Убрать любой отдел договора — владелец или администратор (30.09.2026). */
+  /** Убрать любой отдел договора - владелец или администратор (30.09.2026). */
   private canRemoveDepartments(): boolean {
     return Boolean(this.ctx.state.schema?.access.admin);
   }
 
   /**
    * Перехват команд, которые меняют таблицу для всех (`univer/guard.ts`).
-   * Защиты Univer больше нет — ни листа, ни диапазонов: оформление свободно
+   * Защиты Univer больше нет - ни листа, ни диапазонов: оформление свободно
    * (личный вид), значения «только чтение» лист возвращает сам, а строки,
-   * колонки и листы решает `onStructure` — окном с последствиями.
+   * колонки и листы решает `onStructure` - окном с последствиями.
    */
   private installGuard(): void {
     const guard = guardCommands(this.api, (command, kind) => this.onStructure(command, kind), {
@@ -1731,28 +1731,28 @@ export class RegistryBinding {
       const service = this.api._injector.get(ICommandService) as {
         beforeCommandExecuted: (listener: (command: { id: string }) => void) => { dispose?: () => void };
       };
-      // Отмена и возврат Univer кладут в лист прежние значения — это не
+      // Отмена и возврат Univer кладут в лист прежние значения - это не
       // новая массовая вставка, окно о ней не нужно.
       const before = service.beforeCommandExecuted((command) => {
         if (command.id === "univer.command.undo" || command.id === "univer.command.redo") this.undoing += 1;
       });
       this.disposers.push(() => before.dispose?.());
     } catch {
-      /* без пометки отмены массовая отмена спросит окном — неудобство, не поломка */
+      /* без пометки отмены массовая отмена спросит окном - неудобство, не поломка */
     }
     try {
-      // «Защитить лист / диапазон» в меню — прятать: поставленная человеком
+      // «Защитить лист / диапазон» в меню - прятать: поставленная человеком
       // защита вернула бы замки и отказы «нет разрешения».
       const config = this.api._injector.get(IConfigService) as {
         setConfig: (key: string, value: unknown, options?: { merge: boolean }) => void;
       };
       config.setConfig("menu", Object.fromEntries(PROTECTION_MENU.map((id) => [id, { hidden: true }])), { merge: true });
     } catch {
-      /* пункты останутся — их команды всё равно перехватываются */
+      /* пункты останутся - их команды всё равно перехватываются */
     }
   }
 
-  /** Ctrl+Z, когда своя история листа пуста, — вернуть последнее изменение по точке. */
+  /** Ctrl+Z, когда своя история листа пуста, - вернуть последнее изменение по точке. */
   private onUndo(): boolean {
     if (!this.alive || this.editing) return false;
     let top: unknown = null;
@@ -1776,7 +1776,7 @@ export class RegistryBinding {
     return true;
   }
 
-  /** Строки и колонки команды — по её параметрам или выделению. */
+  /** Строки и колонки команды - по её параметрам или выделению. */
   private rowsOf(command: SheetCommand): number[] {
     const rows = new Set<number>();
     for (const range of rangesOf(this.api, command)) {
@@ -1793,7 +1793,7 @@ export class RegistryBinding {
     return [...cols].sort((a, b) => a - b);
   }
 
-  /** Названия листов книги (обеих), где стоят договоры, — кроме этого. */
+  /** Названия листов книги (обеих), где стоят договоры, - кроме этого. */
   private placesOf(ids: readonly string[], except: string): string[] {
     const schema = getRegistry().schema;
     const titles = new Set<string>();
@@ -1807,7 +1807,7 @@ export class RegistryBinding {
     return [...titles];
   }
 
-  /** Листы, где стоит колонка поля, — кроме этого. */
+  /** Листы, где стоит колонка поля, - кроме этого. */
   private sheetsWithField(key: string, except: string): string[] {
     const schema = getRegistry().schema;
     if (!schema) return [];
@@ -1821,13 +1821,13 @@ export class RegistryBinding {
   }
 
   /**
-   * Структурная команда Univer — до исполнения. `true` — отменить: лист сделает
+   * Структурная команда Univer - до исполнения. `true` - отменить: лист сделает
    * своё (окно, свой запрос) или объяснит, почему нельзя.
    */
   private onStructure(command: SheetCommand, kind: StructureKind): boolean {
     if (!this.alive) return false;
-    // Сортировку лист принимает сам (`onReorder`): вся ширина — порядок
-    // принят, часть ширины или чужие блоки — строки возвращаются.
+    // Сортировку лист принимает сам (`onReorder`): вся ширина - порядок
+    // принят, часть ширины или чужие блоки - строки возвращаются.
     if (kind === "sort") return false;
     if (kind === "protect") {
       return this.refuse("Защита листа не нужна", [
@@ -1842,7 +1842,7 @@ export class RegistryBinding {
       if (sheet !== STAFF_SHEET) return false;
       return this.refuse("«По сотрудникам» не меняется руками", [
         "Это сводка: строки, колонки и цифры считаются из договоров листов книги сами.",
-        "Поправьте договор — сводка пересчитается.",
+        "Поправьте договор - сводка пересчитается.",
       ]);
     }
     switch (kind) {
@@ -1866,27 +1866,27 @@ export class RegistryBinding {
         return this.onOrderSheets(model, Number(params.order));
       case "addSheet":
         return this.refuse("Новый лист здесь не заводится", [
-          "Лист реестра — это правило, какие договоры в нём стоят (вид, статус, сторона…), а не пустая страница.",
+          "Лист реестра - это правило, какие договоры в нём стоят (вид, статус, сторона…), а не пустая страница.",
           this.isAdmin()
             ? "Лист заводится в «Настроить реестр» → «Листы»: там же его правило и колонки."
             : "Листы реестра заводит владелец или администратор в «Настроить реестр».",
         ]);
       case "shiftCells":
         return this.refuse("Ячейки не сдвигаются", [
-          "У каждой ячейки листа — своё поле своего договора: сдвиг переложил бы значения в чужие поля и чужие договоры.",
-          "Вставьте строку целиком — она станет новым договором — или очистите ячейки.",
+          "У каждой ячейки листа - своё поле своего договора: сдвиг переложил бы значения в чужие поля и чужие договоры.",
+          "Вставьте строку целиком - она станет новым договором - или очистите ячейки.",
         ]);
       case "merge":
         return this.refuse("Ячейки в реестре не объединяются", [
-          "У каждой ячейки — своё поле договора: объединённая закрыла бы значения соседних полей.",
-          "Для заметного вида — заливка, жирный, перенос текста: это ваш вид листа, коллеги его не видят.",
+          "У каждой ячейки - своё поле договора: объединённая закрыла бы значения соседних полей.",
+          "Для заметного вида - заливка, жирный, перенос текста: это ваш вид листа, коллеги его не видят.",
         ]);
       default:
         return false;
     }
   }
 
-  // — строки —
+  // - строки -
 
   private onInsertRows(model: SheetModel, command: SheetCommand): boolean {
     if (!this.canEdit()) {
@@ -1909,14 +1909,14 @@ export class RegistryBinding {
     }
     count = Math.max(1, Math.min(50, Number.isFinite(count) ? count : 1));
     if (!Number.isFinite(at) || at >= model.slots.length) {
-      this.events.note("Под таблицей и так пустые строки — впишите договор в первую из них", false);
+      this.events.note("Под таблицей и так пустые строки - впишите договор в первую из них", false);
       return true;
     }
     const target = model.slots[Math.max(0, at)];
     const block = target.block;
     let index = at;
     if (target.kind === "title" || target.kind === "header") {
-      // В шапку строка не встаёт — сразу под шапку своей части.
+      // В шапку строка не встаёт - сразу под шапку своей части.
       index = model.slots.findIndex((slot) => slot.kind === "header" && slot.block === block) + 1;
     } else if (target.kind === "gap") {
       index = model.slots.findIndex((slot) => slot.kind === "pocket" && !slot.extra && slot.block === block);
@@ -1929,8 +1929,8 @@ export class RegistryBinding {
     });
     this.events.note(
       count === 1
-        ? "Пустая строка — место для нового договора: впишите значения, и он заведётся здесь"
-        : `${count} ${plural(count, "пустая строка", "пустые строки", "пустых строк")} — места для новых договоров`,
+        ? "Пустая строка - место для нового договора: впишите значения, и он заведётся здесь"
+        : `${count} ${plural(count, "пустая строка", "пустые строки", "пустых строк")} - места для новых договоров`,
       false,
     );
     return true;
@@ -1958,23 +1958,23 @@ export class RegistryBinding {
       }
       if (heads) {
         return this.refuse("Шапку части листа не удалить", [
-          "Названия колонок и частей листа задаёт настройка реестра — «Настроить реестр» → «Листы».",
+          "Названия колонок и частей листа задаёт настройка реестра - «Настроить реестр» → «Листы».",
           "Переименовать колонку можно прямо в шапке: впишите новое название.",
         ]);
       }
       if (locked.length) {
         return this.refuse("Строки не удалить", [
-          `${numberList(locked)} — ${locked.length === 1 ? "договор другого отдела, открыт" : "договоры другого отдела, открыты"} вам только на просмотр.`,
+          `${numberList(locked)} - ${locked.length === 1 ? "договор другого отдела, открыт" : "договоры другого отдела, открыты"} вам только на просмотр.`,
         ]);
       }
-      this.events.note("Пустые строки листа не удаляются — на их месте встают новые договоры", false);
+      this.events.note("Пустые строки листа не удаляются - на их месте встают новые договоры", false);
       return true;
     }
     this.warnRemove(model, items, locked, heads > 0);
     return true;
   }
 
-  /** «Удалить N договоров» — строки листа и пункт меню правой кнопки ведут сюда. */
+  /** «Удалить N договоров» - строки листа и пункт меню правой кнопки ведут сюда. */
   private warnRemove(
     model: SheetModel,
     items: { id: string; number: string }[],
@@ -1990,12 +1990,12 @@ export class RegistryBinding {
     const others = this.placesOf(items.map((item) => item.id), view);
     const one = count === 1;
     const lines = [
-      `${one ? `Договор${numberLabel(items[0]) ? ` ${numberLabel(items[0])}` : ""}` : `Договоры ${numberList(items)}`} ${one ? "уйдёт" : "уйдут"} в корзину — из листа «${model.layout.title}»${others.length ? `, из ${others.length === 1 ? "листа" : "листов"} ${shortList(others)}` : ""} и из «Карточек» у всех сотрудников.`,
+      `${one ? `Договор${numberLabel(items[0]) ? ` ${numberLabel(items[0])}` : ""}` : `Договоры ${numberList(items)}`} ${one ? "уйдёт" : "уйдут"} в корзину - из листа «${model.layout.title}»${others.length ? `, из ${others.length === 1 ? "листа" : "листов"} ${shortList(others)}` : ""} и из «Карточек» у всех сотрудников.`,
     ];
     if (locked.length) {
-      lines.push(`${numberList(locked)} — ${locked.length === 1 ? "договор другого отдела, открыт" : "договоры другого отдела, открыты"} вам только на просмотр: ${locked.length === 1 ? "останется" : "останутся"}.`);
+      lines.push(`${numberList(locked)} - ${locked.length === 1 ? "договор другого отдела, открыт" : "договоры другого отдела, открыты"} вам только на просмотр: ${locked.length === 1 ? "останется" : "останутся"}.`);
     }
-    if (heads) lines.push("Шапка части листа останется — её задаёт настройка реестра.");
+    if (heads) lines.push("Шапка части листа останется - её задаёт настройка реестра.");
     lines.push("Вернуть: Ctrl+Z сразу или «Восстановление» в личном кабинете.");
     this.warn({
       title: one ? `Удалить договор${numberLabel(items[0]) ? ` ${numberLabel(items[0])}` : ""}?` : `Удалить ${contractsWord(count)}?`,
@@ -2034,7 +2034,7 @@ export class RegistryBinding {
       const slot = model.slots[row];
       if (slot?.kind !== "row" || !slot.id) {
         return this.refuse("Передвигаются только строки договоров", [
-          "Шапка, название части листа и пустые строки стоят на своих местах — их держит лист.",
+          "Шапка, название части листа и пустые строки стоят на своих местах - их держит лист.",
         ]);
       }
       const contract = this.ctx.state.byId.get(slot.id);
@@ -2049,8 +2049,8 @@ export class RegistryBinding {
     if (targetBlock !== block) {
       const name = model.layout.blocks[targetBlock]?.title || model.layout.title;
       return this.refuse("Договор не перенести в другую часть листа", [
-        `Часть листа «${name}» отбирает договоры правилом — по виду, статусу, стороне.`,
-        "Чтобы договор встал туда, поменяйте в нём значение, по которому часть его отбирает, — он перейдёт сам.",
+        `Часть листа «${name}» отбирает договоры правилом - по виду, статусу, стороне.`,
+        "Чтобы договор встал туда, поменяйте в нём значение, по которому часть его отбирает, - он перейдёт сам.",
       ]);
     }
     let before: { id: string; number: string } | null = null;
@@ -2066,7 +2066,7 @@ export class RegistryBinding {
     this.warn({
       title: one ? `Передвинуть договор${numberLabel(moving[0]) ? ` ${numberLabel(moving[0])}` : ""}?` : `Передвинуть ${contractsWord(moving.length)}?`,
       lines: [
-        `${one ? "Встанет" : "Встанут"} ${before ? `перед ${numberLabel(before) || "договором без номера"}` : "в конец части листа"} — порядок реестра общий: так ${one ? "он встанет" : "они встанут"} у всех сотрудников, во всех листах и в «Карточках».`,
+        `${one ? "Встанет" : "Встанут"} ${before ? `перед ${numberLabel(before) || "договором без номера"}` : "в конец части листа"} - порядок реестра общий: так ${one ? "он встанет" : "они встанут"} у всех сотрудников, во всех листах и в «Карточках».`,
         "Значения договоров не меняются.",
         "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете.",
       ],
@@ -2087,7 +2087,7 @@ export class RegistryBinding {
     return true;
   }
 
-  // — колонки —
+  // - колонки -
 
   private columnLabel(model: SheetModel, col: number): string {
     const labels = [...new Set(model.layout.blocks.map((block) => block.columns[col]?.label).filter(Boolean))];
@@ -2097,7 +2097,7 @@ export class RegistryBinding {
   private onInsertCols(model: SheetModel, command: SheetCommand): boolean {
     if (!this.isAdmin()) {
       return this.refuse("Колонку не добавить", [
-        "Колонка листа — это поле у всех договоров реестра: новое поле появилось бы у каждого договора и в каждой карточке.",
+        "Колонка листа - это поле у всех договоров реестра: новое поле появилось бы у каждого договора и в каждой карточке.",
         "Поля заводит владелец или администратор: «Настроить реестр» → «Поля».",
       ]);
     }
@@ -2119,10 +2119,10 @@ export class RegistryBinding {
     this.warn({
       title: `Добавить колонку в лист «${model.layout.title}»?`,
       lines: [
-        `В реестре появится новое поле — пустое у всех ${contractsOf(total)}.`,
-        `Колонкой оно встанет в лист «${model.layout.title}» после «${leftLabel}»${parts > 1 ? " — в каждой части листа" : ""}, строкой — в карточку каждого договора. Увидят все сотрудники.`,
-        "В другие листы не добавляется: туда его ставят в «Настроить реестр» → «Листы». Тип поля — текст, сменить — в «Поля».",
-        "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете — пока поле пустое, оно уйдёт целиком.",
+        `В реестре появится новое поле - пустое у всех ${contractsOf(total)}.`,
+        `Колонкой оно встанет в лист «${model.layout.title}» после «${leftLabel}»${parts > 1 ? " - в каждой части листа" : ""}, строкой - в карточку каждого договора. Увидят все сотрудники.`,
+        "В другие листы не добавляется: туда его ставят в «Настроить реестр» → «Листы». Тип поля - текст, сменить - в «Поля».",
+        "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете - пока поле пустое, оно уйдёт целиком.",
       ],
       input: { label: "Название колонки", value: "", placeholder: "Например, «Источник клиента»" },
       confirm: "Добавить",
@@ -2148,13 +2148,13 @@ export class RegistryBinding {
     if (!cols.length) return true;
     if (cols.includes(0)) {
       return this.refuse("«№» не убирается", [
-        "Номер — адрес строки листа: по нему лист знает, какой договор в строке.",
-        "Скрыть колонки справа можно — выделите их без «№».",
+        "Номер - адрес строки листа: по нему лист знает, какой договор в строке.",
+        "Скрыть колонки справа можно - выделите их без «№».",
       ]);
     }
     const labels = cols.map((col) => this.columnLabel(model, col));
     const named = labels.map((label) => `«${label}»`).join(", ");
-    // «Доли исполнителей» — колонка самого листа, не поле: у всех её не убрать.
+    // «Доли исполнителей» - колонка самого листа, не поле: у всех её не убрать.
     const own = cols.filter((col) => model.layout.blocks.some((block) => block.columns[col] && block.columns[col].kind !== "shares"));
     const keys = own.map((col) =>
       model.layout.blocks.map((block) => {
@@ -2166,7 +2166,7 @@ export class RegistryBinding {
       this.warn({
         title: `Скрыть колонку ${named} у себя?`,
         lines: [
-          "Эту колонку ставит сам лист у всех, кому открыты доли: убрать её из листа нельзя, скрыть у себя — можно.",
+          "Эту колонку ставит сам лист у всех, кому открыты доли: убрать её из листа нельзя, скрыть у себя - можно.",
           "Доли остаются в карточке договора.",
           "Вернуть: «Сбросить мой вид» под листом.",
         ],
@@ -2179,7 +2179,7 @@ export class RegistryBinding {
       this.warn({
         title: cols.length === 1 ? `Скрыть колонку ${named} у себя?` : `Скрыть колонки ${named} у себя?`,
         lines: [
-          "Колонка пропадёт только в вашем виде листа — у коллег, в карточке и в выгрузке она остаётся.",
+          "Колонка пропадёт только в вашем виде листа - у коллег, в карточке и в выгрузке она остаётся.",
           "Убрать колонку у всех может владелец или администратор.",
           "Вернуть: «Сбросить мой вид» под листом.",
         ],
@@ -2195,7 +2195,7 @@ export class RegistryBinding {
       .map((key) => {
         const title = schema?.fields.find((field) => field.key === key)?.title ?? key;
         const elsewhere = this.sheetsWithField(key, model.layout.key);
-        return `Значения поля «${title}» в договорах останутся — в карточке${elsewhere.length ? ` и в ${elsewhere.length === 1 ? "листе" : "листах"} ${shortList(elsewhere)}` : ""}.`;
+        return `Значения поля «${title}» в договорах останутся - в карточке${elsewhere.length ? ` и в ${elsewhere.length === 1 ? "листе" : "листах"} ${shortList(elsewhere)}` : ""}.`;
       })
       .slice(0, 3);
     this.warn({
@@ -2203,7 +2203,7 @@ export class RegistryBinding {
       lines: [
         `${own.length === 1 ? "Колонка пропадёт" : "Колонки пропадут"} из листа «${model.layout.title}» у всех сотрудников.`,
         ...keep,
-        "Удалить само поле — «Настроить реестр» → «Поля».",
+        "Удалить само поле - «Настроить реестр» → «Поля».",
         "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете.",
       ],
       confirm: "Убрать",
@@ -2227,7 +2227,7 @@ export class RegistryBinding {
     const to = params.toRange as SheetRange | undefined;
     if (!from || !to) return true;
     if (from.startColumn <= 0 || to.startColumn <= 0) {
-      return this.refuse("«№» стоит первой всегда", ["Номер — адрес строки листа, он не передвигается и перед ним ничего не встаёт."]);
+      return this.refuse("«№» стоит первой всегда", ["Номер - адрес строки листа, он не передвигается и перед ним ничего не встаёт."]);
     }
     const label = this.columnLabel(model, from.startColumn);
     if (model.layout.blocks.some((block) => block.columns[from.startColumn]?.kind === "shares")) {
@@ -2237,7 +2237,7 @@ export class RegistryBinding {
     }
     if (!this.isAdmin()) {
       return this.refuse("Колонку не передвинуть", [
-        "Порядок колонок листа общий у всех сотрудников — его меняет владелец или администратор.",
+        "Порядок колонок листа общий у всех сотрудников - его меняет владелец или администратор.",
         "У себя колонку можно сузить или скрыть: правая кнопка по букве колонки.",
       ]);
     }
@@ -2264,7 +2264,7 @@ export class RegistryBinding {
     return true;
   }
 
-  // — листы —
+  // - листы -
 
   private onRenameSheet(model: SheetModel, raw: string): boolean {
     const name = raw.trim();
@@ -2272,7 +2272,7 @@ export class RegistryBinding {
     if (!name || name === old) return true;
     if (!this.isAdmin()) {
       return this.refuse("Лист не переименовать", [
-        "Название листа видят все сотрудники — его меняет владелец или администратор в «Настроить реестр» → «Листы».",
+        "Название листа видят все сотрудники - его меняет владелец или администратор в «Настроить реестр» → «Листы».",
       ]);
     }
     this.warn({
@@ -2294,16 +2294,16 @@ export class RegistryBinding {
 
   private onRemoveSheet(model: SheetModel): boolean {
     if (model.layout.main) {
-      return this.refuse("Главный лист не убирается", ["На нём стоят все договоры реестра — остальные листы отбирают из него."]);
+      return this.refuse("Главный лист не убирается", ["На нём стоят все договоры реестра - остальные листы отбирают из него."]);
     }
     if (!this.isAdmin()) {
-      return this.refuse("Лист не убрать", ["Листы реестра общие у всех сотрудников — их убирает владелец или администратор."]);
+      return this.refuse("Лист не убрать", ["Листы реестра общие у всех сотрудников - их убирает владелец или администратор."]);
     }
     const main = getRegistry().schema?.views.find((view) => view.main)?.title ?? "Все договоры";
     this.warn({
       title: `Убрать лист «${model.layout.title}»?`,
       lines: [
-        "Лист пропадёт у всех — в «Таблице» и в «Карточках» — и уйдёт в корзину.",
+        "Лист пропадёт у всех - в «Таблице» и в «Карточках» - и уйдёт в корзину.",
         `Договоры не удаляются: они остаются в «${main}» и в других листах, где подходят по правилу.`,
         "Вернуть: Ctrl+Z, «Восстановление» или корзина в личном кабинете.",
       ],
@@ -2319,7 +2319,7 @@ export class RegistryBinding {
 
   private onOrderSheets(model: SheetModel, order: number): boolean {
     if (!this.isAdmin()) {
-      return this.refuse("Листы не переставить", ["Порядок листов общий у всех сотрудников — его меняет владелец или администратор."]);
+      return this.refuse("Листы не переставить", ["Порядок листов общий у всех сотрудников - его меняет владелец или администратор."]);
     }
     const keys = [...this.models.keys()].filter((key) => key !== model.layout.key);
     if (!Number.isFinite(order)) return true;
@@ -2373,10 +2373,10 @@ export class RegistryBinding {
   /**
    * Переписать строки листа по хранилищу.
    *
-   * * `diff` — только изменившиеся ячейки; изменённое не здесь вспыхивает;
-   * * `force` — строка целиком (вернуть на место то, что человек не мог
-   *   поменять, — шапку, защищённую колонку, строку после сортировки);
-   * * `fresh` — строки только что очищены перестройкой.
+   * * `diff` - только изменившиеся ячейки; изменённое не здесь вспыхивает;
+   * * `force` - строка целиком (вернуть на место то, что человек не мог
+   *   поменять, - шапку, защищённую колонку, строку после сортировки);
+   * * `fresh` - строки только что очищены перестройкой.
    *
    * Ячейку, открытую редактором, лист не трогает: значение применится, когда
    * человек выйдет из редактора, если он не поменял его сам.
@@ -2473,7 +2473,7 @@ export class RegistryBinding {
     }, FLASH_MS + 40);
   }
 
-  /** Все строки договоров во всех листах — по хранилищу. */
+  /** Все строки договоров во всех листах - по хранилищу. */
   private repaintIds(ids: Iterable<string>): void {
     const list = [...ids];
     for (const model of this.models.values()) {
@@ -2483,7 +2483,7 @@ export class RegistryBinding {
   }
 
   private clearUndo(): void {
-    // Строки сдвинулись — записи отмены указывают на старые адреса, и Ctrl+Z
+    // Строки сдвинулись - записи отмены указывают на старые адреса, и Ctrl+Z
     // вернул бы значение не в ту строку, то есть в чужой договор.
     try {
       const injector = (this.api as { _injector?: { get: (token: unknown) => unknown } })._injector;
@@ -2562,17 +2562,17 @@ export class RegistryBinding {
     const addMerges = [];
     for (let row = from; row < next.length; row += 1) if (next[row].kind === "title") addMerges.push(mergeRange(row, width));
     if (addMerges.length) this.exec(M.addMerge, { ...unit, ranges: addMerges });
-    // Строки блоков сдвинулись — правила списков встают на новые строки.
+    // Строки блоков сдвинулись - правила списков встают на новые строки.
     this.syncValidation(model);
     this.clearUndo();
-    // И фильтр: иначе Univer прятал бы строки по старым номерам — чужие договоры.
+    // И фильтр: иначе Univer прятал бы строки по старым номерам - чужие договоры.
     this.placeFilter(model);
   }
 
   // ── Выпадающие списки ──
 
   /**
-   * Правила списков листа — по нынешней раскладке и справочникам. Меняются
+   * Правила списков листа - по нынешней раскладке и справочникам. Меняются
    * только разошедшиеся: убрать старое, поставить новое.
    */
   private syncValidation(model: SheetModel): void {
@@ -2589,7 +2589,7 @@ export class RegistryBinding {
     this.rules.set(sheet, next);
   }
 
-  /** Колонка и её список под ячейкой; `null` — у ячейки списка нет. */
+  /** Колонка и её список под ячейкой; `null` - у ячейки списка нет. */
   listAt(sheet: string, row: number, column: number): { spec: SheetColumn; choices: Choices; block: number } | null {
     const model = this.models.get(sheet);
     if (!model) return null;
@@ -2608,7 +2608,7 @@ export class RegistryBinding {
   /**
    * Своё значение в открытом списке («список или своё») становится вариантом
    * сразу: иначе, пока справочник не перечитан, Univer отмечал бы ячейку
-   * красным углом «нет в списке» — цветом отказа на правке, которая принята.
+   * красным углом «нет в списке» - цветом отказа на правке, которая принята.
    */
   private extendList(sheet: string, row: number, column: number, raw: string): void {
     const found = this.listAt(sheet, row, column);
@@ -2626,7 +2626,7 @@ export class RegistryBinding {
 
   /**
    * Новое состояние хранилища. Переписываются только договоры, у которых
-   * поменялась запись или правка; справочники (контрагенты, люди, схема) —
+   * поменялась запись или правка; справочники (контрагенты, люди, схема) -
    * повод пересверить весь лист, но записывается всё равно только разница.
    */
   sync(whole: RegistryState): void {
@@ -2642,7 +2642,7 @@ export class RegistryBinding {
       a !== b && Object.keys(b).some((key) => a[key] !== undefined && a[key].name !== b[key].name);
     const full = next.schema !== prev.schema || renamed(prev.parties, next.parties) || renamed(prev.people, next.people);
     if (next.schema !== prev.schema && next.schema) this.ctx.places = placesOf(next.schema);
-    // Справочник поменялся (новое значение, сотрудник, наше юрлицо) — списки
+    // Справочник поменялся (новое значение, сотрудник, наше юрлицо) - списки
     // листа следом, даже если ни один договор не менялся.
     const dictionaries =
       next.schema !== prev.schema || next.staff !== prev.staff || (next.staff === null && next.people !== prev.people);
@@ -2663,7 +2663,7 @@ export class RegistryBinding {
         for (const id of prev.departed.keys()) changed.add(id);
       }
       if (next.summary !== prev.summary) {
-        // Сводка из книги перечитана — только строки, где «(сводка)» поменялись.
+        // Сводка из книги перечитана - только строки, где «(сводка)» поменялись.
         const ids = new Set([...Object.keys(prev.summary ?? {}), ...Object.keys(next.summary ?? {})]);
         for (const id of ids) {
           const before = prev.summary?.[id];
@@ -2674,14 +2674,14 @@ export class RegistryBinding {
         }
       }
       if (next.shares !== prev.shares) {
-        // Доли перечитаны — только строки, где они правда поменялись.
+        // Доли перечитаны - только строки, где они правда поменялись.
         const ids = new Set([...Object.keys(prev.shares ?? {}), ...Object.keys(next.shares ?? {})]);
         for (const id of ids) {
           if (JSON.stringify(prev.shares?.[id] ?? null) !== JSON.stringify(next.shares?.[id] ?? null)) changed.add(id);
         }
       }
       if (next.payments !== prev.payments) {
-        // Сводка оплат пришла заново — перерисовать только строки, у которых
+        // Сводка оплат пришла заново - перерисовать только строки, у которых
         // «Оплачено/Остаток» правда поменялись.
         const ids = new Set([...Object.keys(prev.payments ?? {}), ...Object.keys(next.payments ?? {})]);
         for (const id of ids) {
@@ -2691,7 +2691,7 @@ export class RegistryBinding {
         }
       }
       if (!changed.size) return;
-      // Сменилась сторона или состав ответственных — строка могла выйти из
+      // Сменилась сторона или состав ответственных - строка могла выйти из
       // списка колонки или вернуться в него (покупка, несколько людей).
       const sides =
         !dictionaries &&
@@ -2720,11 +2720,11 @@ export class RegistryBinding {
   }
 
   /**
-   * Состав листа: договор пришёл в блок (заведён коллегой, сменил вид) —
-   * встаёт над карманом блока; ушёл в другой блок того же листа — прежняя
+   * Состав листа: договор пришёл в блок (заведён коллегой, сменил вид) -
+   * встаёт над карманом блока; ушёл в другой блок того же листа - прежняя
    * строка приглушается с заметкой, а в новом блоке появляется своя.
    *
-   * Удалённый договор уходит из листа сразу — и свой, и удалённый коллегой.
+   * Удалённый договор уходит из листа сразу - и свой, и удалённый коллегой.
    * До 29.09.2026 его строка оставалась приглушённой «Убран» до смены листа,
    * и удаление выглядело несработавшим, пока страницу не перезагрузят.
    */
@@ -2785,14 +2785,14 @@ export class RegistryBinding {
     }
     if (!additions.size) return;
     // Пока из кармана этого листа заводится договор, новый договор может
-    // оказаться им же — разберёмся, когда заведение закончится.
+    // оказаться им же - разберёмся, когда заведение закончится.
     if (this.creating.get(view)) {
       model.recheck = true;
       return;
     }
     for (const list of additions.values()) list.sort((a, b) => a.position - b.position);
-    // Пришедший договор встаёт на своё место по порядку реестра: новый — над
-    // карманом (его номер порядка последний), возвращённый из корзины — туда,
+    // Пришедший договор встаёт на своё место по порядку реестра: новый - над
+    // карманом (его номер порядка последний), возвращённый из корзины - туда,
     // где стоял, а не в конец блока.
     const positionOf = (id: string | undefined) => (id ? this.ctx.state.byId.get(id)?.position : undefined);
     this.transform(model, (slots) => {
@@ -2832,7 +2832,7 @@ export class RegistryBinding {
 
   private onCommand(command: { id: string; params?: unknown }): void {
     if (command.id === "univer.command.undo" || command.id === "univer.command.redo") {
-      // Ячейки, которые вернула отмена, разбираются задачей позже — пометка
+      // Ячейки, которые вернула отмена, разбираются задачей позже - пометка
       // «идёт отмена» снимается после них.
       queueMicrotask(() => {
         this.undoing = Math.max(0, this.undoing - 1);
@@ -2840,7 +2840,7 @@ export class RegistryBinding {
       return;
     }
     if (this.writing > 0 || !this.alive) return;
-    // Жирный, заливка, ширина — личный вид (`univer/look.ts`), а не правка
+    // Жирный, заливка, ширина - личный вид (`univer/look.ts`), а не правка
     // договора: перерисовка строки стёрла бы его сразу.
     if (this.look?.busy()) return;
     const params = command.params as
@@ -2855,11 +2855,11 @@ export class RegistryBinding {
       | undefined;
     if (!params || (params.unitId && params.unitId !== this.unitId)) return;
     if (command.id === M.setValues && params.subUnitId === STAFF_SHEET && this.staff) {
-      // «По сотрудникам» — сводка: напечатанное в ней не хранится, лист
+      // «По сотрудникам» - сводка: напечатанное в ней не хранится, лист
       // переписывает её из договоров.
       this.staff = { ...this.staff, sig: "" };
       queueMicrotask(() => this.syncStaff());
-      this.events.note("«По сотрудникам» считается из договоров — правьте договор, сводка пересчитается сама", false);
+      this.events.note("«По сотрудникам» считается из договоров - правьте договор, сводка пересчитается сама", false);
       return;
     }
     if (command.id === M.setValues) {
@@ -2877,7 +2877,7 @@ export class RegistryBinding {
 
   /**
    * Правки одной команды приходят несколькими мутациями (вставка, автозаполнение)
-   * — собираем их и разбираем разом, когда команда закончится.
+   * - собираем их и разбираем разом, когда команда закончится.
    */
   private queue(sheet: string | undefined, cells: Array<[number, number]>): void {
     if (!sheet || !cells.length || !this.models.has(sheet)) return;
@@ -2911,8 +2911,8 @@ export class RegistryBinding {
   /**
    * Ячейка как она хранится, а не как показана. `getCellData()` фасада
    * отдаёт ячейку после перехватчиков отрисовки: сумма там уже строка
-   * «450 000», дата — «15.07.2026». Сравнение с листом по такой строке видело
-   * бы правку в каждой денежной ячейке, которой коснулись хотя бы оформлением, —
+   * «450 000», дата - «15.07.2026». Сравнение с листом по такой строке видело
+   * бы правку в каждой денежной ячейке, которой коснулись хотя бы оформлением, -
    * и спрашивало бы «опечатка или с даты» на смене жирности.
    */
   private cellAt(ws: UniverApi, row: number, column: number): unknown {
@@ -2933,13 +2933,13 @@ export class RegistryBinding {
   /**
    * Что человек сделал с ячейками: напечатал, вставил, стёр, вернул Ctrl+Z.
    *
-   * Вставка решается по первой строке. Легла на строки договоров — это правки,
-   * по одной на договор. Дошла до кармана или пустой строки — всё, что ниже,
+   * Вставка решается по первой строке. Легла на строки договоров - это правки,
+   * по одной на договор. Дошла до кармана или пустой строки - всё, что ниже,
    * становится новыми договорами этого блока, а строки, на которые вставка
    * легла сверх того (шапка и договоры следующего блока), возвращаются на
    * место: вставка двенадцати строк в карман не должна переписать соседний блок.
    */
-  /** Вернуть строки листа как в хранилище; хвост под таблицей — очистить. */
+  /** Вернуть строки листа как в хранилище; хвост под таблицей - очистить. */
   private revert(model: SheetModel, rows: number[]): void {
     const inside = rows.filter((row) => row < model.slots.length);
     const tail = rows.filter((row) => row >= model.slots.length);
@@ -2958,7 +2958,7 @@ export class RegistryBinding {
   /**
    * Что сделает правка до записи: сколько договоров и значений задето,
    * сколько новых строк станет договорами. Та же раскладка, что у записи
-   * ниже: строки договоров — правки, с первой строки без договора — новые.
+   * ниже: строки договоров - правки, с первой строки без договора - новые.
    */
   private planCells(model: SheetModel, ws: UniverApi, rows: number[], byRow: Map<number, number[]>): BulkPlan {
     const plan: BulkPlan = { contracts: new Map(), cells: 0, creations: 0, block: null, moded: new Set() };
@@ -3010,7 +3010,7 @@ export class RegistryBinding {
     return plan;
   }
 
-  /** Вставка во много договоров или много новых строк — окном до записи. */
+  /** Вставка во много договоров или много новых строк - окном до записи. */
   private warnBulk(model: SheetModel, sheet: string, cells: Array<[number, number]>, rows: number[], plan: BulkPlan): void {
     const touched = plan.contracts.size;
     const lines: string[] = [];
@@ -3027,7 +3027,7 @@ export class RegistryBinding {
       const parts = [...fields].map(([label, field]) =>
         field.values.size === 1
           ? `«${label}» станет ${[...field.values][0] ? `«${[...field.values][0]}»` : "пустым"} у ${contractsOf(field.count)}`
-          : `«${label}» — у ${contractsOf(field.count)}`,
+          : `«${label}» - у ${contractsOf(field.count)}`,
       );
       lines.push(`${plural(plan.cells, "Изменится", "Изменятся", "Изменятся")} ${valuesWord(plan.cells)} в ${contractsIn(touched)}: ${parts.join("; ")}.`);
       const examples = [...plan.contracts.values()]
@@ -3045,11 +3045,11 @@ export class RegistryBinding {
         `Заведётся ${plan.creations} ${plural(plan.creations, "новый договор", "новых договора", "новых договоров")} в листе «${model.layout.title}»${part ? `, часть «${part}»` : ""}.`,
       );
     }
-    lines.push("Изменения сразу увидят все сотрудники — в таблице и в «Карточках».");
+    lines.push("Изменения сразу увидят все сотрудники - в таблице и в «Карточках».");
     lines.push(
       touched
-        ? "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете — вернутся значения, которые после не поменяли коллеги."
-        : "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете — новые договоры уйдут в корзину.",
+        ? "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете - вернутся значения, которые после не поменяли коллеги."
+        : "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете - новые договоры уйдут в корзину.",
     );
     const title = touched && plan.creations
       ? `Изменить ${contractsWord(touched)} и завести ${plan.creations} ${plural(plan.creations, "новый", "новых", "новых")}?`
@@ -3085,11 +3085,11 @@ export class RegistryBinding {
     });
   }
 
-  /** Правка шапки — переименование колонки или части листа у всех. */
+  /** Правка шапки - переименование колонки или части листа у всех. */
   private askHeader(model: SheetModel, heads: { slot: Slot; column: number; text: string }[]): void {
     if (heads.length !== 1) {
       this.refuse("Шапку правьте по одной колонке", [
-        "Вставка в шапку переименовала бы сразу несколько колонок — лист вернул прежние названия.",
+        "Вставка в шапку переименовала бы сразу несколько колонок - лист вернул прежние названия.",
       ]);
       return;
     }
@@ -3122,7 +3122,7 @@ export class RegistryBinding {
     const spec = block.columns[column];
     if (!spec || !clean || clean === spec.label) return;
     if (spec.kind === "ordinal") {
-      this.refuse("«№» не переименовывается", ["Номер — адрес строки листа; его подпись ставит лист."]);
+      this.refuse("«№» не переименовывается", ["Номер - адрес строки листа; его подпись ставит лист."]);
       return;
     }
     if (spec.kind === "shares") {
@@ -3132,7 +3132,7 @@ export class RegistryBinding {
     if (!this.isAdmin()) {
       this.refuse("Шапку листа меняет владелец или администратор", [
         `Название колонки «${spec.label}» видят все сотрудники.`,
-        "Напечатанное не сохранилось — лист вернул прежнее название.",
+        "Напечатанное не сохранилось - лист вернул прежнее название.",
       ]);
       return;
     }
@@ -3141,7 +3141,7 @@ export class RegistryBinding {
       title: `Переименовать колонку «${spec.label}» в «${clean}»?`,
       lines: [
         `Название сменится в листе «${model.layout.title}»${model.layout.blocks.length > 1 && block.title ? `, часть «${block.title}»,` : ""} у всех сотрудников и в выгрузке в Excel.`,
-        `Поле договора по-прежнему называется «${fieldTitle}» — в карточке и в других листах.`,
+        `Поле договора по-прежнему называется «${fieldTitle}» - в карточке и в других листах.`,
         "Вернуть: Ctrl+Z или «Восстановление» в личном кабинете.",
       ],
       confirm: "Переименовать",
@@ -3171,10 +3171,10 @@ export class RegistryBinding {
     }
     const rows = [...byRow.keys()].sort((a, b) => a - b);
     if (!this.canEdit()) {
-      // Защиты листа больше нет — правку того, кому реестр открыт на
+      // Защиты листа больше нет - правку того, кому реестр открыт на
       // просмотр, лист возвращает сам и говорит почему.
       this.revert(model, rows);
-      this.events.note("Реестр открыт вам только на просмотр — правка не сохраняется", false);
+      this.events.note("Реестр открыт вам только на просмотр - правка не сохраняется", false);
       return;
     }
     if (!fromUndo && !this.confirmed) {
@@ -3210,7 +3210,7 @@ export class RegistryBinding {
         }
         if (slot?.kind === "gone") {
           restore.push(row);
-          note = `${slot.text ?? "Договор ушёл"} — правьте его там`;
+          note = `${slot.text ?? "Договор ушёл"} - правьте его там`;
           continue;
         }
         newBlock = this.blockAt(model, row);
@@ -3231,7 +3231,7 @@ export class RegistryBinding {
         const state = model.rows[row];
         if (state) for (const column of byRow.get(row) ?? []) state.canon[column] = canonOfCell(this.cellAt(ws, row, column));
         if (slot.job) {
-          // Договор из этой строки уже заводится — допечатанное уйдёт следом.
+          // Договор из этой строки уже заводится - допечатанное уйдёт следом.
           for (const column of byRow.get(row) ?? []) {
             const spec = block.columns[column];
             if (spec && !spec.readOnly) slot.job.later[spec.key] = rawOf(spec, this.cellAt(ws, row, column));
@@ -3246,7 +3246,7 @@ export class RegistryBinding {
       if (Object.keys(values).length) fresh.push({ pocket: isPocket && slot ? slot : null, values });
     }
 
-    // Правки уже в хранилище — берём их сразу, не дожидаясь React, и
+    // Правки уже в хранилище - берём их сразу, не дожидаясь React, и
     // переписываем строки по нему: напечатанное «1 500 000» становится суммой с
     // разрядами, заливки из буфера сходят, приглушённое ждёт ответа на вопрос.
     // Строки запоминаем объектами: сверка могла поставить новый договор выше
@@ -3267,7 +3267,7 @@ export class RegistryBinding {
     if (note) this.events.note(note, false);
     if (asks.length) this.events.ask({ sheet, items: asks, anchor: asks[0] });
     if (fresh.length && newBlock !== null) void this.runCreates(model, newBlock, fresh, pointCreated);
-    // Шапка вернулась выше; переименование — окном, если его можно сделать.
+    // Шапка вернулась выше; переименование - окном, если его можно сделать.
     if (heads.length && !fromUndo) this.askHeader(model, heads);
   }
 
@@ -3285,12 +3285,12 @@ export class RegistryBinding {
     const contract = this.ctx.state.byId.get(id);
     if (!contract || contract.deleted) {
       restore.push(row);
-      return "Договор убран — правка не записана";
+      return "Договор убран - правка не записана";
     }
     if (contract.readonly) {
-      // Договор другого отдела: сервер правку не примет — лист её и не держит.
+      // Договор другого отдела: сервер правку не примет - лист её и не держит.
       restore.push(row);
-      return "Договор другого отдела — открыт вам только на просмотр";
+      return "Договор другого отдела - открыт вам только на просмотр";
     }
     const block = model.layout.blocks[slot.block];
     const state = model.rows[row];
@@ -3304,8 +3304,8 @@ export class RegistryBinding {
       if (!spec || spec.readOnly) {
         revert = true;
         if (spec?.kind === "ordinal") note = "Номер строки ставит лист";
-        else if (spec?.kind === "shares") note = "Доли исполнителей правятся в карточке договора — двойной щелчок по ячейке или Alt+Enter";
-        else if (spec) note = `«${spec.label}» — только для чтения`;
+        else if (spec?.kind === "shares") note = "Доли исполнителей правятся в карточке договора - двойной щелчок по ячейке или Alt+Enter";
+        else if (spec) note = `«${spec.label}» - только для чтения`;
         continue;
       }
       const raw = rawOf(spec, cell);
@@ -3314,8 +3314,8 @@ export class RegistryBinding {
         revert = true;
         note =
           gone.length === 1
-            ? `Отдел ${gone[0]} в договор вписали не вы — убрать его может администратор или владелец`
-            : `Отделы ${gone.join(", ")} в договор вписали не вы — убрать их может администратор или владелец`;
+            ? `Отдел ${gone[0]} в договор вписали не вы - убрать его может администратор или владелец`
+            : `Отделы ${gone.join(", ")} в договор вписали не вы - убрать их может администратор или владелец`;
         continue;
       }
       if (state) state.canon[column] = typed;
@@ -3329,7 +3329,7 @@ export class RegistryBinding {
   }
 
   /**
-   * Новые договоры — по порядку, по одному запросу. Строка под листом считает:
+   * Новые договоры - по порядку, по одному запросу. Строка под листом считает:
    * «Заводим 12 договоров · 5». Первый договор из кармана встаёт на место
    * кармана, новый карман появляется под ним.
    */
@@ -3350,7 +3350,7 @@ export class RegistryBinding {
         const pocket = slot?.kind === "pocket" && slot.block === block && !slot.job ? slot : null;
         if (pocket) pocket.job = { later: {} };
         try {
-          // Строка, вставленная посреди блока, встаёт в реестр перед соседом снизу —
+          // Строка, вставленная посреди блока, встаёт в реестр перед соседом снизу -
           // и после пересборки листа остаётся там, где её вставили.
           const before = pocket?.extra ? this.nextRowId(model, pocket) : null;
           const id = await create(job.values, { view: sheet, block, source: "grid", before });
@@ -3380,19 +3380,19 @@ export class RegistryBinding {
     } else if (total > 1 && !(point && made.length)) {
       this.events.note(`Заведено ${done} ${noun(done)}`);
     }
-    // Много новых договоров вставкой — точкой восстановления: вернуть их
+    // Много новых договоров вставкой - точкой восстановления: вернуть их
     // значит убрать в корзину (Ctrl+Z или «Восстановление» в кабинете).
     if (point && made.length) {
       try {
         const result = await contractsApi.sheetChange({ action: "created_point", ids: made, view: sheet, book: this.book });
         if (!failures.length) this.events.changed?.(result.point ?? null, `Заведено ${done} ${noun(done)}`);
       } catch {
-        /* точка не встала — договоры заведены, вернуть их можно из карточки */
+        /* точка не встала - договоры заведены, вернуть их можно из карточки */
       }
     }
   }
 
-  /** Договор первой строки ниже `slot` в том же блоке — сосед для порядка реестра. */
+  /** Договор первой строки ниже `slot` в том же блоке - сосед для порядка реестра. */
   private nextRowId(model: SheetModel, slot: Slot): string | null {
     const at = model.slots.indexOf(slot);
     for (let row = at + 1; at >= 0 && row < model.slots.length; row += 1) {
@@ -3412,7 +3412,7 @@ export class RegistryBinding {
     return out;
   }
 
-  /** Карман стал строкой договора; под ней — новый карман. */
+  /** Карман стал строкой договора; под ней - новый карман. */
   private settlePocket(model: SheetModel, pocket: Slot, id: string): void {
     const later = pocket.job?.later ?? {};
     const duplicate = model.slots.find((slot) => slot !== pocket && slot.kind === "row" && slot.id === id);
@@ -3424,13 +3424,13 @@ export class RegistryBinding {
     pocket.extra = undefined;
     reindex(model);
     if (duplicate) {
-      // Договор уже успел встать строкой (пришёл опросом раньше ответа) —
+      // Договор уже успел встать строкой (пришёл опросом раньше ответа) -
       // лишнюю убираем.
       this.transform(model, (slots) => slots.filter((slot) => slot !== duplicate));
     }
     const row = model.slots.indexOf(pocket);
     if (row >= 0) this.paint(model, [row], "diff");
-    // Новый карман — только вместо главного: вставленная посреди блока пустая
+    // Новый карман - только вместо главного: вставленная посреди блока пустая
     // строка, ставшая договором, просто стала строкой договора.
     if (!extra) {
       this.transform(model, (slots) => {
@@ -3450,8 +3450,8 @@ export class RegistryBinding {
 
   /**
    * Сортировка. Univer переносит ячейки вместе с `custom` только внутри
-   * сортируемого диапазона: вся ширина — строки договоров переехали целиком,
-   * порядок принимается; часть ширины — договор разрезало бы надвое, и лист
+   * сортируемого диапазона: вся ширина - строки договоров переехали целиком,
+   * порядок принимается; часть ширины - договор разрезало бы надвое, и лист
    * возвращает строки на место. Шапка, название блока и карман сортировкой не
    * двигаются: если двинулись, это тоже возврат.
    */
@@ -3468,7 +3468,7 @@ export class RegistryBinding {
       this.events.note(text, false);
     };
     if (!whole) {
-      back("Сортируйте таблицу целиком: по одной колонке строки договоров разъехались бы — лист вернул порядок");
+      back("Сортируйте таблицу целиком: по одной колонке строки договоров разъехались бы - лист вернул порядок");
       return;
     }
     const byKey = new Map<string, Slot>();
@@ -3502,29 +3502,29 @@ export class RegistryBinding {
       next[row] = slot;
     });
     if (!ok) {
-      back("Шапку и пустые строки блока сортировка не двигает — выделите только строки договоров");
+      back("Шапку и пустые строки блока сортировка не двигает - выделите только строки договоров");
       return;
     }
     model.slots = next;
     reindex(model);
-    // Номера строк, заметки и стили — по новому порядку.
+    // Номера строк, заметки и стили - по новому порядку.
     this.paint(model, rows, "force");
     this.clearUndo();
-    // Отобранное — по новым строкам: отбор стоял на номерах до сортировки.
+    // Отобранное - по новым строкам: отбор стоял на номерах до сортировки.
     this.filter?.recalc(sheet);
   }
 
   // ── Вход на лист, выбор строки, карточка ──
 
   /**
-   * Вход на лист: ушедшие строки убираются (фронт-план 4.7 — «убирается при
+   * Вход на лист: ушедшие строки убираются (фронт-план 4.7 - «убирается при
    * следующем входе в этот лист»), а хранилище забывает, кто куда ушёл.
    */
   private onSheetEntered(sheet: string): void {
     this.events.sheet(sheet);
     const model = this.models.get(sheet);
     if (!model) return;
-    // Первый заход на лист — к нижней пустой строке, как при открытии «Таблицы».
+    // Первый заход на лист - к нижней пустой строке, как при открытии «Таблицы».
     if (this.startDone && !this.visited.has(sheet)) {
       this.visited.add(sheet);
       window.setTimeout(() => this.goBottom(sheet), 0);
@@ -3546,9 +3546,9 @@ export class RegistryBinding {
   }
 
   /**
-   * Выделение, лёгшее только на колонку «№», становится строками целиком —
+   * Выделение, лёгшее только на колонку «№», становится строками целиком -
    * как щелчок по серому номеру слева: строки синеют во всю ширину, Shift
-   * добавляет диапазон, Ctrl — ещё строку. Меню правой кнопки берёт строки
+   * добавляет диапазон, Ctrl - ещё строку. Меню правой кнопки берёт строки
    * из выделения (`selectedContracts`).
    */
   private wholeRows(ws: UniverApi | null): void {
@@ -3592,14 +3592,14 @@ export class RegistryBinding {
     }
   }
 
-  /** Место сессии уже вернулось (или его не было) — дальше лист двигает только человек. */
+  /** Место сессии уже вернулось (или его не было) - дальше лист двигает только человек. */
   private startDone = false;
-  /** Листы книги, на которые уже заходили: к нижней строке — только в первый раз. */
+  /** Листы книги, на которые уже заходили: к нижней строке - только в первый раз. */
   private visited = new Set<string>();
 
   /**
    * Лист нарисован (`UniverSheet.onStart`). Своего места у человека в этом
-   * листе нет — к нижней строке: «чтоб удобно было начать заполнять без
+   * листе нет - к нижней строке: «чтоб удобно было начать заполнять без
    * лишнего скролла» (29.09.2026).
    */
   begin(restored: boolean): void {
@@ -3610,8 +3610,8 @@ export class RegistryBinding {
   }
 
   /**
-   * Нижняя строка листа — главный карман последней части, место нового
-   * договора: лист встаёт так, что она у нижнего края видимой части, курсор —
+   * Нижняя строка листа - главный карман последней части, место нового
+   * договора: лист встаёт так, что она у нижнего края видимой части, курсор -
    * в её первой ячейке, которую можно печатать. Печать сразу заводит договор.
    */
   goBottom(sheet: string): void {
@@ -3642,13 +3642,13 @@ export class RegistryBinding {
       ws.getRange(row, col, 1, 1).activate?.();
       scroll(row);
     } catch {
-      /* лист ещё не измерил себя — останется в начале */
+      /* лист ещё не измерил себя - останется в начале */
       return;
     }
     // Сколько строк помещается, видно только после прокрутки и перерисовки:
     // видимая часть обновляется кадром позже, а её начало сдвинуто от
     // `sheetViewStartRow` закреплённой шапкой. Одна поправка по факту: пустая
-    // строка — вторая снизу, над ней как можно больше договоров.
+    // строка - вторая снизу, над ней как можно больше договоров.
     const correct = () => {
       if (!this.alive || this.activeSheet() !== sheet) return;
       try {
@@ -3665,7 +3665,7 @@ export class RegistryBinding {
     requestAnimationFrame(() => requestAnimationFrame(correct));
   }
 
-  /** Одна строка договора выделена целиком — сказать разделу (подсказка про Ctrl). */
+  /** Одна строка договора выделена целиком - сказать разделу (подсказка про Ctrl). */
   private tipRows(ws: UniverApi | null): void {
     if (!ws || !this.alive || !this.events.rowTip) return;
     const sheet = ws.getSheetId?.() ?? "";
@@ -3682,7 +3682,7 @@ export class RegistryBinding {
     this.events.rowTip(slot?.kind === "row" && slot.id ? { sheet, row } : null);
   }
 
-  /** Договоры строк выделения на активном листе — без спрятанных фильтром. */
+  /** Договоры строк выделения на активном листе - без спрятанных фильтром. */
   selectedContracts(): { id: string; number: string; readonly: boolean }[] {
     const ws = this.api.getActiveWorkbook?.()?.getActiveSheet?.();
     const model = ws ? this.models.get(ws.getSheetId()) : undefined;
@@ -3715,9 +3715,9 @@ export class RegistryBinding {
   }
 
   /**
-   * Меню правой кнопки — и по ячейкам, и по серым номерам строк: «Открыть
+   * Меню правой кнопки - и по ячейкам, и по серым номерам строк: «Открыть
    * карточку» и «Удалить N договоров». Univer собирает меню заново при каждом
-   * открытии — подпись считает выделение на этот момент. До 29.09.2026 строки
+   * открытии - подпись считает выделение на этот момент. До 29.09.2026 строки
    * удалялись только из карточки, по одной, через «⋯».
    */
   private contextMenu(): void {
@@ -3766,14 +3766,14 @@ export class RegistryBinding {
       };
       menus.mergeMenu({ "contextMenu.mainArea": { [MENU_GROUP]: group }, "contextMenu.rowHeader": { [MENU_GROUP]: group } });
       // «Вставить» и «Удалить» ячеек Univer у реестра всегда серые: строки
-      // заводятся в кармане блока, а удаляются договорами — пунктом выше.
+      // заводятся в кармане блока, а удаляются договорами - пунктом выше.
       // Серое «Удалить» рядом с «Удалить 3 договора» только путало.
       const config = injector.get(IConfigService) as {
         setConfig: (key: string, value: unknown, options?: { merge: boolean }) => void;
       };
       config.setConfig("menu", { "sheet.menu.cell-insert": { hidden: true }, "sheet.menu.delete": { hidden: true } }, { merge: true });
     } catch (exc) {
-      // Без своих пунктов меню остаётся меню Univer, карточка — по двойному щелчку.
+      // Без своих пунктов меню остаётся меню Univer, карточка - по двойному щелчку.
       console.warn("меню строк не собралось:", exc);
     }
   }
@@ -3822,7 +3822,7 @@ export class RegistryBinding {
 
   /**
    * Карточка открыта (или закрыта). Номер строки договора получает фон, пока
-   * карточка открыта; лист прокручивается к строке — за затемнением видно,
+   * карточка открыта; лист прокручивается к строке - за затемнением видно,
    * какая строка открыта, и стрелки карточки ведут по листу.
    */
   setOpen(id: string | null): void {
@@ -3874,12 +3874,12 @@ export class RegistryBinding {
   // ── Фильтр в шапке ──
 
   /**
-   * Фильтр в шапке (`univer/filter.ts`) — на листе из одного блока, где
+   * Фильтр в шапке (`univer/filter.ts`) - на листе из одного блока, где
    * человек его включил воронкой в ленте: воронки в шапке колонок, как
    * «Фильтр» в Excel. Включённый помнится в браузере и встаёт снова при
    * открытии листа и после перестройки строк.
    *
-   * Диапазон — шапка и строки договоров, без кармана: иначе «(пусто)» в
+   * Диапазон - шапка и строки договоров, без кармана: иначе «(пусто)» в
    * списке значений значило бы пустую строку для нового договора, и снятая
    * галочка прятала бы, куда его вписать.
    */
@@ -3904,7 +3904,7 @@ export class RegistryBinding {
     );
   }
 
-  /** Что отобрано на активном листе — для строки под листом. */
+  /** Что отобрано на активном листе - для строки под листом. */
   filterStatus(): FilterStatus | null {
     const sheet = this.api.getActiveWorkbook?.()?.getActiveSheet?.()?.getSheetId?.();
     return sheet && this.filter ? this.filter.status(sheet) : null;
@@ -3917,9 +3917,9 @@ export class RegistryBinding {
   }
 
   /**
-   * Пункт «Сортировка и фильтр» ленты. Фильтр реестра — на строках
+   * Пункт «Сортировка и фильтр» ленты. Фильтр реестра - на строках
    * договоров (не на «непрерывном диапазоне» вокруг ячейки, который Univer
-   * угадал бы вместе с карманом); на листе из частей — объяснение словами
+   * угадал бы вместе с карманом); на листе из частей - объяснение словами
    * вместо отказа Univer о правах.
    */
   sortFilter(command: string): boolean {
@@ -3928,7 +3928,7 @@ export class RegistryBinding {
     if (!sheet || !model) return false;
     if (!model.layout.single) {
       this.events.note(
-        "На листе из нескольких частей сортировки и фильтра нет — части перемешались бы. Отбирайте на листе из одной части или поиском в «Карточках»",
+        "На листе из нескольких частей сортировки и фильтра нет - части перемешались бы. Отбирайте на листе из одной части или поиском в «Карточках»",
         false,
       );
       return true;
@@ -3957,9 +3957,9 @@ export class RegistryBinding {
   }
 
   /**
-   * Адреса листа для личного вида: строка — договор («c:<id>»), шапка и
-   * название блока («h:<блок>», «t:<блок>»); ячейка — поле своего блока;
-   * физическая колонка — поле первого блока (ширина общая у всех блоков).
+   * Адреса листа для личного вида: строка - договор («c:<id>»), шапка и
+   * название блока («h:<блок>», «t:<блок>»); ячейка - поле своего блока;
+   * физическая колонка - поле первого блока (ширина общая у всех блоков).
    */
   lookIds(): LookIds {
     const models = this.models;
@@ -4016,10 +4016,10 @@ export class RegistryBinding {
   /**
    * Заметки Univer на этом листе показывает раздел, а не Univer.
    *
-   * Заметка Univer — поле ввода: в ней нельзя ни нажать «Учтено», ни открыть
+   * Заметка Univer - поле ввода: в ней нельзя ни нажать «Учтено», ни открыть
    * договор, и красное замечание «номер уже есть у …» горело вечно, хотя
    * человек его проверил. Сервис заметок остаётся (он решает, когда
-   * показать: наведение, выбор ячейки), подменяется только показ — на этом
+   * показать: наведение, выбор ячейки), подменяется только показ - на этом
    * экземпляре, другие листы продукта не затронуты.
    */
   private takeOverNotes(): void {
@@ -4051,15 +4051,15 @@ export class RegistryBinding {
         service.hidePopup = original.hide;
       });
     } catch (exc) {
-      // Своя подсказка — удобство: без неё останется заметка Univer.
+      // Своя подсказка - удобство: без неё останется заметка Univer.
       console.warn("подсказки ячеек остались заметками Univer:", exc);
     }
   }
 
   /**
-   * Уголок заметки — флажок ячейки. Univer рисует его жёлтым (`#FFBD37`) у
+   * Уголок заметки - флажок ячейки. Univer рисует его жёлтым (`#FFBD37`) у
    * любой заметки, и учтённое замечание горело бы цветом, как несделанное.
-   * Здесь уголок тушью; розой — только там, где ячейка сама в отказе (F).
+   * Здесь уголок тушью; розой - только там, где ячейка сама в отказе (F).
    * Перехватчик ставится после заметок (приоритет ниже) и трогает только
    * ячейки своей книги.
    */
@@ -4094,7 +4094,7 @@ export class RegistryBinding {
     }
   }
 
-  /** Подсказка ячейки: текст заметки и замечания её колонки. `null` — заметки нет. */
+  /** Подсказка ячейки: текст заметки и замечания её колонки. `null` - заметки нет. */
   hintAt(sheet: string, row: number, col: number): CellHint | null {
     const model = this.models.get(sheet);
     const text = model?.rows[row]?.notes?.get(col);
@@ -4117,8 +4117,8 @@ export class RegistryBinding {
   // ── Слой вопроса над ячейкой ──
 
   /**
-   * Где на экране ячейка вопроса — расчётом общего корня листов
-   * (`univer/cell-rect.ts`). `visible: false` — ячейка ушла из видимой части.
+   * Где на экране ячейка вопроса - расчётом общего корня листов
+   * (`univer/cell-rect.ts`). `visible: false` - ячейка ушла из видимой части.
    */
   rectOf(group: AskGroup): CellRect | null {
     const model = this.models.get(group.sheet);
@@ -4148,7 +4148,7 @@ export class RegistryBinding {
     }
     this.ctx.pal = pal;
     // Холст перекрашивает корень листов; цвета токенов (отказ, вспышка,
-    // строка карточки, подсветка) зашиты в ячейки — переписываем только их.
+    // строка карточки, подсветка) зашиты в ячейки - переписываем только их.
     for (const model of this.models.values()) {
       const rows: number[] = [];
       model.rows.forEach((state, row) => {

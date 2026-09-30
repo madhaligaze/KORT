@@ -1,11 +1,11 @@
 /* ═══ Настройка реестра договоров (`setup-`) ══════════════════════════════════
    Фронт-план 6.6. Те же три правила, что у блока `creg-` в globals.css:
-   * цвет — только у отказа (роза); «всё хорошо», «выбрано», «включено» —
+   * цвет - только у отказа (роза); «всё хорошо», «выбрано», «включено» -
      весом и тоном текста, не цветом;
-   * глубина — шагом поверхности, тень только у всплывающих списков;
+   * глубина - шагом поверхности, тень только у всплывающих списков;
    * наведение меняет фон и видимость «×», но ничего не сдвигает.
    Только токены, которые уже объявлены: неизвестная переменная убивает
-   объявление целиком. Раскладка — по ширине контейнера (`.setup-root`,
+   объявление целиком. Раскладка - по ширине контейнера (`.setup-root`,
    `.setup-pane`), а не окна: открытая колонка разделов сужает экран так же,
    как узкое окно. */
 
@@ -19,9 +19,9 @@
 .setup-quiet { color: var(--fin-text-soft); }
 .setup-num { font-variant-numeric: tabular-nums; text-align: right; }
 .setup-arrow { color: var(--text-muted); }
-/* Пустое у кнопки-списка — приглушено (стандарт `ChoiceSelect`); правила
+/* Пустое у кнопки-списка - приглушено (стандарт `ChoiceSelect`); правила
    раскладок выше по специфичности красят кнопки в цвет текста, поэтому здесь
-   своя строка. Отказ («не назначен») — строкой ниже и побеждает. */
+   своя строка. Отказ («не назначен») - строкой ниже и побеждает. */
 .setup-root .fin-link-btn[data-empty="true"] { color: var(--text-muted); }
 .setup-root .fin-link-btn[data-fail="true"] { color: var(--fin-fail); text-decoration-color: currentColor; }
 .setup-root :is(.setup-toggle, .setup-inline-value, .setup-side-item, .setup-block-head, .setup-rule-x):focus-visible,
@@ -72,11 +72,11 @@
 }
 
 /*
- * Переключатель из двух-трёх вариантов — сегменты в волосяной рамке, как
+ * Переключатель из двух-трёх вариантов - сегменты в волосяной рамке, как
  * `.fin-chip`. До 29.09.2026 это был голый текст «в листе и карточке ·
  * спрятано»: выбранное отличалось только весом, и вторая половина читалась
- * подписью, а не кнопкой — владелец, случайно нажавший «спрятано», не нашёл,
- * как вернуть. Выбранное — рамкой цвета текста и весом, без заливки.
+ * подписью, а не кнопкой - владелец, случайно нажавший «спрятано», не нашёл,
+ * как вернуть. Выбранное - рамкой цвета текста и весом, без заливки.
  */
 .setup-toggle {
   position: relative;
@@ -194,8 +194,8 @@
 .setup-input:focus { outline: none; border-color: var(--fin-text); }
 
 /* ─── Поля (со списками внутри) ───
-   Закрытая строка — название, тип, что особенного, сколько заполнено.
-   Раскрытие — всё о поле строками «подпись · значение», как у листа. */
+   Закрытая строка - название, тип, что особенного, сколько заполнено.
+   Раскрытие - всё о поле строками «подпись · значение», как у листа. */
 .setup-fields { max-width: 1040px; }
 .setup-fhead,
 .setup-frow { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; column-gap: 0.5rem; }
@@ -269,7 +269,7 @@
 }
 
 /* ─── Подсказка при наведении (`tip.tsx`) ───
-   Как у Windows на файле: плашка рядом с кнопкой после задержки. Тень — как у
+   Как у Windows на файле: плашка рядом с кнопкой после задержки. Тень - как у
    всплывающих списков, цвета нет: это пояснение, не состояние. */
 .setup-tip {
   position: fixed;
@@ -342,7 +342,7 @@ button[data-tip], label[data-tip], [data-tip] input, [data-tip] button { cursor:
   .setup-side::-webkit-scrollbar { display: none; }
   .setup-side-row { display: flex; flex: none; }
   .setup-side-item { width: auto; white-space: nowrap; }
-  /* На узком экране стрелки — только у выбранного листа: у каждого они
+  /* На узком экране стрелки - только у выбранного листа: у каждого они
      удвоили бы ленту, а двигают всё равно тот, что открыт. */
   .setup-side-row:not(:has([aria-current="true"])) .setup-side-move { display: none; }
   .setup-side-move { opacity: 1; }
@@ -497,7 +497,7 @@ button[data-tip], label[data-tip], [data-tip] input, [data-tip] button { cursor:
   .setup-blabel { padding-top: 0; }
 }
 
-/* Правило предложением. «или» — в начале строки группы и плотнее, чтобы
+/* Правило предложением. «или» - в начале строки группы и плотнее, чтобы
    группы читались списком, а не одной длинной фразой. */
 .setup-rule { font-size: 0.9375rem; line-height: 1.75; overflow-wrap: anywhere; }
 .setup-rule-line { margin: 0; }
@@ -548,7 +548,7 @@ button[data-tip], label[data-tip], [data-tip] input, [data-tip] button { cursor:
 .setup-count-num { color: var(--fin-text); font-weight: 500; }
 
 /* Подъём числа: окно строки с запасом сверху и снизу, как у `.sr-line-mask`.
-   Сдвиг задаёт только GSAP — в CSS transform здесь не пишется. */
+   Сдвиг задаёт только GSAP - в CSS transform здесь не пишется. */
 .setup-rise { position: relative; display: inline-block; overflow: clip; vertical-align: bottom; padding: 0.14em 0; margin: -0.14em 0; }
 .setup-rise > span { display: inline-block; }
 .setup-rise-out { position: absolute; left: 0; top: 0.14em; }
@@ -563,7 +563,7 @@ button[data-tip], label[data-tip], [data-tip] input, [data-tip] button { cursor:
 .setup-slot-word { flex: none; font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
 .setup-sides-tools { display: inline-flex; flex: none; align-items: baseline; gap: 0.75rem; font-size: 0.8125rem; }
 
-/* Подстановки — обычная фраза, она переносится как текст. Части не держатся
+/* Подстановки - обычная фраза, она переносится как текст. Части не держатся
    в одной строке (`nowrap`): «предмет договора Бухгалтерское сопровождение»
    на 390 и 800 не помещалась и выталкивала лист за правый край. */
 .setup-defaults { line-height: 1.9; color: var(--fin-text-soft); overflow-wrap: anywhere; }
@@ -646,7 +646,7 @@ button[data-tip], label[data-tip], [data-tip] input, [data-tip] button { cursor:
 @media (max-width: 640px) {
   .setup-summary-form { grid-template-columns: minmax(0, 1fr); }
 }
-/* Книги листов в «Листах»: реестр и «Разовые» — разными группами. */
+/* Книги листов в «Листах»: реестр и «Разовые» - разными группами. */
 .setup-side-book { margin: 0.75rem 0 0.25rem; padding: 0 0.5rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em; color: var(--fin-text-soft); }
 .setup-side-book:first-child { margin-top: 0; }
 .setup-book-pick { display: flex; gap: 0.75rem; font-size: 0.75rem; color: var(--fin-text-soft); flex-basis: 100%; }

@@ -19,7 +19,7 @@ type Line = { title: string; quantity: string; price: string };
 /**
  * Счета-фактуры.
  *
- * Здесь появляется долг: выставили счёт — дебиторка есть сразу, вместе со
+ * Здесь появляется долг: выставили счёт - дебиторка есть сразу, вместе со
  * сроком, а не тогда, когда кто-то вспомнит отметить ожидание. Счёт держит
  * ссылку на это ожидание, поэтому оплата закрывается в «Долгах», и сумма долга
  * не может разойтись с суммой счёта.
@@ -318,7 +318,7 @@ export function InvoicesPanel({
                 <td className="fin-strong">{item.number}</td>
                 <td>{formatDate(item.issued_at)}</td>
                 <td>{formatDate(item.due_at)}</td>
-                <td>{item.counterparty || "—"}</td>
+                <td>{item.counterparty || "-"}</td>
                 <td className="fin-num">{formatMoney(item.amount_net)}</td>
                 <td className="fin-num">{formatMoney(item.vat_amount)}</td>
                 <td className={`fin-num ${item.kind === "out" ? "fin-in" : "fin-out"}`}>

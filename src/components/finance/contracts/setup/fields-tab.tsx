@@ -1,19 +1,19 @@
 "use client";
 
 /**
- * «Поля»: какие колонки есть у договора, как их заполняют и — у списков —
+ * «Поля»: какие колонки есть у договора, как их заполняют и - у списков -
  * какие в них значения.
  *
  * С 28.09.2026 здесь и списки: вкладки «Поля» и «Списки» говорили об одном и
- * том же поле с двух концов, и было непонятно, где что править. Теперь поле —
- * одна строка (название, тип, что с ним не так), а всё о нём — в раскрытии под
+ * том же поле с двух концов, и было непонятно, где что править. Теперь поле -
+ * одна строка (название, тип, что с ним не так), а всё о нём - в раскрытии под
  * строкой: название, тип, заполнение, обязательность, видимость и значения
  * списка. Закрытая строка молчит: на экране тридцать полей, и шум семи колонок
- * переключателей на каждой строке — то, что владелец назвал «непонятно, что за
+ * переключателей на каждой строке - то, что владелец назвал «непонятно, что за
  * реализация».
  *
  * Один список полей управляет листом, карточкой, разбором Excel, выгрузкой и
- * правами на поля, поэтому правка здесь меняет всё сразу — после ответа
+ * правами на поля, поэтому правка здесь меняет всё сразу - после ответа
  * сервера схема перечитывается, и лист перестраивается сам.
  *
  * Системное поле можно переименовать, спрятать, сделать обязательным, но не
@@ -38,16 +38,16 @@ import { CUSTOM_TYPES, TYPE_WORDS, fillWord, hasValue } from "@/components/finan
 
 const READ_ONLY = new Set(["paid_snapshot", "remaining_snapshot", "paid", "remaining", "summary_paid", "summary_remaining", "age_months"]);
 
-/** Что значит тип поля — для подсказки у типа. */
+/** Что значит тип поля - для подсказки у типа. */
 const TYPE_TIPS: Partial<Record<FieldType, string>> = {
   text: "Свободный текст.",
   number: "Число без денег: количество, срок.",
-  money: "Сумма в тенге с копейками — её складывают отчёты.",
+  money: "Сумма в тенге с копейками - её складывают отчёты.",
   date: "Дата вида дд.мм.гггг.",
   bool: "Да или нет.",
-  list: "Одно значение из списка — список раскрывается под полем.",
+  list: "Одно значение из списка - список раскрывается под полем.",
   multi_list: "Несколько значений из списка.",
-  url: "Ссылка — в карточке открывается кнопкой.",
+  url: "Ссылка - в карточке открывается кнопкой.",
   person: "Сотрудник из личного кабинета («Люди»).",
   party: "Сторона договора: контрагент или наше юрлицо.",
   department: "Отдел компании. По нему режутся права «договоры своего отдела».",
@@ -55,7 +55,7 @@ const TYPE_TIPS: Partial<Record<FieldType, string>> = {
 };
 
 const FILL_TIP =
-  "Как поле заполняют в листе и карточке: только из списка (напечатанное не из списка — отказ) или список с подсказкой, но можно своё (новое значение заведётся само).";
+  "Как поле заполняют в листе и карточке: только из списка (напечатанное не из списка - отказ) или список с подсказкой, но можно своё (новое значение заведётся само).";
 
 type Ask =
   | { kind: "archive"; field: RegistryField; count: number }
@@ -65,11 +65,11 @@ function inContracts(count: number): string {
   return `${count} ${plural(count, "договоре", "договорах", "договорах")}`;
 }
 
-/** Что сделано с полем — словами строки «Вернуть» (`setup/undo.ts`). */
+/** Что сделано с полем - словами строки «Вернуть» (`setup/undo.ts`). */
 function changeText(field: RegistryField, data: Record<string, unknown>): string {
   const name = `«${field.title}»`;
-  if ("hidden" in data) return data.hidden ? `${name} спрятано — его нет в листе и карточке` : `${name} снова в листе и карточке`;
-  if ("required" in data) return data.required ? `${name} — обязательное` : `${name} — необязательное`;
+  if ("hidden" in data) return data.hidden ? `${name} спрятано - его нет в листе и карточке` : `${name} снова в листе и карточке`;
+  if ("required" in data) return data.required ? `${name} - обязательное` : `${name} - необязательное`;
   if ("fill" in data) return `${name}: ${fillWord(field.type, data.fill as FieldFill)}`;
   if ("type" in data) {
     const next = data.type as FieldType;
@@ -94,7 +94,7 @@ export function FieldsTab() {
     [schema],
   );
 
-  // Сколько договоров держат значение поля — «в 212 договорах». Считается по
+  // Сколько договоров держат значение поля - «в 212 договорах». Считается по
   // хранилищу: все договоры уже в браузере.
   const filled = useMemo(() => {
     const counts = new Map<string, number>();
@@ -120,7 +120,7 @@ export function FieldsTab() {
     const field = fields[index];
     const target = index + dir;
     if (!field || target < 0 || target >= fields.length) return;
-    // Сервер ставит поле «после такого-то»; `null` — в самое начало.
+    // Сервер ставит поле «после такого-то»; `null` - в самое начало.
     const after = dir === -1 ? (index >= 2 ? fields[index - 2].key : null) : fields[index + 1].key;
     const back = index >= 1 ? fields[index - 1].key : null;
     void action.run(`move:${field.key}`, () => contractsApi.setup.updateField(field.key, { after }), "schema", {
@@ -163,7 +163,7 @@ export function FieldsTab() {
     <div className="setup-fields">
       <div className="setup-fhead">
         <span />
-        <span className="eyebrow" {...tip("Колонка договора — в листе, карточке, выгрузке и правах. Щёлкните строку, чтобы открыть её настройки.")}>
+        <span className="eyebrow" {...tip("Колонка договора - в листе, карточке, выгрузке и правах. Щёлкните строку, чтобы открыть её настройки.")}>
           Поле
         </span>
         <span className="eyebrow" {...tip("Что в поле хранится: текст, сумма, дата, список… От типа зависит, как его заполняют и считают.")}>
@@ -186,12 +186,12 @@ export function FieldsTab() {
           const errors = ["move", "required", "hidden", "type", "fill", "archive", "title"]
             .map((slot) => action.error(`${slot}:${field.key}`))
             .filter(Boolean);
-          // Особое — только то, что отличает поле от обычного: так строка
+          // Особое - только то, что отличает поле от обычного: так строка
           // молчит, пока с полем всё как у всех.
           const notes: { text: string; fail?: boolean; tip: string }[] = [];
-          if (list) notes.push({ text: `${values.length} ${plural(values.length, "значение", "значения", "значений")}`, tip: "Значения списка — раскройте поле, чтобы их править." });
-          if (bare) notes.push({ text: `без смысла ${bare}`, fail: true, tip: "У этих значений не назначен смысл — у договоров с ними горит замечание." });
-          if (twinCount) notes.push({ text: `похожих ${twinCount}`, fail: true, tip: "Похоже на опечатку: два значения почти одинаковы и делят отчёт надвое. Раскройте поле — там «свести» или «это разные»." });
+          if (list) notes.push({ text: `${values.length} ${plural(values.length, "значение", "значения", "значений")}`, tip: "Значения списка - раскройте поле, чтобы их править." });
+          if (bare) notes.push({ text: `без смысла ${bare}`, fail: true, tip: "У этих значений не назначен смысл - у договоров с ними горит замечание." });
+          if (twinCount) notes.push({ text: `похожих ${twinCount}`, fail: true, tip: "Похоже на опечатку: два значения почти одинаковы и делят отчёт надвое. Раскройте поле - там «свести» или «это разные»." });
           if (field.required) notes.push({ text: "обязательное", tip: "Пустое поле даёт договору замечание «Не заполнено»." });
           if (field.hidden) notes.push({ text: "спрятано", tip: "Поля нет в листе и карточке, значения в договорах сохранены." });
           if (!field.system) notes.push({ text: "своё", tip: "Поле заведено здесь, а не системой: его можно удалить и сменить ему тип." });
@@ -202,7 +202,7 @@ export function FieldsTab() {
                   type="button"
                   className="fin-icon-btn setup-move-btn"
                   aria-label={`Поднять «${field.title}»`}
-                  {...tip("Выше в списке — левее в листе, выше в карточке. С клавиатуры: Alt и стрелка.")}
+                  {...tip("Выше в списке - левее в листе, выше в карточке. С клавиатуры: Alt и стрелка.")}
                   disabled={index === 0 || action.busy(`move:${field.key}`)}
                   onClick={() => move(index, -1)}
                 >
@@ -212,7 +212,7 @@ export function FieldsTab() {
                   type="button"
                   className="fin-icon-btn setup-move-btn"
                   aria-label={`Опустить «${field.title}»`}
-                  {...tip("Ниже в списке — правее в листе, ниже в карточке.")}
+                  {...tip("Ниже в списке - правее в листе, ниже в карточке.")}
                   disabled={index === fields.length - 1 || action.busy(`move:${field.key}`)}
                   onClick={() => move(index, 1)}
                 >
@@ -224,7 +224,7 @@ export function FieldsTab() {
                 className="setup-fhead-btn"
                 data-field-head={field.key}
                 aria-expanded={open}
-                aria-label={`${field.title}, ${index + 1} из ${fields.length}. Alt и стрелка — подвинуть`}
+                aria-label={`${field.title}, ${index + 1} из ${fields.length}. Alt и стрелка - подвинуть`}
                 onKeyDown={(event) => onHeadKey(event, index, field.key)}
                 onClick={() => setOpenKey(open ? null : field.key)}
               >
@@ -237,7 +237,7 @@ export function FieldsTab() {
                     </span>
                   ))}
                 </span>
-                <span className="setup-fcount setup-num">{count || "—"}</span>
+                <span className="setup-fcount setup-num">{count || "-"}</span>
                 <span className="setup-fchev" aria-hidden="true">
                   <ChevronRightIcon size={14} />
                 </span>
@@ -276,7 +276,7 @@ export function FieldsTab() {
                     </span>
                     <span className="setup-bvalue">
                       {field.system ? (
-                        <span className="setup-fixed" {...tip("Системное поле: на его типе держатся отборы листов, начисления и долги, поэтому тип не меняется. Нужен другой тип — заведите своё поле внизу списка.")}>
+                        <span className="setup-fixed" {...tip("Системное поле: на его типе держатся отборы листов, начисления и долги, поэтому тип не меняется. Нужен другой тип - заведите своё поле внизу списка.")}>
                           {TYPE_WORDS[field.type] ?? field.type}
                           <span className="fin-muted"> · системное, тип не меняется</span>
                         </span>
@@ -318,12 +318,12 @@ export function FieldsTab() {
                     </span>
                     <span className="setup-bvalue">
                       {READ_ONLY.has(field.key) ? (
-                        <span className="fin-muted">считается само — только чтение</span>
+                        <span className="fin-muted">считается само - только чтение</span>
                       ) : (
                         <span className="setup-pair" role="radiogroup" aria-label={`«${field.title}» обязательное`}>
                           {[
                             { on: false, label: "нет" },
-                            { on: true, label: "да — пустое даёт замечание" },
+                            { on: true, label: "да - пустое даёт замечание" },
                           ].map((item) => (
                             <button
                               key={String(item.on)}
@@ -344,7 +344,7 @@ export function FieldsTab() {
                   </div>
 
                   <div className="setup-brow">
-                    <span className="setup-blabel" {...tip("Спрятанного поля нет в листе и карточке ни у кого. Значения в договорах остаются — покажете, и они вернутся.")}>
+                    <span className="setup-blabel" {...tip("Спрятанного поля нет в листе и карточке ни у кого. Значения в договорах остаются - покажете, и они вернутся.")}>
                       Видно
                     </span>
                     <span className="setup-bvalue">
@@ -372,7 +372,7 @@ export function FieldsTab() {
 
                   {list ? (
                     <div className="setup-fvalues">
-                      <p className="setup-fvalues-title" {...tip("Что можно выбрать в этом поле. Переименование, смысл и сведение двух значений в одно — здесь; договоры следуют сами.")}>
+                      <p className="setup-fvalues-title" {...tip("Что можно выбрать в этом поле. Переименование, смысл и сведение двух значений в одно - здесь; договоры следуют сами.")}>
                         Значения
                       </p>
                       <ValuesPane field={field} />
@@ -390,7 +390,7 @@ export function FieldsTab() {
                       <button
                         type="button"
                         className="fin-link-btn setup-quiet"
-                        {...tip(count ? `Значения в ${inContracts(count)} уйдут вместе с полем в корзину.` : "Поле уйдёт в корзину. Вернуть — из корзины в личном кабинете.")}
+                        {...tip(count ? `Значения в ${inContracts(count)} уйдут вместе с полем в корзину.` : "Поле уйдёт в корзину. Вернуть - из корзины в личном кабинете.")}
                         disabled={action.busy(`archive:${field.key}`)}
                         onClick={() => setAsk({ kind: "archive", field, count })}
                       >
@@ -412,7 +412,7 @@ export function FieldsTab() {
           void add();
         }}
       >
-        <span className="setup-add-lead" {...tip("Своё поле — колонка, которой нет в системе: «Источник», «Коммент БИС». Встанет в конец списка, в листы — через «Листы» → колонки.")}>
+        <span className="setup-add-lead" {...tip("Своё поле - колонка, которой нет в системе: «Источник», «Коммент БИС». Встанет в конец списка, в листы - через «Листы» → колонки.")}>
           + Поле
         </span>
         <input
@@ -447,8 +447,8 @@ export function FieldsTab() {
         title={ask ? `Удалить поле «${ask.field.title}»?` : ""}
         text={
           ask && ask.count > 0
-            ? `Значения в ${inContracts(ask.count)} уйдут вместе с ним в корзину. Вернуть — из корзины в личном кабинете.`
-            : "В договорах оно пока не заполнено. Вернуть — из корзины в личном кабинете."
+            ? `Значения в ${inContracts(ask.count)} уйдут вместе с ним в корзину. Вернуть - из корзины в личном кабинете.`
+            : "В договорах оно пока не заполнено. Вернуть - из корзины в личном кабинете."
         }
         confirm="Удалить"
         danger
@@ -470,7 +470,7 @@ export function FieldsTab() {
         title={ask ? `Сменить тип поля «${ask.field.title}»?` : ""}
         text={
           ask?.kind === "type"
-            ? `Значения в ${inContracts(ask.count)} останутся как записаны — к типу «${TYPE_WORDS[ask.type]}» они не приводятся.`
+            ? `Значения в ${inContracts(ask.count)} останутся как записаны - к типу «${TYPE_WORDS[ask.type]}» они не приводятся.`
             : ""
         }
         confirm="Сменить"

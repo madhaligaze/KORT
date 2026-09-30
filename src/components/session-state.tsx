@@ -3,10 +3,10 @@
 /**
  * Состояние на время сессии вкладки: переживает перезагрузку страницы.
  *
- * Открыто окно операции, заполнено полформы — и сайт перезагрузился (выкладка,
+ * Открыто окно операции, заполнено полформы - и сайт перезагрузился (выкладка,
  * случайный F5, телефон выгрузил вкладку). Раньше всё начиналось с чистого
- * листа. Теперь окно встаёт обратно с тем, что в нём было, лист — на той же
- * ячейке, фильтры — те же. Просьба пользователя 27.09.2026: «любое состояние
+ * листа. Теперь окно встаёт обратно с тем, что в нём было, лист - на той же
+ * ячейке, фильтры - те же. Просьба пользователя 27.09.2026: «любое состояние
  * сохраняется на момент сессии… ровно с последнего события».
  *
  * Как устроено:
@@ -14,21 +14,21 @@
  * * **`sessionStorage`**, а не `localStorage`: живёт, пока открыта вкладка, и
  *   переживает перезагрузку; новая вкладка начинает с чистого. Черновик,
  *   всплывший через неделю в другом окне, был бы чужим;
- * * **область — учётка и компания** (`SessionScope`): черновик одной учётки не
+ * * **область - учётка и компания** (`SessionScope`): черновик одной учётки не
  *   всплывёт у другой, вошедшей в той же вкладке. Выход из учётки стирает всё
- *   (`dropAllSessions`) — компьютер бывает общим;
+ *   (`dropAllSessions`) - компьютер бывает общим;
  * * **пишется только тронутое**: пока человек ничего не менял, в хранилище
  *   пусто, и начальное значение считается заново (новая дата «сегодня», новый
  *   справочник);
  * * **форма сверяется с начальным**: объект дополняется полями начального
  *   значения, чужой тип отбрасывается. Выкладка, поменявшая форму состояния,
  *   не роняет экран восстановленным старьём;
- * * **черновик стирают явно** — при сохранении и при закрытии окна человеком
+ * * **черновик стирают явно** - при сохранении и при закрытии окна человеком
  *   (`useSessionDrop`). Перезагрузка окно не закрывает, поэтому черновик живёт.
  *
  * Не запоминается нарочно: подтверждения «Удалить?» (разрушительное действие
  * не должно всплывать само), пароли и токены, «идёт запрос» и тексты ошибок,
- * данные сервера — их перечитывают.
+ * данные сервера - их перечитывают.
  */
 import { createContext, useCallback, useContext, useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 
@@ -36,7 +36,7 @@ const PREFIX = "ses|";
 
 const ScopeContext = createContext("");
 
-/** Чьё состояние: учётка и компания. Без области — общее (листы «Таблиц»). */
+/** Чьё состояние: учётка и компания. Без области - общее (листы «Таблиц»). */
 export function SessionScope({ scope, children }: { scope: string; children: ReactNode }) {
   return <ScopeContext.Provider value={scope}>{children}</ScopeContext.Provider>;
 }
@@ -61,7 +61,7 @@ function write(full: string, value: unknown): void {
     if (value === undefined) window.sessionStorage.removeItem(full);
     else window.sessionStorage.setItem(full, JSON.stringify(value));
   } catch {
-    /* хранилище переполнено или запрещено — живём без запоминания */
+    /* хранилище переполнено или запрещено - живём без запоминания */
   }
 }
 
@@ -74,14 +74,14 @@ function removeWhere(test: (key: string) => boolean): void {
     }
     keys.forEach((key) => window.sessionStorage.removeItem(key));
   } catch {
-    /* нет хранилища — нечего и стирать */
+    /* нет хранилища - нечего и стирать */
   }
 }
 
 const isPlain = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-/** Восстановленное — если той же формы, что начальное; объект дополняется новыми полями. */
+/** Восстановленное - если той же формы, что начальное; объект дополняется новыми полями. */
 function restore<T>(stored: unknown, initial: T): T {
   if (stored === undefined) return initial;
   if (initial === null || initial === undefined) return stored as T;
@@ -90,7 +90,7 @@ function restore<T>(stored: unknown, initial: T): T {
   return typeof stored === typeof initial ? (stored as T) : initial;
 }
 
-/** Прочитать без хука — для кода вне React (лист Univer). */
+/** Прочитать без хука - для кода вне React (лист Univer). */
 export function readSession<T>(scope: string, key: string, initial: T): T {
   return typeof window === "undefined" ? initial : restore(read(fullKey(scope, key)), initial);
 }
@@ -101,9 +101,9 @@ export function writeSession(scope: string, key: string, value: unknown): void {
 }
 
 /**
- * `useState`, переживающий перезагрузку вкладки. `key` — адрес внутри области
- * («journal.filters», «op.new.expense.amount»); `null` — не запоминать.
- * Третий элемент — «забыть»: стереть и не писать, пока значение не тронут
+ * `useState`, переживающий перезагрузку вкладки. `key` - адрес внутри области
+ * («journal.filters», «op.new.expense.amount»); `null` - не запоминать.
+ * Третий элемент - «забыть»: стереть и не писать, пока значение не тронут
  * снова.
  */
 export function useSessionState<T>(
@@ -114,10 +114,10 @@ export function useSessionState<T>(
 }
 
 /**
- * То же с явной областью — для того, кто сам её и задаёт (оболочка раздела
+ * То же с явной областью - для того, кто сам её и задаёт (оболочка раздела
  * монтируется раньше, чем узнаёт учётку).
  *
- * Сменились область или ключ — значение перечитывается: оболочка «Финансов»
+ * Сменились область или ключ - значение перечитывается: оболочка «Финансов»
  * рендерится до входа с пустой областью, и прочитай хук хранилище один раз,
  * окно операции после перезагрузки так и не встало бы.
  */
@@ -131,7 +131,7 @@ export function useSessionStateIn<T>(
     const value = typeof initial === "function" ? (initial as () => T)() : initial;
     return at && typeof window !== "undefined" ? restore(read(at), value) : value;
   };
-  // `touched` — в самом состоянии: пишется только тронутое, «забыть» его снимает.
+  // `touched` - в самом состоянии: пишется только тронутое, «забыть» его снимает.
   const [slot, setSlot] = useState<{ full: string | null; value: T; touched: boolean }>(() => ({
     full,
     value: start(full),
@@ -139,7 +139,7 @@ export function useSessionStateIn<T>(
   }));
   let current = slot;
   if (slot.full !== full) {
-    // Производное состояние на рендере — приём из документации React: без
+    // Производное состояние на рендере - приём из документации React: без
     // эффекта и без кадра со старым значением.
     current = { full, value: start(full), touched: false };
     setSlot(current);

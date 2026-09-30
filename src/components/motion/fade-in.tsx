@@ -6,7 +6,7 @@ import { gsap, prefersReducedMotion, useGSAP } from "./gsap";
 
 /**
  * Проявление содержимого при монтировании: дети выходят из прозрачности
- * по очереди. Сменить содержимое с проявлением — пересоздать обёртку
+ * по очереди. Сменить содержимое с проявлением - пересоздать обёртку
  * через `key`.
  *
  * Только прозрачность, без сдвига и размытия, и это не скромность, а
@@ -22,7 +22,7 @@ export function FadeIn({ children, className }: { children: ReactNode; className
   useGSAP(
     () => {
       const el = ref.current;
-      // Пусто — раздел ещё ждёт данных; проявлять нечего.
+      // Пусто - раздел ещё ждёт данных; проявлять нечего.
       if (!el || !el.children.length || prefersReducedMotion()) return;
       gsap.fromTo(
         el.children,

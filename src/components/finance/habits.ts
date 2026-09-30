@@ -1,26 +1,26 @@
 "use client";
 
 /**
- * Привычки учётки на стороне экрана (сервер — `app/finance/habits.py`).
+ * Привычки учётки на стороне экрана (сервер - `app/finance/habits.py`).
  *
- * 29.09.2026: «сотрудник часто открывает таблицу, а с карточками не работает —
+ * 29.09.2026: «сотрудник часто открывает таблицу, а с карточками не работает -
  * при следующих заходах программа сразу должна показать табличный вид».
  * Раньше вид реестра помнился только последним щелчком в этом браузере, а на
  * другом компьютере или после входа реестр открывался карточками.
  *
  * Здесь две вещи:
  *
- * * **замер** (`useModeTracker`) — минуты настоящей работы в виде: вкладка на
+ * * **замер** (`useModeTracker`) - минуты настоящей работы в виде: вкладка на
  *   виду, и за последние две минуты была мышь, клавиша или колесо. Открытая и
- *   забытая вкладка не считается. Отчёт — раз в минуту работы, при смене вида
- *   и при уходе со страницы; явный щелчок по «Карточки / Таблица» — сразу
+ *   забытая вкладка не считается. Отчёт - раз в минуту работы, при смене вида
+ *   и при уходе со страницы; явный щелчок по «Карточки / Таблица» - сразу
  *   (`pickMode`);
- * * **вид по умолчанию** (`preferOf`) — что сервер считает привычкой. Приходит
+ * * **вид по умолчанию** (`preferOf`) - что сервер считает привычкой. Приходит
  *   вместе с «кто я» (`me.habits`), так что вход открывает нужный вид с
- *   первого кадра и на новом компьютере; ответ на отчёт свежее — он главнее,
+ *   первого кадра и на новом компьютере; ответ на отчёт свежее - он главнее,
  *   пока страница открыта.
  *
- * Группы — любые разделы с несколькими видами; сейчас это два реестра
+ * Группы - любые разделы с несколькими видами; сейчас это два реестра
  * (`REGISTRIES` в `finance-client.tsx`).
  */
 import { useEffect } from "react";
@@ -29,10 +29,10 @@ import { habitsApi } from "@/components/finance/api";
 
 type Prefer = Record<string, string>;
 
-/** Привычка из ответов на отчёты этой страницы — свежее, чем `me.habits` с прошлого опроса. */
+/** Привычка из ответов на отчёты этой страницы - свежее, чем `me.habits` с прошлого опроса. */
 const fresh = new Map<string, Prefer>();
 
-/** Чья привычка: `учётка:компания`. Пусто — никто не вошёл. */
+/** Чья привычка: `учётка:компания`. Пусто - никто не вошёл. */
 export function habitsOwner(userId: string | null, companyId: string | null): string {
   return userId && companyId ? `${userId}:${companyId}` : "";
 }
@@ -41,7 +41,7 @@ function remember(owner: string, next: Prefer): void {
   fresh.set(owner, next ?? {});
 }
 
-/** Вид по привычке для группы; `null` — привычки ещё нет. `fromMe` — `me.habits`. */
+/** Вид по привычке для группы; `null` - привычки ещё нет. `fromMe` - `me.habits`. */
 export function preferOf(owner: string, group: string, fromMe?: Readonly<Record<string, string>> | null): string | null {
   if (!owner) return null;
   const known = fresh.get(owner);
@@ -56,7 +56,7 @@ function report(owner: string, group: string, mode: string, minutes: number, pic
     .catch(() => undefined);
 }
 
-/** Человек сам выбрал вид — голос сразу, не дожидаясь минут. */
+/** Человек сам выбрал вид - голос сразу, не дожидаясь минут. */
 export function pickMode(owner: string, group: string, mode: string): void {
   if (owner) report(owner, group, mode, 0, true);
 }
@@ -76,7 +76,7 @@ export function useModeTracker(owner: string, group: string | null, mode: string
     const flush = (keepalive = false) => {
       const minutes = worked / 60_000;
       worked = 0;
-      // Меньше трёх секунд — это не работа, а проход мимо.
+      // Меньше трёх секунд - это не работа, а проход мимо.
       if (minutes >= 0.05) report(owner, group, mode, minutes, false, keepalive);
     };
     const onInput = () => {

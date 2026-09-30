@@ -18,15 +18,15 @@ import { useSessionState } from "@/components/session-state";
  *
  * * Строка: время · человек · что сделано · действие. Кто сделал, уже в
  *   колонке «человек», поэтому текст называет само действие: «выгрузка
- *   реестра», «открыт раздел «Долги»» — без глаголов с родом.
- * * Цвет — только у неудач входа и отказов; категории цветом не различаются.
- * * «Показать ещё» — явная кнопка по 100 записей: бесконечной прокрутки нет,
+ *   реестра», «открыт раздел «Долги»» - без глаголов с родом.
+ * * Цвет - только у неудач входа и отказов; категории цветом не различаются.
+ * * «Показать ещё» - явная кнопка по 100 записей: бесконечной прокрутки нет,
  *   чтобы было видно, где конец.
  */
 type Props = {
   /** Закреплённый фильтр: свои действия или действия сотрудника. */
   fixed?: Pick<AuditQuery, "user_id" | "employee_id">;
-  /** Поиск и фильтры по людям — только в журнале компании. */
+  /** Поиск и фильтры по людям - только в журнале компании. */
   full?: boolean;
   people?: EmployeeRow[];
   /** За сколько дней по умолчанию. */
@@ -59,7 +59,7 @@ function isoDay(offsetDays: number): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-/** Неудача входа и отказы — единственное, чему в ленте положен цвет. */
+/** Неудача входа и отказы - единственное, чему в ленте положен цвет. */
 function isFailure(item: AuditItem): boolean {
   return /fail|locked|denied|blocked_attempt/.test(item.kind);
 }
@@ -75,7 +75,7 @@ export function ActionFeed({ fixed, full = false, people = [], days = 7, onOpenC
   const [cursor, setCursor] = useState<string | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "more" | "failed">("loading");
   const [error, setError] = useState("");
-  // Отбор ленты переживает перезагрузку (`session-state.tsx`) — свой у общей
+  // Отбор ленты переживает перезагрузку (`session-state.tsx`) - свой у общей
   // ленты, у своей и у ленты в карточке сотрудника.
   const feed = `feed.${fixed?.employee_id ?? (fixed?.user_id ? "me" : "all")}`;
   const [category, setCategory] = useSessionState<CategoryKey>(`${feed}.category`, "all");
@@ -216,7 +216,7 @@ export function ActionFeed({ fixed, full = false, people = [], days = 7, onOpenC
                 <span className="fin-mono fin-soft cab-feed-time">{formatTime(item.at)}</span>
                 {withPerson ? (
                   <span className="cab-feed-who" title={item.actor?.name || item.actor_text}>
-                    {item.actor?.short_name || item.actor_text || "—"}
+                    {item.actor?.short_name || item.actor_text || "-"}
                   </span>
                 ) : null}
                 <span className={`cab-feed-text ${failed ? "fin-fail" : ""}`}>
@@ -256,7 +256,7 @@ export function ActionFeed({ fixed, full = false, people = [], days = 7, onOpenC
       <ConfirmDialog
         open={undo !== null}
         title="Откатить это действие?"
-        text={undo ? `«${undo.title}» — значения вернутся к тому, что было до него.` : ""}
+        text={undo ? `«${undo.title}» - значения вернутся к тому, что было до него.` : ""}
         confirm="Откатить"
         busy={undoBusy}
         onConfirm={confirmUndo}

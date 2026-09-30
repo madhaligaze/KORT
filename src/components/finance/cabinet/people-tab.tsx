@@ -16,11 +16,11 @@ import { useSessionDrop, useSessionState } from "@/components/session-state";
 /**
  * «Команда · Сотрудники» (фронт-план, 6.9).
  *
- * Отделы — чипами со счётчиками (`filter-chips.tsx`). **Порядок — это
+ * Отделы - чипами со счётчиками (`filter-chips.tsx`). **Порядок - это
  * сообщение:** сначала запросы и неверные пароли, потом «в системе», потом
  * остальные по давности входа, ждущие пароль, без доступа, с закрытым
  * входом. Строка с запросом встаёт наверх на следующем опросе и получает фон
- * выбранной строки — это та «подсветка», что записана в плане.
+ * выбранной строки - это та «подсветка», что записана в плане.
  *
  * «+ Сотрудник» и «+ Отдел» раскрывают форму первой строкой списка, без окна.
  */
@@ -55,7 +55,7 @@ export function PeopleTab({
   const [adding, setAdding] = useSessionState<"person" | "department" | null>("people.adding", null);
   const [renaming, setRenaming] = useSessionState("people.renaming", false);
   // Ответ правки показывается сразу, до перечитывания списка; пришёл свежий
-  // список — он главнее.
+  // список - он главнее.
   // Правки привязаны к версии списка, от которой сделаны: новый список делает
   // их устаревшими сам, без эффекта-сброса.
   const [patch, setPatch] = useState<{ source: EmployeeRow[]; rows: Record<string, EmployeeRow> }>({
@@ -68,7 +68,7 @@ export function PeopleTab({
       source: employees,
       rows: { ...(prev.source === employees ? prev.rows : {}), [row.id]: row },
     }));
-  /** Только что заведённый — его карточка открывается сразу, до перечитывания списка. */
+  /** Только что заведённый - его карточка открывается сразу, до перечитывания списка. */
   const [created, setCreated] = useState<EmployeeRow | null>(null);
 
   const rows = useMemo(() => {
@@ -131,14 +131,14 @@ export function PeopleTab({
               onCancel={() => setRenaming(false)}
               onSaved={(item) => {
                 setRenaming(false);
-                // Отдел удалён — вкладка возвращается ко всем, а не к пустому.
+                // Отдел удалён - вкладка возвращается ко всем, а не к пустому.
                 if (!item) onDepartment(ALL);
                 onChanged();
               }}
             />
           ) : (
             <>
-              {/* Код — не моноширинным: в Martian Mono кириллическая «О» кода
+              {/* Код - не моноширинным: в Martian Mono кириллическая «О» кода
                   «ЮО» читалась нулём. */}
               <span className="cab-dept-title">{departmentLabel(current)}</span>
               {can(me, "people", "view") ? (
@@ -165,7 +165,7 @@ export function PeopleTab({
           onSaved={(row) => {
             setAdding(null);
             onChanged();
-            // С доступом — следующий шаг в карточке: приглашение и права.
+            // С доступом - следующий шаг в карточке: приглашение и права.
             if (row.account) {
               setCreated(row);
               onOpen(row.id);
@@ -191,9 +191,9 @@ export function PeopleTab({
 
       {shown.length === 0 && adding === null ? <p className="cab-empty">В отделе пока никого.</p> : null}
 
-      {/* Шапка колонок — подпись, как у реестра (`.creg-head`), и прилипает под
+      {/* Шапка колонок - подпись, как у реестра (`.creg-head`), и прилипает под
           шапкой приложения: в списке из тридцати строк без неё номер и
-          должность читались наугад. На телефоне строка — карточка в две
+          должность читались наугад. На телефоне строка - карточка в две
           строки, и шапки нет. */}
       {shown.length > 0 ? (
         <div className="cab-row cab-person cab-list-head" data-dept={withDept ? "true" : undefined}>
@@ -224,14 +224,14 @@ export function PeopleTab({
               </span>
               {withDept ? (
                 <span className="cab-person-dept" data-empty={code ? undefined : "true"}>
-                  {code ?? "—"}
+                  {code ?? "-"}
                 </span>
               ) : null}
               <span className="cab-person-job" data-empty={row.job_title ? undefined : "true"}>
-                {row.job_title || "—"}
+                {row.job_title || "-"}
               </span>
               <span className={`cab-person-phone ${row.phone ? "fin-mono" : ""}`} data-empty={row.phone ? undefined : "true"}>
-                {row.phone ? formatPhone(row.phone) : "—"}
+                {row.phone ? formatPhone(row.phone) : "-"}
               </span>
               <span
                 className={`cab-person-status ${status.tone === "fail" ? "fin-fail" : status.tone === "wait" ? "fin-wait" : ""}`}
@@ -291,9 +291,9 @@ function PersonForm({
   const [digits, setDigits] = useSessionState("people.person.phone", "");
   const [dept, setDept] = useSessionState("people.person.dept", department);
   const [job, setJob] = useSessionState("people.person.job", "");
-  // Номер — это логин и ничего больше: вписанный номер сам включает доступ.
+  // Номер - это логин и ничего больше: вписанный номер сам включает доступ.
   // Раньше переключатель стоял выключенным, «Добавить» было доступно, и номер
-  // молча пропадал — человек заведён, а войти не может (26.09, «Асхат»).
+  // молча пропадал - человек заведён, а войти не может (26.09, «Асхат»).
   const [accessChoice, setAccessChoice] = useSessionState<boolean | null>("people.person.access", null);
   const access = accessChoice ?? digits.length > 0;
   const [busy, setBusy] = useState(false);
@@ -460,7 +460,7 @@ function DepartmentForm({
       <ConfirmDialog
         open={asking}
         title={initial ? `Удалить отдел ${initial.code}?` : ""}
-        text="Отдел уйдёт в корзину. Отдел с сотрудниками не удаляется — сначала переведите их в другой отдел. Вернуть — из корзины в личном кабинете."
+        text="Отдел уйдёт в корзину. Отдел с сотрудниками не удаляется - сначала переведите их в другой отдел. Вернуть - из корзины в личном кабинете."
         confirm="Удалить"
         danger
         busy={busy}

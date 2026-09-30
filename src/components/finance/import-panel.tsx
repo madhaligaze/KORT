@@ -46,7 +46,7 @@ type Props = {
 /**
  * Загрузка выписки или книги: выбор файла и прошлые загрузки.
  *
- * Разбор показывает `PreviewView` — тот же, что показывает вкладку книги
+ * Разбор показывает `PreviewView` - тот же, что показывает вкладку книги
  * Google. Одно и то же обязано выглядеть одинаково, откуда бы ни пришли строки.
  */
 export function ImportPanel({ accounts, onChanged, onNext }: Props) {
@@ -58,11 +58,11 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   /**
-   * Ответы на вопросы разбора по этому файлу — все сразу.
+   * Ответы на вопросы разбора по этому файлу - все сразу.
    *
    * Вопросов бывает два подряд: сначала порядок дат, потом счёт. Раньше второй
    * ответ уходил без первого, разбор снова не знал порядка дат и снова
-   * спрашивал про даты — по кругу.
+   * спрашивал про даты - по кругу.
    */
   const answersRef = useRef<ImportAnswer>({});
 
@@ -71,7 +71,7 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
       const next = await financeApi.importBatches();
       setBatches(next.items);
     } catch {
-      /* прошлые загрузки — справка, без них экран работает */
+      /* прошлые загрузки - справка, без них экран работает */
     }
   }, []);
 
@@ -82,9 +82,9 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
   /**
    * Отправить файл на разбор.
    *
-   * Второй аргумент — ответ на вопрос раздела: либо порядок частей даты, либо
+   * Второй аргумент - ответ на вопрос раздела: либо порядок частей даты, либо
    * счёт, на который лягут операции выписки. Вопрос один на файл, поэтому и
-   * ответ передаётся так же — повторной загрузкой с ответом, а не хранением
+   * ответ передаётся так же - повторной загрузкой с ответом, а не хранением
    * состояния на полпути.
    */
   /**
@@ -111,9 +111,9 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
    *
    * По номеру партии, а не по файлу: файл браузер после перезагрузки не
    * отдаёт, а разбор лежит на сервере вместе с решениями по строкам. Разбор,
-   * ждавший ответа на вопрос (порядок дат, счёт), партией ещё не стал — его
+   * ждавший ответа на вопрос (порядок дат, счёт), партией ещё не стал - его
    * без файла не вернуть, и номер не запоминается. Заведённая партия не
-   * возвращается — возвращать нечего.
+   * возвращается - возвращать нечего.
    */
   const scope = useSessionScope();
   const [resumeId] = useState(() => readSession<string | null>(scope, "import.batch", null));
@@ -133,7 +133,7 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
     };
   }, [resumeId, scope]);
   useEffect(() => {
-    // Пока возвращаемый разбор не пришёл, номер не трогаем — иначе пустой
+    // Пока возвращаемый разбор не пришёл, номер не трогаем - иначе пустой
     // экран первого кадра стёр бы его.
     if (!preview) return;
     writeSession(scope, "import.batch", preview.question ? undefined : preview.batch_id);
@@ -195,7 +195,7 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
 
           {accounts.length === 0 ? (
             <p className="text-xs" style={{ color: "var(--accent-amber)" }}>
-              Сначала заведите счета в «Справочниках» — импорт их не создаёт.
+              Сначала заведите счета в «Справочниках» - импорт их не создаёт.
             </p>
           ) : null}
 
@@ -214,7 +214,7 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
                     <span className="fin-acc-name" title={batch.file_name}>
                       {batch.file_name}
                     </span>
-                    {/* Незавершённая загрузка — не «история», а брошенное дело:
+                    {/* Незавершённая загрузка - не «история», а брошенное дело:
                         строки разобраны, в учёте их нет. Её видно и её можно
                         доделать, не загружая файл заново. */}
                     {batch.status === "preview" ? (
@@ -224,7 +224,7 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
                         style={{ color: "var(--accent-amber)" }}
                         onClick={() => void resume(batch)}
                       >
-                        разобрано {batch.rows_total}, не заведено — продолжить
+                        разобрано {batch.rows_total}, не заведено - продолжить
                       </button>
                     ) : (
                       <span className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -246,7 +246,7 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
           reload={(answer) => {
             if (!file) {
               // Партия, открытая из истории: файла на руках нет, и перечитывать
-              // нечего — отдаём то, что уже разобрано и сохранено.
+              // нечего - отдаём то, что уже разобрано и сохранено.
               return financeApi.importBatch(preview.batch_id).then((saved) => ({
                 ...preview,
                 rows: saved.rows as ImportRow[],

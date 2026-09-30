@@ -16,7 +16,7 @@ import {
 /**
  * Повторяющиеся операции: аренда, зарплата, подписки.
  *
- * Правило порождает настоящие ожидания на горизонт вперёд — их видно в
+ * Правило порождает настоящие ожидания на горизонт вперёд - их видно в
  * календаре и в долгах, их можно оплатить, поправить или удалить по одному.
  * Виртуальная строка, которую экран дорисовывает, ничего из этого не умеет.
  */
@@ -242,7 +242,7 @@ export function RecurrencesPanel({
                 </td>
                 <td className={`fin-num ${item.kind === "income" ? "fin-in" : "fin-out"}`}>{formatMoney(item.amount)}</td>
                 <td>{formatDate(item.next_at)}</td>
-                <td>{item.category || "—"}</td>
+                <td>{item.category || "-"}</td>
                 <td className="fin-num">{item.waiting}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   <button

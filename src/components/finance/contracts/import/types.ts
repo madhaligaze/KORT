@@ -2,7 +2,7 @@
  * Протокол разбора Excel: форма пунктов отчёта и решений.
  *
  * Отчёт строит сервер (`importer.report`), и каждое решение пересчитывает
- * его целиком: здесь нет своей логики «что заведётся» — только чтение того,
+ * его целиком: здесь нет своей логики «что заведётся» - только чтение того,
  * что сервер уже посчитал, и запись решений в том виде, в каком их ждёт
  * `importer.decide`.
  */
@@ -12,7 +12,7 @@ export type Decisions = Record<string, unknown>;
 export type Decide = (patch: Decisions) => void;
 export type Report = ContractImportBatch["report"];
 
-/** Порядок пунктов протокола — порядок `importer.report`. */
+/** Порядок пунктов протокола - порядок `importer.report`. */
 export const SECTION_KEYS = [
   "blocks", "columns", "entities", "statuses", "end_dates", "numbers", "orphans", "diffs", "rules",
 ] as const;
@@ -78,8 +78,8 @@ export type OrphanItem = {
 };
 /**
  * Строка листа, сведённая с главным не по полному ключу (номер + обе стороны).
- * `kind`: `swapped` — те же стороны, но переставлены; `number_party` — номер и
- * одна общая внешняя сторона; `number` — только номер, и «это он» сказал
+ * `kind`: `swapped` - те же стороны, но переставлены; `number_party` - номер и
+ * одна общая внешняя сторона; `number` - только номер, и «это он» сказал
  * человек. У пар из `number_only` (тот же номер без общей стороны) `kind` нет:
  * они заводятся отдельно, пока человек не скажет «это он».
  */
@@ -109,11 +109,11 @@ export type Brief = { ref: string; number: unknown; customer: unknown; executor:
 export type RuleAction = "accept" | "rule" | "empty";
 
 /**
- * Правило блока другого листа. `source`: `suggested` — предложено и ещё не
- * принято; `accepted` — принято как есть; `manual` — своё; `empty` — блок
+ * Правило блока другого листа. `source`: `suggested` - предложено и ещё не
+ * принято; `accepted` - принято как есть; `manual` - своё; `empty` - блок
  * оставлен пустым (пустое правило неглавного листа не отбирает ничего).
- * `needs_decision` — предложенное правило приносит лишних или теряет строк
- * больше `limit`, и без человека «Завести» не пустит; `reason` — почему.
+ * `needs_decision` - предложенное правило приносит лишних или теряет строк
+ * больше `limit`, и без человека «Завести» не пустит; `reason` - почему.
  */
 export type RuleItem = {
   block: string;
@@ -142,8 +142,8 @@ export const RULE_FIELD_WORDS: Record<string, string> = {
   subject: "предмет",
   department: "отдел",
   status: "статус",
-  executor_is_own: "исполнитель — наше юрлицо",
-  customer_is_own: "заказчик — наше юрлицо",
+  executor_is_own: "исполнитель - наше юрлицо",
+  customer_is_own: "заказчик - наше юрлицо",
 };
 
 export function sectionOf(report: Report, key: SectionKey): ContractImportSection | undefined {
@@ -155,7 +155,7 @@ function isPlain(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Слить решения так же, как сливает сервер: словарь — поверх словаря на один
+ * Слить решения так же, как сливает сервер: словарь - поверх словаря на один
  * уровень, всё остальное заменяется. Поэтому очередь из нескольких правок,
  * отправленная одним запросом, даёт тот же итог, что и отправленная по одной.
  */
@@ -179,7 +179,7 @@ export function text(value: unknown): string {
   return String(value).replace(/\s+/g, " ").trim();
 }
 
-/** «2026-06-08» → «08.06.2026»; остальное — как в файле («12q» так и остаётся). */
+/** «2026-06-08» → «08.06.2026»; остальное - как в файле («12q» так и остаётся). */
 export function cellDate(value: unknown): string {
   const raw = text(value);
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
@@ -192,12 +192,12 @@ export function splitRef(ref: string): { sheet: string; line: string } {
   return at < 0 ? { sheet: ref, line: "" } : { sheet: ref.slice(0, at), line: ref.slice(at + 1) };
 }
 
-/** Название блока для людей: «Прочие договоры · АРЕНДА»; блок, названный как лист, — одним словом. */
+/** Название блока для людей: «Прочие договоры · АРЕНДА»; блок, названный как лист, - одним словом. */
 export function blockLabel(sheet: string, title: string): string {
   return title && title.trim().toLowerCase() !== sheet.trim().toLowerCase() ? `${sheet} · ${title}` : sheet;
 }
 
-/** Первая по порядку колонок сторона — заказчик: стороны в файле стоят наоборот. */
+/** Первая по порядку колонок сторона - заказчик: стороны в файле стоят наоборот. */
 export function isReversed(roles: Roles): boolean {
   return roles.order?.[0] === "customer";
 }
@@ -227,7 +227,7 @@ export const ECONOMIC_LABELS: Record<string, string> = {
   intra_group: "внутри группы",
 };
 
-/** Типы своего поля — те, что умеет `setup.add_field`. */
+/** Типы своего поля - те, что умеет `setup.add_field`. */
 export const CUSTOM_TYPES: { value: string; label: string }[] = [
   { value: "text", label: "текст" },
   { value: "number", label: "число" },

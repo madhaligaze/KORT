@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * 02 Колонки — карта «колонка файла → поле реестра».
+ * 02 Колонки - карта «колонка файла → поле реестра».
  *
  * Карта строится по блоку, а не по листу: у каждого блока своя шапка, и в
  * «Заказчик ГК» соседние блоки держат стороны в колонках наоборот. Блоки с
  * одинаковой шапкой свёрнуты в одну вкладку, и решение по колонке ложится
- * сразу на все блоки вкладки — иначе колонку T «Сводной» и «Исполнителя ГК»
+ * сразу на все блоки вкладки - иначе колонку T «Сводной» и «Исполнителя ГК»
  * пришлось бы решать дважды.
  *
- * Линия и есть решение, её отсутствие — вопрос. Точное совпадение шапки —
- * сплошная линия; мягкое (`layout.py`: одно начало другого) — пунктир и
- * `{ похоже }`; два кандидата — две розовые пунктирные линии и выбор под
+ * Линия и есть решение, её отсутствие - вопрос. Точное совпадение шапки -
+ * сплошная линия; мягкое (`layout.py`: одно начало другого) - пунктир и
+ * `{ похоже }`; два кандидата - две розовые пунктирные линии и выбор под
  * колонкой. На узком месте карта становится списком «колонка → поле».
  *
  * Координаты линий пишутся в DOM напрямую, а не через состояние React: они
@@ -42,7 +42,7 @@ export type FieldRef = { key: string; title: string; position: number };
 
 type Group = { key: string; blocks: ColumnsBlock[]; label: string };
 
-/** Вкладки карты: блоки с одной и той же шапкой — одна вкладка. */
+/** Вкладки карты: блоки с одной и той же шапкой - одна вкладка. */
 function groupBlocks(blocks: ColumnsBlock[]): Group[] {
   const bySignature = new Map<string, ColumnsBlock[]>();
   for (const block of blocks) {
@@ -66,7 +66,7 @@ export function decisionOf(column: ColumnItem, decisions: Decisions): ColumnDeci
   return dictOf<ColumnDecision>(decisions, "columns")[column.id] ?? column.decision;
 }
 
-/** Сколько колонок блока ждут решения — с учётом ещё летящих решений. */
+/** Сколько колонок блока ждут решения - с учётом ещё летящих решений. */
 export function openColumns(blocks: ColumnsBlock[], decisions: Decisions): number {
   let count = 0;
   for (const block of blocks) for (const column of block.columns) if (decisionOf(column, decisions).action === "ask") count += 1;
@@ -183,7 +183,7 @@ function MapBody({
   );
   const { contextSafe } = useGSAP({ scope: root });
 
-  /** Решение по колонке — сразу во все блоки вкладки. */
+  /** Решение по колонке - сразу во все блоки вкладки. */
   const choose = (column: ColumnItem, decision: ColumnDecision) => {
     const patch: Record<string, ColumnDecision> = {};
     for (const block of group.blocks) patch[`${block.block}#${column.index}`] = decision;
@@ -227,7 +227,7 @@ function MapBody({
     if (!fresh.length) return;
     const entrance = drawn.current.size === 0;
     for (const path of fresh) drawn.current.add(path.dataset.k ?? "");
-    // Карта спрятана (узкое место) — рисовать нечего, линии встанут сразу.
+    // Карта спрятана (узкое место) - рисовать нечего, линии встанут сразу.
     if (!el.querySelector("svg[data-map]")?.getBoundingClientRect().width || prefersReducedMotion()) return;
     contextSafe(() => {
       fresh.forEach((path, index) => {

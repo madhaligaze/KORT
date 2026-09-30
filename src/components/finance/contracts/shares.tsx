@@ -5,22 +5,22 @@
  * получают от договора (29.09.2026).
  *
  * Над одним договором работают несколько человек, и доли у них разные:
- * договор на 700 000 — у одного 500 000, у другого 200 000. Людей сколько
- * угодно: у каждого своя строка. Доля — суммой или процентом, одно на блок;
+ * договор на 700 000 - у одного 500 000, у другого 200 000. Людей сколько
+ * угодно: у каждого своя строка. Доля - суммой или процентом, одно на блок;
  * второе число выводится из суммы договора (`shares.py`).
  *
  * Кто что видит, решает сервер: сотрудник получает только свою строку,
- * начальник отдела, администратор и владелец — все и правят их. Доли отделов
- * приходят только тем, кому открыты. Здесь ничего не прячется — чего нет в
+ * начальник отдела, администратор и владелец - все и правят их. Доли отделов
+ * приходят только тем, кому открыты. Здесь ничего не прячется - чего нет в
  * ответе, того нет и на экране.
  *
- * Полоса над строками — пропорции одной тушью: цвет в продукте только у
- * отказа, поэтому перебор суммы — розой, а «всё распределено» ничем не
+ * Полоса над строками - пропорции одной тушью: цвет в продукте только у
+ * отказа, поэтому перебор суммы - розой, а «всё распределено» ничем не
  * отмечено, кроме полной полосы.
  *
- * Отделы долей — это поле «Отдел» договора (30.09.2026): главного отдела нет,
+ * Отделы долей - это поле «Отдел» договора (30.09.2026): главного отдела нет,
  * строк столько, сколько отделов в поле. Убрать отдел может только владелец
- * или администратор (`can_remove`), дописать — тот, кому доли открыты.
+ * или администратор (`can_remove`), дописать - тот, кому доли открыты.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -76,7 +76,7 @@ function toDraft(rows: Row[], unit: ShareUnit): Draft {
   return { unit, values, order: rows.map((row) => row.id) };
 }
 
-/** Перевести черновик в другую единицу по сумме договора; суммы нет — пусто. */
+/** Перевести черновик в другую единицу по сумме договора; суммы нет - пусто. */
 function convert(draft: Draft, unit: ShareUnit, total: number | null): Draft {
   if (draft.unit === unit) return draft;
   const values: Record<string, string> = {};
@@ -93,7 +93,7 @@ function convert(draft: Draft, unit: ShareUnit, total: number | null): Draft {
   return { unit, values, order: draft.order };
 }
 
-/** «Поровну»: последнему — остаток, чтобы вместе ровно 100% или вся сумма. */
+/** «Поровну»: последнему - остаток, чтобы вместе ровно 100% или вся сумма. */
 function evenly(draft: Draft, total: number | null): Draft {
   const count = draft.order.length;
   if (!count) return draft;
@@ -130,14 +130,14 @@ function Foot({ summary, total, monthly, unit }: { summary: ShareSummary | undef
   if (summary.over) {
     const beyond =
       unit === "percent" && summary.allocated_percent
-        ? `Вместе ${percentText(summary.allocated_percent)} — больше 100%`
-        : `Вместе ${moneyText(summary.allocated_amount, monthly)} — больше суммы договора ${moneyText(total, monthly)}`;
+        ? `Вместе ${percentText(summary.allocated_percent)} - больше 100%`
+        : `Вместе ${moneyText(summary.allocated_amount, monthly)} - больше суммы договора ${moneyText(total, monthly)}`;
     return <p className="share-foot fin-fail">{beyond}</p>;
   }
   const rest = num(summary.rest_amount);
   const restPercent = num(summary.rest_percent);
   if ((rest !== null && Math.abs(rest) < 0.5) || (rest === null && restPercent !== null && Math.abs(restPercent) < 0.01)) {
-    return <p className="share-foot">Распределено всё{total !== null ? ` — ${moneyText(total, monthly)}` : ""}</p>;
+    return <p className="share-foot">Распределено всё{total !== null ? ` - ${moneyText(total, monthly)}` : ""}</p>;
   }
   const parts: string[] = [];
   if (summary.allocated_amount && total !== null) parts.push(`Распределено ${moneyText(summary.allocated_amount, monthly)} из ${moneyText(total, monthly)}`);
@@ -155,15 +155,15 @@ type BlockProps = {
   total: number | null;
   monthly: boolean;
   canEdit: boolean;
-  /** Можно ли убрать сохранённую строку (отдел из договора); добавленную в правке — всегда. */
+  /** Можно ли убрать сохранённую строку (отдел из договора); добавленную в правке - всегда. */
   removable?: (id: string) => boolean;
-  /** Какие ещё строки можно добавить (отделы); `null` — набор строк задан (люди). */
+  /** Какие ещё строки можно добавить (отделы); `null` - набор строк задан (люди). */
   choices: { id: string; name: string; sub: string }[] | null;
   editLabel: string;
   onSave: (unit: ShareUnit, items: { id: string; value: string | null }[]) => Promise<void>;
   /** Открыть сразу в правке (новое разделение между отделами). */
   startOpen?: boolean;
-  /** Правка закрыта — сохранением или отменой. */
+  /** Правка закрыта - сохранением или отменой. */
   onClose?: () => void;
 };
 
@@ -255,7 +255,7 @@ function ShareBlock({ title, rows, unit, summary, total, monthly, canEdit, remov
           return (
             <div key={id} className="share-row share-edit-row">
               <span className="share-name">
-                {row?.name ?? "—"}
+                {row?.name ?? "-"}
                 {row?.sub ? <span className="share-sub">{row.sub}</span> : null}
               </span>
               <span className="share-input">
@@ -301,7 +301,7 @@ function ShareBlock({ title, rows, unit, summary, total, monthly, canEdit, remov
                 setDraft({ ...draft, order: [...draft.order, id], values: { ...draft.values, [id]: "" } });
               }}
             >
-              <option value="">—</option>
+              <option value="">-</option>
               {free.map((choice) => (
                 <option key={choice.id} value={choice.id}>
                   {choice.name}
@@ -314,13 +314,13 @@ function ShareBlock({ title, rows, unit, summary, total, monthly, canEdit, remov
         <p className={draftOver ? "share-foot fin-fail" : "share-foot"}>
           {draftOver
             ? draft.unit === "percent"
-              ? `Вместе ${percentText(draftSum)} — больше 100%`
-              : `Вместе ${moneyText(draftSum, monthly)} — больше суммы договора ${moneyText(total, monthly)}`
+              ? `Вместе ${percentText(draftSum)} - больше 100%`
+              : `Вместе ${moneyText(draftSum, monthly)} - больше суммы договора ${moneyText(total, monthly)}`
             : rest !== null
               ? rest > 0.004
                 ? `Не распределено ${draft.unit === "percent" ? percentText(rest) : moneyText(rest, monthly)}`
                 : "Распределено всё"
-              : `Вместе ${moneyText(draftSum, monthly)} — сумма договора не указана`}
+              : `Вместе ${moneyText(draftSum, monthly)} - сумма договора не указана`}
         </p>
         {error ? <p className="ifield-error">{error}</p> : null}
         <div className="share-actions">
@@ -361,7 +361,7 @@ function ShareBlock({ title, rows, unit, summary, total, monthly, canEdit, remov
             {row.name}
             {row.sub ? <span className="share-sub">{row.sub}</span> : null}
           </span>
-          <span className="share-val">{row.entered ? moneyText(row.amount, monthly) || "—" : "не задана"}</span>
+          <span className="share-val">{row.entered ? moneyText(row.amount, monthly) || "-" : "не задана"}</span>
           <span className="share-pct">{row.entered ? percentText(row.percent) : ""}</span>
         </div>
       ))}
@@ -418,7 +418,7 @@ export function Shares({ contractId, seq }: { contractId: string; seq: number })
     entered: row.entered,
   }));
   const showDepartments = Boolean(departments && (departmentRows.length || departments.can_edit));
-  // Убрать отдел: администратор — любой, сотрудник — вписанный им самим и без доли.
+  // Убрать отдел: администратор - любой, сотрудник - вписанный им самим и без доли.
   const removableDepartment = (id: string) =>
     Boolean(departments?.can_remove) ||
     (me !== null && addedBy?.[id] === me && !departmentRows.find((row) => row.id === id)?.entered);
@@ -429,7 +429,7 @@ export function Shares({ contractId, seq }: { contractId: string; seq: number })
       items.map((item) => ({ department_id: item.id, value: item.value })),
     );
     setData({ id: contractId, value: next });
-    // Отделы долей — это и поле «Отдел»: карточка и лист показывают его сразу,
+    // Отделы долей - это и поле «Отдел»: карточка и лист показывают его сразу,
     // не дожидаясь опроса.
     void refreshOne(contractId);
   };
@@ -449,7 +449,7 @@ export function Shares({ contractId, seq }: { contractId: string; seq: number })
             {personRows.map((row) => (
               <div key={row.id} className="share-row" data-mine="true">
                 <span className="share-name">Ваша доля</span>
-                <span className="share-val">{row.entered ? moneyText(row.amount, monthly) || "—" : "не задана"}</span>
+                <span className="share-val">{row.entered ? moneyText(row.amount, monthly) || "-" : "не задана"}</span>
                 <span className="share-pct">{row.entered ? percentText(row.percent) : ""}</span>
               </div>
             ))}
@@ -476,7 +476,7 @@ export function Shares({ contractId, seq }: { contractId: string; seq: number })
                 items.map((item) => ({ employee_id: item.id, value: item.value })),
               );
               setData({ id: contractId, value: next });
-              // «По сотрудникам» считает по долям — перечитать сразу.
+              // «По сотрудникам» считает по долям - перечитать сразу.
               void ensureShares(true);
             }}
           />

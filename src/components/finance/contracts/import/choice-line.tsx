@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Выбор словами с линией под выбранным — «Подчёркивание» из словаря движений.
+ * Выбор словами с линией под выбранным - «Подчёркивание» из словаря движений.
  *
  * Пока не выбрано ничего, линии нет: это и есть вопрос. Линия переезжает к
  * новому выбору (`x` и `scaleX`, 0,45 с), а при смене размеров встаёт на место
- * без движения. Вариант, выбранный человеком, набран `--fin-text`, остальные —
+ * без движения. Вариант, выбранный человеком, набран `--fin-text`, остальные -
  * приглушённо; цвета «правильного ответа» нет.
  */
 import { useEffect, useRef, type ReactNode, type RefObject } from "react";
@@ -42,7 +42,7 @@ type Props<T extends string> = {
   value: T | null;
   onChange: (value: T) => void;
   label: string;
-  /** Столбиком — для длинных значений (расхождения листов). */
+  /** Столбиком - для длинных значений (расхождения листов). */
   stacked?: boolean;
   disabled?: boolean;
 };
@@ -52,7 +52,7 @@ export function ChoiceLine<T extends string>({ items, value, onChange, label, st
   const line = useRef<HTMLSpanElement>(null);
   const placed = useRef(false);
 
-  // Сменился выбор — линия переезжает.
+  // Сменился выбор - линия переезжает.
   useGSAP(
     () => {
       if (root.current && line.current) placeLine(root.current, line.current, placed, true);
@@ -60,7 +60,7 @@ export function ChoiceLine<T extends string>({ items, value, onChange, label, st
     { scope: root, dependencies: [value, items.length] },
   );
 
-  // Сменился размер — линия встаёт на место без движения. Наблюдатель свой,
+  // Сменился размер - линия встаёт на место без движения. Наблюдатель свой,
   // не в useGSAP: там с зависимостями уборка копится до размонтирования, и
   // каждый новый выбор добавлял бы ещё одного наблюдателя.
   useEffect(() => {

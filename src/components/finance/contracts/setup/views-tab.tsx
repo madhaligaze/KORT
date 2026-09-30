@@ -3,29 +3,29 @@
 /**
  * «Листы»: листы-отборы реестра и «Разовых».
  *
- * Лист ничего не хранит — он показывает договоры, подходящие под его правило
- * (`views.py`). Лист бывает поделён на части с заголовком — «АГЕНТСКИЙ
+ * Лист ничего не хранит - он показывает договоры, подходящие под его правило
+ * (`views.py`). Лист бывает поделён на части с заголовком - «АГЕНТСКИЙ
  * ДОГОВОР», «АРЕНДА», «ФИН. ПОМОЩЬ» в «Прочих договорах», как в Excel, откуда
  * он пришёл; у каждой части своё правило, шапка и подстановки. В данных это
  * блоки листа.
  *
  * 28.09.2026 владелец «понажимал на всё и не понял, как работает»: у каждого
- * листа стояли «Блоки · + блок» и «Весь лист» — даже у листа без частей, а у
+ * листа стояли «Блоки · + блок» и «Весь лист» - даже у листа без частей, а у
  * главного листа «+ условие» ничего не меняло (главный держит все договоры).
  * Теперь:
  * * лист без частей показывает свои настройки сразу, слова «блок» нет;
- * * деление на части — отдельной кнопкой «Разделить лист на части» с
+ * * деление на части - отдельной кнопкой «Разделить лист на части» с
  *   подсказкой, что это и зачем; части появляются, только когда их больше одной;
- * * у главного листа из одной части правило не редактируется — сказано, что в
+ * * у главного листа из одной части правило не редактируется - сказано, что в
  *   нём все договоры реестра;
- * * у каждой кнопки и подписи — подсказка при наведении (`tip.tsx`).
+ * * у каждой кнопки и подписи - подсказка при наведении (`tip.tsx`).
  *
  * Правило, в отличие от подписей, не сохраняется на каждый щелчок: условие,
  * у которого ещё не выбрано значение, не отбирает ни одного договора, и
  * недописанное правило на секунду опустошило бы лист у всех, кто сейчас его
- * смотрит. Поэтому правка правила и подсветки — черновик со своим счётчиком
+ * смотрит. Поэтому правка правила и подсветки - черновик со своим счётчиком
  * «подходит N», а на сервер уходит по «Применить». Подписи, подстановки и
- * название — безвредны и сохраняются сразу.
+ * название - безвредны и сохраняются сразу.
  */
 import { useMemo, useState } from "react";
 
@@ -65,7 +65,7 @@ function contractsCount(count: number): string {
   return `${count} ${plural(count, "договор", "договора", "договоров")}`;
 }
 
-/** Новая часть или новый лист — с колонками, подписями и выбором того, от чего он начат. */
+/** Новая часть или новый лист - с колонками, подписями и выбором того, от чего он начат. */
 function blockFrom(base: ViewBlock | undefined, title: string): ViewBlock {
   return {
     title,
@@ -90,7 +90,7 @@ export function ViewsTab() {
 
   const views = useMemo(() => [...(schema?.views ?? [])].sort((a, b) => a.position - b.position), [schema]);
   const counts = useMemo(() => viewCounts(views, byId.values()), [views, byId]);
-  // Листы реестра и «Разовых» — разными группами: у каждой книги свой порядок.
+  // Листы реестра и «Разовых» - разными группами: у каждой книги свой порядок.
   const groups = useMemo(
     () =>
       BOOK_KEYS.map((key) => ({
@@ -109,7 +109,7 @@ export function ViewsTab() {
     const other = group[index + dir];
     if (!one || !other) return;
     // Меняемся местами с соседом. Одинаковые позиции (старые данные) разводим
-    // на единицу — иначе обмен ничего бы не поменял.
+    // на единицу - иначе обмен ничего бы не поменял.
     const a = one.position;
     const b = other.position === a ? a + dir : other.position;
     const otherWas = other.position;
@@ -167,7 +167,7 @@ export function ViewsTab() {
                   className="setup-side-book"
                   {...tip(
                     group.key
-                      ? "Листы раздела «Разовые» — своя книга с теми же договорами, что в реестре."
+                      ? "Листы раздела «Разовые» - своя книга с теми же договорами, что в реестре."
                       : "Листы раздела «Реестр»: вкладки над списком договоров и листы таблицы.",
                   )}
                 >
@@ -235,7 +235,7 @@ export function ViewsTab() {
           <button
             type="submit"
             className="btn-ghost btn-sm"
-            {...tip("Новый лист-отбор: он пуст, пока не задано правило «кто в листе». Колонки — как у главного листа.")}
+            {...tip("Новый лист-отбор: он пуст, пока не задано правило «кто в листе». Колонки - как у главного листа.")}
             disabled={!title.trim() || action.busy("add")}
           >
             + Лист
@@ -262,7 +262,7 @@ export function ViewsTab() {
 
 // ── Лист ─────────────────────────────────────────────────────────────────────
 
-/** Что сделано с частями листа — словами строки «Вернуть» (`setup/undo.ts`). */
+/** Что сделано с частями листа - словами строки «Вернуть» (`setup/undo.ts`). */
 function blocksText(title: string, slot: string): string {
   const name = `«${title}»`;
   const base = slot.split(":")[0];
@@ -351,7 +351,7 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
     );
 
   const splitTip =
-    "Лист можно поделить на части с заголовком — как «Прочие договоры»: «АГЕНТСКИЙ ДОГОВОР», «АРЕНДА», «ФИН. ПОМОЩЬ». В листе части идут друг под другом, у каждой своё правило, своя шапка и своя пустая строка для нового договора.";
+    "Лист можно поделить на части с заголовком - как «Прочие договоры»: «АГЕНТСКИЙ ДОГОВОР», «АРЕНДА», «ФИН. ПОМОЩЬ». В листе части идут друг под другом, у каждой своё правило, своя шапка и своя пустая строка для нового договора.";
 
   return (
     <section className="setup-pane" aria-label={`Лист «${view.title}»`}>
@@ -424,7 +424,7 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
               Части листа · {view.blocks.length}
             </span>
             {newBlock === null ? (
-              <button type="button" className="fin-link-btn" {...tip("Ещё одна часть — встанет в листе последней.")} onClick={() => setNewBlock("")}>
+              <button type="button" className="fin-link-btn" {...tip("Ещё одна часть - встанет в листе последней.")} onClick={() => setNewBlock("")}>
                 + часть
               </button>
             ) : (
@@ -473,7 +473,7 @@ function ViewEditor({ view, onGone }: { view: RegistryView; onGone: () => void }
       <ConfirmDialog
         open={ask?.kind === "view"}
         title={`Удалить лист «${view.title}»?`}
-        text="Лист уйдёт в корзину, договоры останутся в реестре и в других листах. Вернуть — из корзины в личном кабинете."
+        text="Лист уйдёт в корзину, договоры останутся в реестре и в других листах. Вернуть - из корзины в личном кабинете."
         confirm="Удалить"
         danger
         onCancel={() => setAsk(null)}
@@ -553,7 +553,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
   const replace = (next: Partial<ViewBlock>) => view.blocks.map((item, i) => (i === index ? { ...item, ...next } : item));
   const slot = (name: string) => `${name}:${index}`;
 
-  // Подписи сторон по умолчанию — из вида, который ставит блок; нет вида —
+  // Подписи сторон по умолчанию - из вида, который ставит блок; нет вида -
   // названия полей «Исполнитель» / «Заказчик».
   const titles = slotTitles(schema);
   const typeRoles = schema?.lists.type?.find((item) => item.id === block.defaults?.type)?.meaning.roles ?? {};
@@ -564,7 +564,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
 
   const setRole = (who: Slot, label: string) => {
     const before = roles[who] || "";
-    // Подпись колонки стороны в шапке шла за подписью стороны — меняем её
+    // Подпись колонки стороны в шапке шла за подписью стороны - меняем её
     // вместе, если человек не переписывал её отдельно.
     const columns = block.columns.map((column) =>
       column.key === who && (!column.label || column.label === before) ? { ...column, label: label || fallback[who] } : column,
@@ -589,13 +589,13 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
   };
 
   // Подстановка, поставленная до того, как значение ушло в архив, читается
-  // его словом с пометкой, а не «—»: иначе казалось бы, что её нет.
+  // его словом с пометкой, а не «-»: иначе казалось бы, что её нет.
   const listOptions = (key: string): PopOption[] => [
     ...(schema?.lists[key] ?? []).map((item) => ({ value: item.id, label: item.value })),
     ...(schema?.archived_values?.[key] ?? [])
       .filter((item) => item.id === block.defaults?.[key])
       .map((item) => ({ value: item.id, label: `${item.value} (в корзине)` })),
-    { value: "", label: "—" },
+    { value: "", label: "-" },
   ];
   const fieldTitle = (key: string) =>
     key === "row_number" ? "номер строки" : lowerFirst(schema?.fields.find((item) => item.key === key)?.title ?? key);
@@ -609,7 +609,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
       word: "начисление",
       options: [
         ...(schema?.billing_kinds ?? []).map((kind) => ({ value: kind, label: BILLING_WORDS[kind] ?? kind })),
-        { value: "", label: "—" },
+        { value: "", label: "-" },
       ],
     },
     { key: "economic_role", word: "смысл", options: listOptions("economic_role") },
@@ -618,7 +618,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
       word: "отдел",
       options: [
         ...(schema?.departments ?? []).map((item) => ({ value: item.id, label: item.code || item.title })),
-        { value: "", label: "—" },
+        { value: "", label: "-" },
       ],
     },
     {
@@ -627,7 +627,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
       options: [
         { value: "executor", label: lowerFirst(fallback.executor) },
         { value: "customer", label: lowerFirst(fallback.customer) },
-        { value: "", label: "—" },
+        { value: "", label: "-" },
       ],
     },
   ];
@@ -657,7 +657,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
     <div className="setup-block-body">
       {solo ? null : (
         <div className="setup-brow">
-          <span className="setup-blabel" {...tip("Заголовок части — строкой над её шапкой в листе, как в Excel.")}>
+          <span className="setup-blabel" {...tip("Заголовок части - строкой над её шапкой в листе, как в Excel.")}>
             Заголовок
           </span>
           <span className="setup-bvalue">
@@ -678,8 +678,8 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
           className="setup-blabel"
           {...tip(
             mainAll
-              ? "В главном листе — все договоры реестра, правило ему не нужно."
-              : "Какие договоры попадают сюда. Условия в строке — «и», строки между собой — «или». Правило действует после «Применить»; до этого видно, сколько договоров подошло бы.",
+              ? "В главном листе - все договоры реестра, правило ему не нужно."
+              : "Какие договоры попадают сюда. Условия в строке - «и», строки между собой - «или». Правило действует после «Применить»; до этого видно, сколько договоров подошло бы.",
           )}
         >
           Кто в листе
@@ -695,7 +695,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
                 lead="Договоры, где"
                 {...(view.main
                   ? { emptyText: "Договоры, которые не подошли другим частям", emptyAdd: "+ условие" }
-                  : { emptyText: "Пока ни одного договора — нужно условие", emptyAdd: "+ условие" })}
+                  : { emptyText: "Пока ни одного договора - нужно условие", emptyAdd: "+ условие" })}
               />
               <span className="setup-rule-foot">
                 {/* У пустого правила счётчик не нужен: фраза уже говорит, что в
@@ -774,21 +774,21 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
           <span
             className="setup-blabel"
             {...tip(
-              "Что предлагает выпадающий список в этом листе. В «Разовых» статус — только «на исполнении» и «исполнен», хотя в реестре их больше. Значения договоров это не меняет.",
+              "Что предлагает выпадающий список в этом листе. В «Разовых» статус - только «на исполнении» и «исполнен», хотя в реестре их больше. Значения договоров это не меняет.",
               "Выбор в списках",
             )}
           >
             Выбор
           </span>
           <span className="setup-bvalue setup-choices">
-            {Object.keys(choices).length === 0 ? <span className="fin-muted">во всех списках — все значения</span> : null}
+            {Object.keys(choices).length === 0 ? <span className="fin-muted">во всех списках - все значения</span> : null}
             {Object.entries(choices).map(([key, ids]) => {
               const field = schema?.fields.find((item) => item.key === key);
               const values = schema?.lists[key] ?? [];
               const labels = ids.map((id) => values.find((item) => item.id === id)?.value).filter(Boolean);
               return (
                 <span key={key} className="setup-choice">
-                  <span className="fin-soft">{lowerFirst(field?.title ?? key)} — только</span>{" "}
+                  <span className="fin-soft">{lowerFirst(field?.title ?? key)} - только</span>{" "}
                   <MultiPop
                     values={ids}
                     options={values.map((item) => ({ value: item.id, label: item.value }))}
@@ -827,7 +827,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
       <div className="setup-brow">
         <span
           className="setup-blabel"
-          {...tip("Что подставится в договор, заведённый здесь — в пустой строке под листом или кнопкой «Новый договор». Остальное человек заполнит сам.")}
+          {...tip("Что подставится в договор, заведённый здесь - в пустой строке под листом или кнопкой «Новый договор». Остальное человек заполнит сам.")}
         >
           Новая строка
         </span>
@@ -851,7 +851,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
       <div className="setup-brow">
         <span
           className="setup-blabel"
-          {...tip("Как подписаны стороны в шапке этого листа. «Поменять местами» — если заказчик идёт первой колонкой, как в «Заказчик ГК».")}
+          {...tip("Как подписаны стороны в шапке этого листа. «Поменять местами» - если заказчик идёт первой колонкой, как в «Заказчик ГК».")}
         >
           Стороны
         </span>
@@ -884,7 +884,7 @@ function BlockEditor({ view, index, block, action, saveBlocks, onRemove }: Block
       </div>
 
       <div className="setup-brow">
-        <span className="setup-blabel" {...tip("Колонки листа по порядку — как в загруженном Excel. Название колонки может отличаться от названия поля.")}>
+        <span className="setup-blabel" {...tip("Колонки листа по порядку - как в загруженном Excel. Название колонки может отличаться от названия поля.")}>
           Колонки
         </span>
         <span className="setup-bvalue">

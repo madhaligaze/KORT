@@ -1,8 +1,8 @@
 /**
  * Слова настройки реестра: типы полей, фазы статусов, начисление, смыслы.
  *
- * Ключи — те, что держит сервер (`models.py`: STATUS_PHASES, BILLING_KINDS,
- * ECONOMIC_ROLES; `setup.py`: CUSTOM_TYPES). Подписи — строчными: это части
+ * Ключи - те, что держит сервер (`models.py`: STATUS_PHASES, BILLING_KINDS,
+ * ECONOMIC_ROLES; `setup.py`: CUSTOM_TYPES). Подписи - строчными: это части
  * фразы и пометки `{ деньги }`, а не заголовки.
  */
 import type { Contract, FieldFill, FieldType, RegistrySchema } from "@/components/finance/api";
@@ -23,8 +23,8 @@ export const TYPE_WORDS: Record<FieldType, string> = {
 };
 
 /**
- * Способ заполнения поля — как его заполняют в листе и карточке. Подпись
- * зависит от типа: у стороны «список» — это наши юрлица, у сотрудника —
+ * Способ заполнения поля - как его заполняют в листе и карточке. Подпись
+ * зависит от типа: у стороны «список» - это наши юрлица, у сотрудника -
  * справочник людей из личного кабинета.
  */
 export function fillWord(type: FieldType, fill: FieldFill): string {
@@ -33,7 +33,7 @@ export function fillWord(type: FieldType, fill: FieldFill): string {
   return fill === "list" ? "только из списка" : "список или своё";
 }
 
-/** Типы, которые можно дать своему полю. `party` и `choice` — только системные. */
+/** Типы, которые можно дать своему полю. `party` и `choice` - только системные. */
 export const CUSTOM_TYPES: FieldType[] = [
   "text", "number", "money", "date", "bool", "list", "multi_list", "url", "person", "department",
 ];
@@ -73,7 +73,7 @@ export function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 
-/** Есть ли у договора значение поля: пустая строка и пустой список — не значение. */
+/** Есть ли у договора значение поля: пустая строка и пустой список - не значение. */
 export function hasValue(value: unknown): boolean {
   if (value === null || value === undefined || value === "") return false;
   if (Array.isArray(value)) return value.length > 0;
@@ -103,7 +103,7 @@ export function entityShort(entity: { code: string; name: string }): string {
   return entity.code || entity.name;
 }
 
-/** Подписи сторон по умолчанию — поля «Исполнитель» и «Заказчик» схемы. */
+/** Подписи сторон по умолчанию - поля «Исполнитель» и «Заказчик» схемы. */
 export function slotTitles(schema: RegistrySchema | null): { executor: string; customer: string } {
   const title = (key: string, fallback: string) => schema?.fields.find((item) => item.key === key)?.title || fallback;
   return { executor: title("executor", "Исполнитель"), customer: title("customer", "Заказчик") };

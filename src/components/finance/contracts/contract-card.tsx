@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Карточка договора — лист по центру (фронт-план 6.2).
+ * Карточка договора - лист по центру (фронт-план 6.2).
  *
  * Документ, а не форма: поля читаются текстом, правятся по клику, сохраняются
- * сами. Заголовок — сторона, которая не наша; под ним линия сторон с
+ * сами. Заголовок - сторона, которая не наша; под ним линия сторон с
  * подписями из вида («Арендодатель → Арендатор») и хозяйственным смыслом.
- * Новый договор заводится на сервере по первому заполненному полю — до этого
+ * Новый договор заводится на сервере по первому заполненному полю - до этого
  * его нет нигде, кроме карточки, и закрытая пустая карточка ничего не оставляет.
  */
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -56,13 +56,13 @@ type Props = {
   /** Новый договор из отбора с блоком: подстановки блока ставит сервер. */
   draftContext?: { view?: string; block?: number };
   /**
-   * Книга, из которой открыта карточка (`""` — реестр, `oneoff` — «Разовые»):
+   * Книга, из которой открыта карточка (`""` - реестр, `oneoff` - «Разовые»):
    * выбор списков берётся из блока листа этой книги, где стоит договор.
    */
   book?: string;
   onClose: () => void;
   onCreated: (id: string) => void;
-  /** Открыть другой договор (из замечания «номер уже есть у …»); нет — как `onCreated`. */
+  /** Открыть другой договор (из замечания «номер уже есть у …»); нет - как `onCreated`. */
   onOpen?: (id: string) => void;
   onPrev?: () => void;
   onNext?: () => void;
@@ -175,7 +175,7 @@ export function ContractCard({
           {title || "Новый договор"}
         </h2>
         {contract ? <PartiesLine contractId={contract.id} /> : null}
-        {scope.readonly ? <p className="card-readonly">Договор другого отдела — открыт вам только на просмотр</p> : null}
+        {scope.readonly ? <p className="card-readonly">Договор другого отдела - открыт вам только на просмотр</p> : null}
         {draftError ? <p className="ifield-error">{draftError}</p> : null}
         {contract ? <Issues contractId={contract.id} onOpen={onOpen ?? onCreated} /> : null}
 
@@ -208,7 +208,7 @@ export function ContractCard({
       <ConfirmDialog
         open={confirmRemove}
         title={`Удалить договор ${number}?`.trim()}
-        text="Он уйдёт из реестра, листов и карточек у всех сотрудников в корзину. Вернуть — «Восстановление» в личном кабинете."
+        text="Он уйдёт из реестра, листов и карточек у всех сотрудников в корзину. Вернуть - «Восстановление» в личном кабинете."
         confirm="Удалить"
         danger
         busy={removing}
@@ -237,7 +237,7 @@ export function ContractCard({
 }
 
 /**
- * Поля нового договора — в том порядке, в каком их переписывают с бумаги:
+ * Поля нового договора - в том порядке, в каком их переписывают с бумаги:
  * номер и дата первыми. До 29.09.2026 номер стоял предпоследним, и на
  * экране 1280×590 его приходилось искать прокруткой, хотя с него юрист и
  * начинает (он же заводит договор на сервере).
@@ -301,7 +301,7 @@ function FieldSlot({
   );
 }
 
-/** Окончание: одна дата и её смысл — расторжение или исполнение. */
+/** Окончание: одна дата и её смысл - расторжение или исполнение. */
 function EndDate({ field, contractId }: { field: RegistryField; contractId: string | null }) {
   const schema = useRegistry((s) => s.schema);
   const contract = useRegistry((s) => (contractId ? s.byId.get(contractId) : undefined));
@@ -347,7 +347,7 @@ function PartiesLine({ contractId }: { contractId: string }) {
   if (!executor && !customer) return null;
   const roles = roleLabels(contract);
   const sense = economicText(schema, contract);
-  const name = (party: typeof executor) => (party ? (party.own && party.code ? party.code : party.name) : "—");
+  const name = (party: typeof executor) => (party ? (party.own && party.code ? party.code : party.name) : "-");
   return (
     <>
       <div className="parties-line">
@@ -412,7 +412,7 @@ function Issues({ contractId, onOpen }: { contractId: string; onOpen: (id: strin
 
 /**
  * Договоры, о которых замечание («номер уже есть у …»): номер, сторона, где
- * стоит — и открыть. Договор, который человеку не открыт (другой отдел),
+ * стоит - и открыть. Договор, который человеку не открыт (другой отдел),
  * только называется: его строки у человека нет.
  */
 export function OtherContracts({ ids, onOpen }: { ids: string[]; onOpen: (id: string) => void }) {
@@ -426,14 +426,14 @@ export function OtherContracts({ ids, onOpen }: { ids: string[]; onOpen: (id: st
       {shown.map((other) => (
         <span key={other.id} className="issue-other">
           <button type="button" className="fin-link-btn" onClick={() => onOpen(other.id)}>
-            {bareNumberOf(other) || "без номера"} · {counterpartTitle(other, parties) || "—"}
+            {bareNumberOf(other) || "без номера"} · {counterpartTitle(other, parties) || "-"}
           </button>
           <span className="fin-muted"> {placesText(schema, other)}</span>
         </span>
       ))}
       {hidden ? (
         <span className="issue-other fin-muted">
-          ещё {hidden} — {hidden === 1 ? "договор вам не открыт" : "договоры вам не открыты"}
+          ещё {hidden} - {hidden === 1 ? "договор вам не открыт" : "договоры вам не открыты"}
         </span>
       ) : null}
     </span>
@@ -474,7 +474,7 @@ function Amendments({ contractId, seq }: { contractId: string; seq: number }) {
     <Section title="Соглашения" count={items.length}>
       {sorted.map((item) => (
         <div key={item.id} className="amend-row">
-          <span className="amend-when">{item.effective_from ? `с ${formatDay(item.effective_from)}` : "—"}</span>
+          <span className="amend-when">{item.effective_from ? `с ${formatDay(item.effective_from)}` : "-"}</span>
           <span>
             {[item.number, item.signed_at ? `от ${formatDay(item.signed_at)}` : "", effectWord(item.effect)].filter(Boolean).join(" · ")}
             {item.before_label || item.after_label ? (
@@ -517,7 +517,7 @@ function SourceText({ contractId, seq }: { contractId: string; seq: number }) {
   const contract = useRegistry((s) => s.byId.get(contractId));
   const locked = useContext(CardScopeContext).readonly;
   // Разобранные куски принадлежат версии договора, из которой их разобрали:
-  // договор поменялся — куски устарели сами, без эффекта-сброса.
+  // договор поменялся - куски устарели сами, без эффекта-сброса.
   const version = `${contractId}:${seq}`;
   const [parsed, setParsed] = useState<{ version: string; pieces: ParsedPiece[] } | null>(null);
   const pieces = parsed?.version === version ? parsed.pieces : null;
@@ -555,8 +555,8 @@ function SourceText({ contractId, seq }: { contractId: string; seq: number }) {
     >
       {/* Текст стоит всё время разбора, наведение только подсвечивает кусок.
           До 30.09.2026 абзац появлялся по наведению на строку разбора и
-          сдвигал строки вниз из-под курсора: уход — абзац пропал — строка
-          вернулась под курсор — и так по кругу, карточка дрожала. */}
+          сдвигал строки вниз из-под курсора: уход - абзац пропал - строка
+          вернулась под курсор - и так по кругу, карточка дрожала. */}
       {pieces && pieces.length && text ? (
         <p className="source-text" aria-hidden="true">
           {shown ? (
@@ -618,7 +618,7 @@ function PieceRow({
       <span style={{ display: "grid", gap: "0.35rem" }}>
         <span>
           {piece.text}
-          {piece.summary ? <span className="fin-soft"> — {piece.summary}</span> : null}
+          {piece.summary ? <span className="fin-soft"> - {piece.summary}</span> : null}
         </span>
         <span style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
           <select value={effect} onChange={(event) => setEffect(event.target.value)} aria-label="Что меняет">
@@ -689,12 +689,12 @@ function Snapshot({ contractId }: { contractId: string }) {
         <span>
           <span className="eyebrow">Оплачено</span>
           <br />
-          {snap.paid ? contractMoney(snap.paid) : "—"}
+          {snap.paid ? contractMoney(snap.paid) : "-"}
         </span>
         <span>
           <span className="eyebrow">Остаток</span>
           <br />
-          {snap.remaining ? contractMoney(snap.remaining) : "—"}
+          {snap.remaining ? contractMoney(snap.remaining) : "-"}
         </span>
       </div>
     </Section>
@@ -703,7 +703,7 @@ function Snapshot({ contractId }: { contractId: string }) {
 
 /*
  * Раздела «По сводке» в карточке больше нет (29.09.2026): откуда «Оплачено»
- * в «Разовых» — внутренняя логика, её никому не нужно читать, а разделу
+ * в «Разовых» - внутренняя логика, её никому не нужно читать, а разделу
  * приходилось бы делить карточку на «разовую» и прочие. Цифра сводки
  * остаётся колонкой листа «Разовых» и в «По сотрудникам».
  */
@@ -716,10 +716,10 @@ const PAYMENT_ACTIONS: Record<PaymentItem["how"], { label: string; action: "link
 
 /**
  * Оплаты по выписке: платежи журнала, которые система отнесла к договору, и
- * спорные — подходящие и к нему, и к другому договору клиента. Спорный в
+ * спорные - подходящие и к нему, и к другому договору клиента. Спорный в
  * «Оплачено» не входит, пока человек не отнесёт его сам (`payments.py`).
  * Раздела нет, пока ни одного платежа не нашлось, и у того, кому журнал не
- * открыт: суммы оплат — это деньги компании.
+ * открыт: суммы оплат - это деньги компании.
  */
 function Payments({ contractId, seq }: { contractId: string; seq: number }) {
   const schema = useRegistry((s) => s.schema);

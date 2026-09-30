@@ -1,5 +1,5 @@
 /**
- * Личный вид листа: ширины, перенос, цвета, жирный, скрытые колонки — у
+ * Личный вид листа: ширины, перенос, цвета, жирный, скрытые колонки - у
  * каждой учётки свои, и ни одного значения они не меняют.
  *
  * Почему это было закрыто
@@ -9,28 +9,28 @@
  * Жирный или заливка, поставленные лентой, пропадали при первой перерисовке
  * строки, и 26.09 оформление в ленте спрятали целиком. Пользователь попросил
  * вернуть всё, что меняет только вид (27.09): «если строка длинная и
- * обрезается — чтобы можно было показать целиком», и чтобы каждый настраивал
- * под себя, не задевая коллег — даже администратор.
+ * обрезается - чтобы можно было показать целиком», и чтобы каждый настраивал
+ * под себя, не задевая коллег - даже администратор.
  *
  * Как устроено
  * ────────────
- * * **Команды оформления Univer работают как есть** — пишут стиль в ячейку,
+ * * **Команды оформления Univer работают как есть** - пишут стиль в ячейку,
  *   попадают в «Отменить», переключатели ленты (жирный, перенос) видят
  *   состояние ячейки. Раздел их правкой не считает (`busy()`).
- * * **Вид запоминается по смыслу, а не по номерам**: строка — адрес раздела
- *   (договор, операция, шапка блока), колонка — ключ поля. Вставленная
+ * * **Вид запоминается по смыслу, а не по номерам**: строка - адрес раздела
+ *   (договор, операция, шапка блока), колонка - ключ поля. Вставленная
  *   строка, сортировка и пересборка книги вид не сдвигают.
  * * **Любая запись раздела в ячейку проходит через вид**: перед мутацией
  *   значений стиль ячейки дополняется видом этой ячейки, поэтому перерисовка
  *   строки и новый договор в колонке с заливкой его не теряют.
  * * **Ctrl+Z** откатывает и сам лист, и запомненный вид: запись стека отмены,
  *   рождённая командой оформления, помечена видом «до» и «после».
- * * Хранится на сервере за учёткой и компанией (`/finance/looks/{key}`) —
+ * * Хранится на сервере за учёткой и компанией (`/finance/looks/{key}`) -
  *   раздел даёт `store`, корень про адрес не знает.
- * * **Масштаб** — у всей книги, а не у вкладки: человек подбирает его под свой
+ * * **Масштаб** - у всей книги, а не у вкладки: человек подбирает его под свой
  *   экран. Univer держит его в настройке листа, а книга реестра
  *   пересобирается, поэтому до 30.09.2026 после каждой перезагрузки лист
- *   снова стоял на 100%. «Сбросить мой вид» его не трогает — у масштаба свой
+ *   снова стоял на 100%. «Сбросить мой вид» его не трогает - у масштаба свой
  *   сброс, в строке под листом.
  */
 import { ICommandService, IUndoRedoService, IUniverInstanceService } from "@univerjs/core";
@@ -41,32 +41,32 @@ type Style = Record<string, unknown>;
 
 /** Как раздел адресует строки и колонки своего листа. */
 export type LookIds = {
-  /** Устойчивый адрес строки: договор, операция, шапка блока. `null` — у строки адреса нет. */
+  /** Устойчивый адрес строки: договор, операция, шапка блока. `null` - у строки адреса нет. */
   rowId(sheet: string, row: number): string | null;
   rowOf(sheet: string, id: string): number | null;
   /** Поле ячейки. У листа с блоками колонка у каждого блока своя. */
   fieldAt(sheet: string, row: number, col: number): string | null;
-  /** Колонка поля в строке — для оформления, запомненного по полю. */
+  /** Колонка поля в строке - для оформления, запомненного по полю. */
   colOfField(sheet: string, row: number, field: string): number | null;
   /** Ключ физической колонки листа (ширина, скрытие) и обратно. */
   colKey(sheet: string, col: number): string | null;
   colOf(sheet: string, key: string): number | null;
-  /** Строки листа с адресом — чтобы наложить оформление всей колонки. */
+  /** Строки листа с адресом - чтобы наложить оформление всей колонки. */
   rows(sheet: string): Iterable<[number, string]>;
 };
 
 type SheetLook = {
-  /** Ширина и скрытие колонки — по ключу колонки. */
+  /** Ширина и скрытие колонки - по ключу колонки. */
   cols?: Record<string, { w?: number; hidden?: boolean }>;
-  /** Высота строки — по её адресу. */
+  /** Высота строки - по её адресу. */
   rows?: Record<string, { h?: number }>;
   /** Оформление ячеек: «адрес строки|поле». */
   cells?: Record<string, Style>;
-  /** Оформление всей колонки (выделили колонку целиком) — по полю, и для новых строк тоже. */
+  /** Оформление всей колонки (выделили колонку целиком) - по полю, и для новых строк тоже. */
   fields?: Record<string, Style>;
 };
 
-/** `zoom` — масштаб книги (0.8 — 80%); нет — 100%. */
+/** `zoom` - масштаб книги (0.8 - 80%); нет - 100%. */
 export type Look = { v: 1; sheets: Record<string, SheetLook>; zoom?: number };
 
 export type LookStore = {
@@ -84,7 +84,7 @@ export type LookKeeper = {
   empty: () => boolean;
   /** Стереть свой вид (и на сервере). Лист раздел пересобирает сам. */
   reset: () => Promise<void>;
-  /** Вид появился или пропал — чтобы раздел показал «Сбросить мой вид». */
+  /** Вид появился или пропал - чтобы раздел показал «Сбросить мой вид». */
   subscribe: (listener: () => void) => () => void;
   stop: () => void;
 };
@@ -97,17 +97,17 @@ const M = {
   rowHeight: "sheet.mutation.set-worksheet-row-height",
 };
 
-/** Все способы сменить масштаб — ползунок, Ctrl+колесо, «100%» — сходятся здесь. */
+/** Все способы сменить масштаб - ползунок, Ctrl+колесо, «100%» - сходятся здесь. */
 const ZOOM = "sheet.operation.set-zoom-ratio";
 
 /**
  * Команды, которые меняют только вид. Пока идёт такая команда (и её вложенные
- * `set-style`, `set-border`), мутации листа — оформление, а не правка.
+ * `set-style`, `set-border`), мутации листа - оформление, а не правка.
  */
 const LOOK_COMMAND =
   /^sheet\.command\.(set-style|set-border.*|clear-selection-format|set-(range-)?(bold|italic|underline|stroke|font-family|fontsize|font-size|font-increase|font-decrease|text-color)|reset-(range-)?text-color|set-background-color|reset-background-color|set-horizontal-text-align|set-vertical-text-align|set-text-wrap|set-text-rotation|delta-column-width|set-worksheet-col-width|set-col-is-auto-width|delta-row-height|set-row-height|set-row-is-auto-height|set-col-hidden|set-selected-cols-visible|set-col-visible-on-cols)$/;
 
-/** Ячеек с личным оформлением больше этого не бывает — дальше лишь по колонкам. */
+/** Ячеек с личным оформлением больше этого не бывает - дальше лишь по колонкам. */
 const MAX_CELLS = 20000;
 const SAVE_MS = 800;
 
@@ -115,7 +115,7 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-/** Слить заплатку стиля: `null` у ключа — «как у листа», ключ из вида уходит. */
+/** Слить заплатку стиля: `null` у ключа - «как у листа», ключ из вида уходит. */
 function patch(into: Style | undefined, change: Style): Style | undefined {
   const next: Style = { ...(into ?? {}) };
   for (const [key, value] of Object.entries(change)) {
@@ -168,7 +168,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
     }
   };
 
-  /** Оформление ячейки из вида: колонка целиком, поверх — сама ячейка. */
+  /** Оформление ячейки из вида: колонка целиком, поверх - сама ячейка. */
   const lookAt = (sheet: string, row: number, col: number): Style | undefined => {
     const own = look.sheets[sheet];
     if (!own) return undefined;
@@ -191,9 +191,9 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
 
   type ZoomSheet = { getSheetId: () => string; getConfig: () => { zoomRatio?: number } };
   /**
-   * Масштаб — на каждую вкладку книги. В настройку листа он пишется так же,
+   * Масштаб - на каждую вкладку книги. В настройку листа он пишется так же,
    * как это делает сам Univer: невидимая вкладка возьмёт его при переходе, а
-   * ещё не нарисованная книга — при первой отрисовке. Видимой вкладке нужна
+   * ещё не нарисованная книга - при первой отрисовке. Видимой вкладке нужна
    * ещё и операция: она двигает сам холст.
    */
   const spreadZoom = (zoom: number, except?: string) => {
@@ -220,7 +220,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
   const before = commandService.beforeCommandExecuted((command) => {
     if (!alive) return;
     if (LOOK_COMMAND.test(command.id)) {
-      // Снимок «до» — у первой команды оформления, пока вид ещё прежний.
+      // Снимок «до» - у первой команды оформления, пока вид ещё прежний.
       if (depth === 0) pendingBefore = clone(look);
       depth += 1;
       return;
@@ -250,7 +250,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
     if (id === M.values) {
       const own = sheetLook(sheet);
       const cellValue = (params.cellValue ?? {}) as Record<number, Record<number, { s?: unknown } | null>>;
-      // Колонка целиком: у всех строк с адресом — одна и та же заплатка.
+      // Колонка целиком: у всех строк с адресом - одна и та же заплатка.
       const byField = new Map<string, { count: number; style: string }>();
       const touched: Array<{ id: string; field: string; change: Style | null }> = [];
       for (const [rowKey, line] of Object.entries(cellValue)) {
@@ -287,7 +287,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
       for (const item of touched) {
         const key = `${item.id}|${item.field}`;
         own.cells ??= {};
-        // Колонка целиком: заплатка ложится и на ячейки со своим видом —
+        // Колонка целиком: заплатка ложится и на ячейки со своим видом -
         // Univer перекрасил и их.
         if (whole.has(item.field) && !own.cells[key]) continue;
         const next = item.change === null ? undefined : patch(own.cells[key], item.change);
@@ -295,7 +295,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
         else delete own.cells[key];
       }
       if (Object.keys(own.cells ?? {}).length > MAX_CELLS) {
-        console.warn("личный вид: слишком много раскрашенных ячеек — старые уходят");
+        console.warn("личный вид: слишком много раскрашенных ячеек - старые уходят");
         own.cells = Object.fromEntries(Object.entries(own.cells ?? {}).slice(-MAX_CELLS));
       }
       changed();
@@ -351,7 +351,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
   } catch {
     undoService = null;
   }
-  /** Верх стека отмены до команды оформления — чтобы отличить новую запись. */
+  /** Верх стека отмены до команды оформления - чтобы отличить новую запись. */
   let topBefore: object | null = null;
   const top = (which: "undo" | "redo"): object | null => {
     try {
@@ -367,7 +367,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
       const element = top(which);
       const mark = element ? marks.get(element) : undefined;
       if (!mark) return;
-      // Вид — прежний; мутации отмены (старые стили ячеек) им не дополняются
+      // Вид - прежний; мутации отмены (старые стили ячеек) им не дополняются
       // и правкой раздела не считаются.
       look = clone(which === "undo" ? mark.before : mark.after);
       restoring = true;
@@ -465,7 +465,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
     .load()
     .then((saved) => {
       if (!alive) return;
-      // Успели оформить до ответа сервера — своё не теряем, дописываем поверх.
+      // Успели оформить до ответа сервера - своё не теряем, дописываем поверх.
       const early = !isEmpty();
       if (saved && saved.v === 1 && saved.sheets && !early) look = saved;
       else if (early && saved?.zoom && look.zoom === undefined) look.zoom = saved.zoom;
@@ -475,15 +475,15 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
       else apply();
     })
     .catch(() => {
-      // Не прочитался — лист как у всех, а вид начнёт копиться с чистого.
+      // Не прочитался - лист как у всех, а вид начнёт копиться с чистого.
       loaded = true;
     });
 
   return {
-    // `applying` — вид накладывается на собранный лист. Без него раздел
+    // `applying` - вид накладывается на собранный лист. Без него раздел
     // принимал наложение за правку: реестр при каждом открытии откатывал
     // шапку (заливка колонки задевает и её) и писал под листом «Шапку листа
-    // задаёт настройка реестра — здесь она не правится» — оформление
+    // задаёт настройка реестра - здесь она не правится» - оформление
     // выглядело запрещённым (28.09.2026).
     busy: () => depth > 0 || restoring || applying,
     apply,
@@ -503,7 +503,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
     },
     stop: () => {
       alive = false;
-      // Несохранённое — сразу, а не через таймер, который уже не сработает.
+      // Несохранённое - сразу, а не через таймер, который уже не сработает.
       if (saveTimer && loaded) {
         window.clearTimeout(saveTimer);
         void store.save(clone(look)).catch(() => undefined);

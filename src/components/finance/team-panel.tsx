@@ -28,7 +28,7 @@ const ROLE_HINTS: Record<string, string> = {
  *
  * Пароль приглашённому задаёт владелец и передаёт лично. Это сказано прямо, а
  * не спрятано: писем мы пока не отправляем, и делать вид, что приглашение
- * уходит по почте, — хуже, чем честно назвать порядок.
+ * уходит по почте, - хуже, чем честно назвать порядок.
  */
 export function TeamPanel({ me, onChanged }: { me: Me; onChanged: () => void }) {
   const [rows, setRows] = useState<MemberRow[]>([]);
@@ -163,7 +163,7 @@ export function TeamPanel({ me, onChanged }: { me: Me; onChanged: () => void }) 
               >
                 {["admin", "accountant", "viewer"].map((value) => (
                   <option key={value} value={value}>
-                    {ROLE_TITLES[value]} — {ROLE_HINTS[value]}
+                    {ROLE_TITLES[value]} - {ROLE_HINTS[value]}
                   </option>
                 ))}
               </select>

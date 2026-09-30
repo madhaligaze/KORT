@@ -1,24 +1,24 @@
 "use client";
 
 /**
- * «Реестр» — список строк, а не плитки (фронт-план 6.1).
+ * «Реестр» - список строк, а не плитки (фронт-план 6.1).
  *
  * 460 договоров сравнивают по колонке: сумма под суммой, срок под сроком.
- * Сетка одинаковых карточек этому мешает — «приложенческий» вид здесь значит
+ * Сетка одинаковых карточек этому мешает - «приложенческий» вид здесь значит
  * список строк плюс карточка договора по центру.
  *
- * Вкладки — листы-отборы со счётчиками; при поиске счётчики показывают
+ * Вкладки - листы-отборы со счётчиками; при поиске счётчики показывают
  * найденное в каждом листе, и «где искать» видно без переключения. Строки не
  * исчезают под глазами: договор, ушедший из листа, стоит приглушённым до смены
- * вкладки. Цвет на экране в нормальном состоянии — только «N замечаний».
+ * вкладки. Цвет на экране в нормальном состоянии - только «N замечаний».
  *
- * «Все · Мои · С долями» — под «Новый договор» (30.09.2026). «С долями» —
+ * «Все · Мои · С долями» - под «Новый договор» (30.09.2026). «С долями» -
  * совместные договоры: двое исполнителей и больше или заданы доли. Владельцу,
- * администратору и начальнику — все такие договоры (начальнику — своего
- * отдела), сотруднику — только те, где он сам исполнитель, и в них только его
- * доля. Что кому открыто, решает сервер (`/contracts/shares`): отбор — это
+ * администратору и начальнику - все такие договоры (начальнику - своего
+ * отдела), сотруднику - только те, где он сам исполнитель, и в них только его
+ * доля. Что кому открыто, решает сервер (`/contracts/shares`): отбор - это
  * «договор есть в его ответе». До 30.09 в ответ шли только договоры с
- * введёнными суммами, а их на проде не было ни одного — отбор был пуст.
+ * введёнными суммами, а их на проде не было ни одного - отбор был пуст.
  */
 import { memo, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -104,14 +104,14 @@ function emptyText(me: Me): string {
   if (scope?.rows === "own") return "Договоров, где вы ответственный, пока нет";
   if (scope?.rows === "department") {
     const code = me.employee?.department?.code;
-    return code ? `Договоров отдела ${code} пока нет` : "Отдела нет — договоров своего отдела не видно";
+    return code ? `Договоров отдела ${code} пока нет` : "Отдела нет - договоров своего отдела не видно";
   }
   if (scope?.entities?.length) return "Договоров ваших юрлиц пока нет";
   return "Договоров пока нет";
 }
 
 /**
- * `book` — книга листов: `""` — реестр, `oneoff` — «Разовые ЮО». Вкладки —
+ * `book` - книга листов: `""` - реестр, `oneoff` - «Разовые ЮО». Вкладки -
  * листы своей книги; поиск, отбор и черновик у каждой книги свои.
  */
 export function Registry({
@@ -124,8 +124,8 @@ export function Registry({
   onGo: (section: string) => void;
   book?: string;
   /**
-   * «По сотрудникам» у «Разовых» — четвёртым положением «Все · Мои · С
-   * долями»: верх (новый договор, отбор) остаётся, вместо вкладок и строк —
+   * «По сотрудникам» у «Разовых» - четвёртым положением «Все · Мои · С
+   * долями»: верх (новый договор, отбор) остаётся, вместо вкладок и строк -
    * `view`.
    */
   staff?: (StaffPick & { view: ReactNode }) | null;
@@ -142,7 +142,7 @@ export function Registry({
   const removed = useRegistry((s) => s.departed);
   const wasIn = useRegistry((s) => s.wasIn);
   const shares = useRegistry((s) => s.shares);
-  // «С долями» — всем, у кого есть свои договоры или открыты все: сотруднику
+  // «С долями» - всем, у кого есть свои договоры или открыты все: сотруднику
   // сервер отдаёт только его совместные договоры и только его долю.
   const seesShares = isAdmin(me) || Boolean(me.employee?.id);
   useEffect(() => {
@@ -157,14 +157,14 @@ export function Registry({
   const [viewKey, setViewKey] = useState<string>(() => readParam("v") ?? "main");
   const view = views.find((item) => item.key === viewKey) ?? views[0];
   // Поиск, отбор и начатый новый договор переживают перезагрузку
-  // (`session-state.tsx`); открытый договор — в адресе (`?id=`).
+  // (`session-state.tsx`); открытый договор - в адресе (`?id=`).
   const scope = book ? `registry.${book}` : "registry";
   const [query, setQuery] = useSessionState(`${scope}.query`, "");
   const [issuesOnly, setIssuesOnly] = useSessionState(`${scope}.issues`, false);
   const [sharesPicked, setSharesOnly] = useSessionState(`${scope}.shares`, false);
   const sharesOnly = sharesPicked && seesShares;
   // Сортировка своя у каждого листа и помнится в браузере. Выбранная здесь
-  // привязана к листу, на котором её выбрали; на другом листе — его память.
+  // привязана к листу, на котором её выбрали; на другом листе - его память.
   const [sortPick, setSortPick] = useState<{ view: string; sort: { key: SortKey; dir: 1 | -1 } | null } | null>(null);
   const [openId, setOpenId] = useState<string | null>(() => readParam("id"));
   const [draft, setDraft] = useSessionState<{ view?: string; block?: number } | null>(`${scope}.new`, null);
@@ -198,7 +198,7 @@ export function Registry({
     setDraft(null);
     writeParams({ id }, !!id);
   }, [setDraft]);
-  /** Стабильная — иначе `memo` строк не сработал бы ни разу. */
+  /** Стабильная - иначе `memo` строк не сработал бы ни разу. */
   const openRow = useCallback(
     (id: string) => {
       setCursor(id);
@@ -237,11 +237,11 @@ export function Registry({
   );
 
   const all = useMemo(() => order.map((id) => byId.get(id)).filter((item): item is Contract => !!item && !item.deleted), [order, byId]);
-  // «Мои» у заголовка реестра: вкладки, счётчики и строки — по своим договорам.
+  // «Мои» у заголовка реестра: вкладки, счётчики и строки - по своим договорам.
   const { only: mineOnly } = useMine(me, book);
   const mineAll = useMemo(() => (mineOnly ? all.filter(mineOnly) : all), [all, mineOnly]);
   const hasShares = useCallback((contract: Contract) => Boolean(shares?.[contract.id]), [shares]);
-  // «С долями» сужает всё — строки, счётчики вкладок и замечания: видно, в
+  // «С долями» сужает всё - строки, счётчики вкладок и замечания: видно, в
   // каких листах договоры с долями, не переключая их по одному.
   const shownAll = useMemo(() => (sharesOnly ? mineAll.filter(hasShares) : mineAll), [mineAll, sharesOnly, hasShares]);
   const counts = useMemo(() => viewCounts(views, shownAll, needle ? matchesSearch : undefined), [views, shownAll, needle, matchesSearch]);
@@ -258,7 +258,7 @@ export function Registry({
         departed: undefined as string | undefined,
       }));
     // Ушедшие из листа строки остаются на месте приглушёнными до смены вкладки.
-    // «Ушедший» — только тот, кто перестал подходить под правило листа.
+    // «Ушедший» - только тот, кто перестал подходить под правило листа.
     // Отсеянный поиском или «замечаниями» не ушёл: его просто не ищут.
     // Удалённый (своей рукой или коллегой) уходит сразу: до 29.09.2026 он
     // стоял «убран» до смены вкладки, и удаление выглядело несработавшим.
@@ -279,7 +279,7 @@ export function Registry({
       combined.sort((a, b) => compare(a.contract, b.contract, sort.key, schema, parties, people) * sort.dir);
     } else {
       // Лист из нескольких блоков показывает блоки подряд, как в файле:
-      // сначала номер блока, внутри — порядок реестра.
+      // сначала номер блока, внутри - порядок реестра.
       combined.sort((a, b) => a.block - b.block || a.contract.position - b.contract.position);
     }
     return combined;
@@ -294,7 +294,7 @@ export function Registry({
     [shownAll, view, matchesSearch],
   );
 
-  // Сколько договоров с долями во всей книге — рядом с «Все» и «Мои».
+  // Сколько договоров с долями во всей книге - рядом с «Все» и «Мои».
   const sharesCount = useMemo(() => {
     const keys = new Set(views.map((item) => item.key));
     return all.filter((contract) => contract.views.some((place) => keys.has(place.view)) && hasShares(contract)).length;
@@ -392,7 +392,7 @@ export function Registry({
           />
         ) : (
           <>
-            {/* При узкой области пусто не в реестре, а в том, что открыто, —
+            {/* При узкой области пусто не в реестре, а в том, что открыто, -
                 и сказать надо это: «Договоров пока нет» читалось как пустой
                 реестр, когда в нём сотни договоров. */}
             <p className="creg-empty">{emptyText(me)}</p>
@@ -426,7 +426,7 @@ export function Registry({
                 Новый договор
               </button>
             ) : null}
-            {/* На широком окне эти пункты — кнопками в строке заголовка
+            {/* На широком окне эти пункты - кнопками в строке заголовка
                 (`RegistryActions`); на телефоне строки заголовка нет. */}
             <span className="only-mobile">
               <MenuPopover items={menu} />
@@ -548,7 +548,7 @@ export function Registry({
   );
 }
 
-/** Пункты реестра: загрузить файл и настроить — администратору, скачать — всем. */
+/** Пункты реестра: загрузить файл и настроить - администратору, скачать - всем. */
 function registryMenu(schema: RegistrySchema, book: string, onGo: (section: string) => void) {
   const canSetup = !!schema.access.setup;
   const views = schema.views.filter((view) => inBook(view, book));
@@ -563,10 +563,10 @@ function registryMenu(schema: RegistrySchema, book: string, onGo: (section: stri
 }
 
 /**
- * «Загрузить Excel · Настроить реестр · Скачать Excel» — кнопками в строке
+ * «Загрузить Excel · Настроить реестр · Скачать Excel» - кнопками в строке
  * заголовка справа, над «Новый договор», в «Карточках» и «Таблице» (30.09.2026:
  * «неудобно постоянно кликать по троеточию»). На телефоне строки заголовка
- * нет — там те же пункты под «⋯».
+ * нет - там те же пункты под «⋯».
  */
 export function RegistryActions({ book, onGo }: { book: string; onGo: (section: string) => void }) {
   const schema = useRegistry((s) => s.schema);
@@ -762,7 +762,7 @@ function Rows({
 /**
  * Сколько строк списка уже нарисовано.
  *
- * Реестр на 10 000 договоров рисовался одним куском — 126 000 элементов и
+ * Реестр на 10 000 договоров рисовался одним куском - 126 000 элементов и
  * 20 с до первой строки в режиме разработки. Теперь сразу рисуются первые
  * `FIRST_ROWS`, остальные дописываются пачками в свободное время кадра: все
  * строки всё равно оказываются в DOM (поиск браузера и фокус по id работают),
@@ -770,7 +770,7 @@ function Rows({
  * начинает заново.
  */
 const FIRST_ROWS = 300;
-/** Пачка — такая, чтобы кадр не превращался в долгую задачу: по 1 200 строк
+/** Пачка - такая, чтобы кадр не превращался в долгую задачу: по 1 200 строк
  *  пачка шла полсекунды, и открытие карточки ждало её в очереди. */
 const NEXT_ROWS = 400;
 
@@ -781,7 +781,7 @@ function useProgressive(total: number, reset: string): number {
   useEffect(() => {
     if (limit >= total) return;
     const grow = () => setState((prev) => (prev.reset === reset ? { reset, limit: prev.limit + NEXT_ROWS } : prev));
-    // Safari до сих пор без requestIdleCallback — там кадр по таймеру.
+    // Safari до сих пор без requestIdleCallback - там кадр по таймеру.
     const idle = typeof window.requestIdleCallback === "function";
     const handle = idle ? window.requestIdleCallback(grow, { timeout: 200 }) : window.setTimeout(grow, 16);
     return () => {
@@ -808,7 +808,7 @@ type RowProps = {
 };
 
 /** Строка реестра. Перерисовывается, только когда поменялся её договор или
- *  её стороны, — а не на каждое открытие карточки и чужую правку. */
+ *  её стороны, - а не на каждое открытие карточки и чужую правку. */
 const Row = memo(function Row({
   contract,
   departed,
@@ -826,13 +826,13 @@ const Row = memo(function Row({
   const pair: Record<string, Party> = {};
   if (executor) pair[String(contract.values.executor)] = executor;
   if (customer) pair[String(contract.values.customer)] = customer;
-  const title = counterpartTitle(contract, pair) || "—";
+  const title = counterpartTitle(contract, pair) || "-";
   const own = ownSide(contract, pair);
   const roles = roleLabels(contract);
   const phase = phaseOf(schema, contract);
   const issues = contract.issues.filter((issue) => !issue.acknowledged).length;
   // Отмеченное «Учтено» не горит, но и не пропадает: строка помнит, что
-  // замечание было и его проверили, — открыть и посмотреть можно всегда.
+  // замечание было и его проверили, - открыть и посмотреть можно всегда.
   const settled = contract.issues.length - issues;
   const billing = String(contract.values.billing ?? "");
   const amount = contract.values.amount;
@@ -857,7 +857,7 @@ const Row = memo(function Row({
       }}
     >
       <span className="creg-num creg-col-num" title={String(contract.values.number ?? "")}>
-        {number || "—"}
+        {number || "-"}
       </span>
       <span className="creg-party" title={title}>
         <Highlight text={title} needle={needle} />
@@ -894,7 +894,7 @@ const Row = memo(function Row({
       ) : issues ? (
         <IssuesTag issues={contract.issues.filter((issue) => !issue.acknowledged)} />
       ) : (
-        <span className="creg-note" title={contract.readonly ? "Договор другого отдела — открыт на просмотр" : undefined}>
+        <span className="creg-note" title={contract.readonly ? "Договор другого отдела - открыт на просмотр" : undefined}>
           {[settled ? "учтено" : "", contract.readonly ? "просмотр" : ""].filter(Boolean).join(" · ")}
         </span>
       )}
@@ -909,11 +909,11 @@ const Row = memo(function Row({
 const ISSUES_POP_W = 360;
 
 /**
- * «1 замечание» в строке — наведение показывает, какое. До 29.09.2026 текст
+ * «1 замечание» в строке - наведение показывает, какое. До 29.09.2026 текст
  * замечания был виден только в открытой карточке: отобрав «4 замечания»,
  * человек открывал договоры по одному, чтобы понять, что с каждым не так.
  *
- * Слой — порталом в `body` и тем же обликом, что подсказка ячейки листа
+ * Слой - порталом в `body` и тем же обликом, что подсказка ячейки листа
  * (`.creg-hint`): плита реестра обрезает всё, что шире неё (`overflow:
  * clip`), и плашка у правого края строки пропадала бы молча.
  */
@@ -927,7 +927,7 @@ function IssuesTag({ issues }: { issues: { code: string; text: string }[] }) {
     const left = Math.max(8, Math.min(rect.right - ISSUES_POP_W, window.innerWidth - ISSUES_POP_W - 8));
     setSpot({ left: Math.round(left), top: Math.round(above ? rect.top : rect.bottom), above });
   };
-  // Прокрутили — строка уехала из-под плашки.
+  // Прокрутили - строка уехала из-под плашки.
   useEffect(() => {
     if (!spot) return;
     const hide = () => setSpot(null);

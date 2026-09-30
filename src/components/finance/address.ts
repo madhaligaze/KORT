@@ -3,7 +3,7 @@
  *
  * Ссылку на договор можно переслать, а «Назад» на телефоне закрывает
  * карточку, потому что открытие добавило запись в историю (фронт-план 3.2).
- * Смена листа истории не засоряет — `replaceState`.
+ * Смена листа истории не засоряет - `replaceState`.
  */
 
 export function readParam(name: string): string | null {
@@ -11,7 +11,7 @@ export function readParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }
 
-/** Поменять параметры адреса. `null` убирает параметр. `push` — новая запись истории. */
+/** Поменять параметры адреса. `null` убирает параметр. `push` - новая запись истории. */
 export function writeParams(values: Record<string, string | null | undefined>, push = false): void {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);

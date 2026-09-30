@@ -29,15 +29,15 @@ import { holdStage, markStageClear, markStageCovered, onStageReleased, stageHeld
  *    новой вкладке» работают как у обычной <a>: перехватывается только
  *    простой клик. Без JS это просто Link.
  * 2. **Занавес не может остаться опущенным.** Страница не пришла за восемь
- *    секунд (упал запрос, ошибка сборки) — занавес поднимается сам. Лучше
+ *    секунд (упал запрос, ошибка сборки) - занавес поднимается сам. Лучше
  *    старый экран, чем чёрный.
  * 3. **Поднимается только после того, как новая страница нарисована**: смена
- *    `pathname` плюс два кадра. Поднять раньше — человек увидит, как старый
+ *    `pathname` плюс два кадра. Поднять раньше - человек увидит, как старый
  *    экран подменяется новым, то есть ровно то, что занавес должен скрыть.
- *    Тяжёлая страница (лист Univer) может попросить подождать ещё —
+ *    Тяжёлая страница (лист Univer) может попросить подождать ещё -
  *    `useStageHold`, но не дольше `HOLD_MS` после прихода.
  *
- * «Меньше движения» — обычная навигация, без занавеса.
+ * «Меньше движения» - обычная навигация, без занавеса.
  */
 
 type Navigate = (href: string, label?: string) => void;
@@ -106,7 +106,7 @@ export function StageTransitionProvider({ children }: { children: ReactNode }) {
     lift();
   }, [lift]);
 
-  // Страница отпустила занавес — поднять, если он ждал только её.
+  // Страница отпустила занавес - поднять, если он ждал только её.
   useEffect(() => onStageReleased(tryLift), [tryLift]);
 
   const navigate = useCallback<Navigate>(
@@ -193,11 +193,11 @@ export function StageTransitionProvider({ children }: { children: ReactNode }) {
 
 type StageLinkProps = Omit<ComponentProps<typeof Link>, "href"> & {
   href: string;
-  /** Что написать на занавесе — название раздела, куда ведёт ссылка. */
+  /** Что написать на занавесе - название раздела, куда ведёт ссылка. */
   label?: string;
 };
 
-/** Ссылка, которая переходит через занавес. Вне провайдера — обычный Link. */
+/** Ссылка, которая переходит через занавес. Вне провайдера - обычный Link. */
 export function StageLink({ href, label, onClick, target, ...rest }: StageLinkProps) {
   const navigate = useContext(StageContext);
   return (
@@ -222,14 +222,14 @@ export function StageLink({ href, label, onClick, target, ...rest }: StageLinkPr
  *
  * Брать в компоненте, который приходит вместе со страницей, а не в ленивом
  * (`next/dynamic`): ленивый смонтируется, когда занавес уже пошёл вверх.
- * Эффект — макетный, чтобы просьба успела раньше, чем переход решит
+ * Эффект - макетный, чтобы просьба успела раньше, чем переход решит
  * поднимать. Без перехода (прямой заход по адресу) ничего не делает.
  */
 export function useStageHold(active: boolean): void {
   useLayoutEffect(() => (active ? holdStage() : undefined), [active]);
 }
 
-/** Переход через занавес из кода — для кнопок, которые не ссылки. */
+/** Переход через занавес из кода - для кнопок, которые не ссылки. */
 export function useStageNavigate(): Navigate {
   const navigate = useContext(StageContext);
   const router = useRouter();

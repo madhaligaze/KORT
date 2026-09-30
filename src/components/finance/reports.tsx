@@ -19,7 +19,7 @@ import {
  *
  * Общее правило всех четырёх: месяц без операций стоит в таблице нулём, а не
  * пропадает из ряда. Пропущенный месяц читается как «данных нет» и ломает
- * сравнение с соседним — дефект, который этот проект уже переживал на дашборде.
+ * сравнение с соседним - дефект, который этот проект уже переживал на дашборде.
  */
 
 function useReport<T>(load: () => Promise<T>, revision: number) {
@@ -129,7 +129,7 @@ export function CashFlowReport({ revision }: { revision: number }) {
             <div key={check.name} className="flex items-baseline justify-between gap-3 text-xs">
               <span style={{ color: check.ok ? "var(--text-secondary)" : "var(--accent-rose)" }}>
                 {check.name}
-                {check.hint ? ` — ${check.hint}` : ""}
+                {check.hint ? ` - ${check.hint}` : ""}
               </span>
               <span className="fin-num" style={{ color: check.ok ? "var(--text-muted)" : "var(--accent-rose)" }}>
                 {check.ok ? "сходится" : `${formatMoney(check.left)} ≠ ${formatMoney(check.right)}`}
@@ -145,9 +145,9 @@ export function CashFlowReport({ revision }: { revision: number }) {
 /**
  * Разбивка по статьям.
  *
- * Числа в клетках — факт. Ожидания показаны отдельной приглушённой строкой под
+ * Числа в клетках - факт. Ожидания показаны отдельной приглушённой строкой под
  * числом, а не сложены с ним: 18 сентября 2026 на живом экране было видно, как
- * это путает — в шапке отчёта стояло «Поступило 5 117 777», а в итоге разбивки
+ * это путает - в шапке отчёта стояло «Поступило 5 117 777», а в итоге разбивки
  * 6 017 777, и разница ровно на запланированный платёж ничем не объяснялась.
  * Две верные цифры про одно и то же хуже одной.
  */
@@ -187,7 +187,7 @@ function Breakdown({
                 const plan = Number(item.months_plan?.[month] ?? 0);
                 return (
                   <td key={month} className="fin-num">
-                    {fact ? formatMoney(fact) : "—"}
+                    {fact ? formatMoney(fact) : "-"}
                     {plan ? (
                       <span className="block text-xs" style={{ color: "var(--text-muted)" }}>
                         ждём {formatMoney(plan)}
@@ -202,7 +202,7 @@ function Breakdown({
             </tr>
           ))}
           <tr data-total="true">
-            <td>Итого — факт</td>
+            <td>Итого - факт</td>
             {totals.map((value, index) => (
               <td key={months[index]} className="fin-num">
                 {formatMoney(value)}
@@ -214,7 +214,7 @@ function Breakdown({
       </table>
       {plannedTotal ? (
         <p className="text-xs px-3 pb-3" style={{ color: "var(--text-muted)" }}>
-          Ожидается ещё {formatMoney(plannedTotal)} — вне итога
+          Ожидается ещё {formatMoney(plannedTotal)} - вне итога
         </p>
       ) : null}
     </div>
@@ -249,7 +249,7 @@ export function ProfitReport({ revision }: { revision: number }) {
                 <td className="fin-num" style={{ color: "var(--text-primary)" }}>
                   {formatMoney(row.profit, { sign: true })}
                 </td>
-                <td className="fin-num">{Number(row.income) ? row.margin : "—"}</td>
+                <td className="fin-num">{Number(row.income) ? row.margin : "-"}</td>
               </tr>
             ))}
           </tbody>
@@ -277,7 +277,7 @@ export function DebtsReport({
   const settle = async (id: string) => {
     setBusy(id);
     try {
-      // «Оплатили» — это перевод ожидания в факт, а не новая операция: иначе в
+      // «Оплатили» - это перевод ожидания в факт, а не новая операция: иначе в
       // журнале оказались бы две строки там, где в банке одна.
       await financeApi.patchOperation(id, { status: "fact" });
       onChanged();
@@ -405,7 +405,7 @@ export function ProjectsReport({ revision }: { revision: number }) {
                 <td className="fin-num" style={{ color: "var(--text-primary)" }}>
                   {formatMoney(item.profit, { sign: true })}
                 </td>
-                <td className="fin-num">{Number(item.income) ? item.margin : "—"}</td>
+                <td className="fin-num">{Number(item.income) ? item.margin : "-"}</td>
               </tr>
             ))}
           </tbody>
@@ -418,7 +418,7 @@ export function ProjectsReport({ revision }: { revision: number }) {
         <p className="fin-label">Не разнесено по проектам</p>
         <p>
           Поступления {formatMoney(data.not_split.income)}, списания{" "}
-          {formatMoney(data.not_split.expense)} — {data.not_split.note}
+          {formatMoney(data.not_split.expense)} - {data.not_split.note}
         </p>
       </div>
     </div>

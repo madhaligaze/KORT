@@ -15,19 +15,19 @@ import {
 import { PlaceholderOption } from "@/components/placeholder-option";
 
 /**
- * Предпросмотр разбора — общий для файла и для книги Google.
+ * Предпросмотр разбора - общий для файла и для книги Google.
  *
  * Экран устроен вокруг одного решения: **источник не отвергается целиком.**
  * Поэтому здесь три вещи, которых нет у импортёров, что мы разбирали 17 сентября
  * 2026:
  *
  * 1. Сводка «готово / отложено / пропущено» вместо «загрузить не удалось».
- *    Двести строк с одной испорченной — это 199 готовых и одна отложенная.
+ *    Двести строк с одной испорченной - это 199 готовых и одна отложенная.
  * 2. Замечание на строке называет поле и показывает, что стояло в ячейке.
  *    Отложенную строку правят здесь же, не перезагружая источник.
  * 3. Решения видны: какая строка признана шапкой, как прочитан порядок частей
  *    даты и чем это доказано, какие колонки не использованы. Если порядок из
- *    данных не выводится — раздел спрашивает, один раз, а не угадывает построчно.
+ *    данных не выводится - раздел спрашивает, один раз, а не угадывает построчно.
  *
  * Общий компонент, а не две копии: книга из Google и скачанный файл обязаны
  * показывать одно и то же. Разъехавшись, они показывали бы разное число
@@ -63,7 +63,7 @@ export function PreviewView({
    *
    * Они уже готовы, но остаются на экране до следующего чтения источника.
    * Иначе правка выглядит как пропажа: человек выбрал счёт, строка исчезла, и
-   * приняли её или потеряли — непонятно.
+   * приняли её или потеряли - непонятно.
    */
   const [fixed, setFixed] = useState<Set<number>>(new Set());
   /** Счёт для разом всех отложенных строк, которым его не хватает. */
@@ -84,9 +84,9 @@ export function PreviewView({
   /**
    * Завести счёт с номером из выписки и перечитать источник.
    *
-   * `pick` — сделать новый счёт счётом выписки (ответ на вопрос «на какой
+   * `pick` - сделать новый счёт счётом выписки (ответ на вопрос «на какой
    * счёт»). Без него это второй свой счёт из переводов: депозит, на который
-   * уходили деньги, — перечитывание превращает отложенные строки в переводы.
+   * уходили деньги, - перечитывание превращает отложенные строки в переводы.
    */
   const createAccount = async (entry: { name: string; number: string; currency?: string }, pick: boolean) => {
     const name = entry.name.trim();
@@ -119,7 +119,7 @@ export function PreviewView({
           (done.failed ? `, отложено ${done.failed}` : "") +
           (done.duplicate ? `, повторов ${done.duplicate}` : "") +
           (done.skipped ? `, пропущено ${done.skipped}` : "") +
-          // Номер записан счёту сам — это решение раздела, и оно должно быть
+          // Номер записан счёту сам - это решение раздела, и оно должно быть
           // видно: иначе следующая выписка «сама» ляжет на счёт без объяснений.
           (done.remembered ? ` · счёту «${done.remembered.account}» записан номер ${done.remembered.number}` : ""),
       );
@@ -159,7 +159,7 @@ export function PreviewView({
   /**
    * Поставить счёт всем отложенным строкам, которым его не хватает.
    *
-   * У выписки счёт один на весь файл, и спрашивать его в каждой строке — это
+   * У выписки счёт один на весь файл, и спрашивать его в каждой строке - это
    * сотня одинаковых выборов там, где нужен один.
    */
   const setAccountForAll = async (name: string) => {
@@ -203,7 +203,7 @@ export function PreviewView({
   };
 
   const failed = preview.rows.filter((row) => row.state === "failed" || fixed.has(row.line));
-  /** Отложенные, которым не хватает именно счёта, — их правят одним действием. */
+  /** Отложенные, которым не хватает именно счёта, - их правят одним действием. */
   const needAccount = preview.rows.filter(
     (row) =>
       row.state === "failed" &&
@@ -216,14 +216,14 @@ export function PreviewView({
    *
    * «Пропущено 2050» на повторной загрузке того же файла читается как поломка
    * разбора. Причина другая и она хорошая: эти операции уже в учёте. Разница
-   * между «не понял файл» и «этот файл уже заводили» — это разница между
+   * между «не понял файл» и «этот файл уже заводили» - это разница между
    * «загружу ещё раз» и «всё на месте».
    */
   const duplicate = preview.rows.filter((row) => row.state === "duplicate");
 
   return (
     <>
-      {/* Вопрос задаётся один раз на источник — и только когда ответа в данных нет. */}
+      {/* Вопрос задаётся один раз на источник - и только когда ответа в данных нет. */}
       {preview.question ? (
         <div className="fin-card p-4 flex flex-col gap-2" style={{ borderColor: "var(--accent-line)" }}>
           <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -264,7 +264,7 @@ export function PreviewView({
         </div>
       ) : null}
 
-      {/* Главное действие — до списка строк и прилипшее к верху.
+      {/* Главное действие - до списка строк и прилипшее к верху.
           Раньше оно стояло только под таблицей: человек видел «готово завести
           2050», считал дело сделанным и уходил, а в учёте не появлялось ничего.
           Именно так и вышло на проде 18 сентября. */}
@@ -275,7 +275,7 @@ export function PreviewView({
             : `Завести ${ready.length} ${plural(ready.length, "операцию", "операции", "операций")}`}
         </button>
         {result ? (
-          // Без цвета: «заведено» — это «всё хорошо», а цвет в разделе только
+          // Без цвета: «заведено» - это «всё хорошо», а цвет в разделе только
           // у отказа (CLAUDE.md, «Индикаторы состояния»).
           <span className="text-sm" style={{ color: "var(--text-primary)" }}>
             {result}
@@ -283,7 +283,7 @@ export function PreviewView({
         ) : ready.length === 0 && duplicate.length ? (
           <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
             {duplicate.length === preview.rows.length
-              ? "этот файл уже заводили — всё есть в учёте"
+              ? "этот файл уже заводили - всё есть в учёте"
               : `${duplicate.length} ${plural(duplicate.length, "операция", "операции", "операций")} уже в учёте`}
           </span>
         ) : (
@@ -321,7 +321,7 @@ export function PreviewView({
         </div>
       </div>
 
-      {/* Что разметят правила — до записи. Сервер считал это всегда, а экран
+      {/* Что разметят правила - до записи. Сервер считал это всегда, а экран
           не показывал, и человек узнавал о разметке уже в отчёте. */}
       {Object.keys(preview.rules_applied ?? {}).length ? (
         <div className="fin-card p-4 flex flex-col gap-1">
@@ -381,7 +381,7 @@ export function PreviewView({
       {preview.accounts_missing.length ? (
         <div className="fin-card p-3 flex flex-col gap-2">
           <p className="fin-issue-text">Счетов нет в справочнике: {preview.accounts_missing.join(", ")}</p>
-          {/* Счёт из файла сам не заводится — место, где лежат деньги, не должно
+          {/* Счёт из файла сам не заводится - место, где лежат деньги, не должно
               появляться из опечатки. Но и вбивать двадцать два счёта книги
               руками незачем: список перед глазами, решение за человеком. */}
           <button
@@ -408,7 +408,7 @@ export function PreviewView({
             className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b"
             style={{ borderColor: "var(--border-subtle)" }}
           >
-            <p className="fin-label">Отложенные строки — что в них не сошлось</p>
+            <p className="fin-label">Отложенные строки - что в них не сошлось</p>
             {needAccount.length > 1 ? (
               <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
                 Счёт для всех {needAccount.length}
@@ -454,7 +454,7 @@ export function PreviewView({
       {skipped.length ? (
         <details className="fin-card p-3">
           <summary className="text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-            Пропущенные строки — {skipped.length} (итоги, пустые, служебные, повторы)
+            Пропущенные строки - {skipped.length} (итоги, пустые, служебные, повторы)
           </summary>
           <div className="pt-2">
             {skipped.slice(0, 40).map((row) => (
@@ -488,13 +488,13 @@ export function PreviewView({
                 return (
                   <tr key={row.line}>
                     <td className="fin-num">{row.line}</td>
-                    <td className="fin-strong">{values.paid_at ? formatDate(values.paid_at) : "—"}</td>
+                    <td className="fin-strong">{values.paid_at ? formatDate(values.paid_at) : "-"}</td>
                     <td
                       className={`fin-num ${
                         values.kind === "income" ? "fin-in" : values.kind === "expense" ? "fin-out" : ""
                       }`}
                     >
-                      {values.amount ? formatMoney(values.amount) : "—"}
+                      {values.amount ? formatMoney(values.amount) : "-"}
                     </td>
                     <td>
                       {values.kind === "income"
@@ -505,11 +505,11 @@ export function PreviewView({
                     </td>
                     <td>
                       {values.kind === "transfer"
-                        ? `${values.account_from || "—"} → ${values.account_to || "—"}`
-                        : values.account_to || values.account_from || "—"}
+                        ? `${values.account_from || "-"} → ${values.account_to || "-"}`
+                        : values.account_to || values.account_from || "-"}
                     </td>
-                    <td>{values.category || "—"}</td>
-                    <td>{values.counterparty || "—"}</td>
+                    <td>{values.category || "-"}</td>
+                    <td>{values.counterparty || "-"}</td>
                     <td style={{ whiteSpace: "normal", maxWidth: "16rem" }}>{values.comment || ""}</td>
                   </tr>
                 );
@@ -537,7 +537,7 @@ export function PreviewView({
  * Одна отложенная строка: чего не хватило и поле, чтобы это дописать.
  *
  * Правка идёт по той же строке источника, а не «загрузите исправленный файл»: в
- * книге на двести строк перезагрузка ради одной ячейки — это потеря места, на
+ * книге на двести строк перезагрузка ради одной ячейки - это потеря места, на
  * котором человек остановился.
  */
 function FailedRow({
@@ -627,11 +627,11 @@ function FailedRow({
 }
 
 /**
- * Какое поле счёта дописать в отложенной строке — то, на которое указывает
+ * Какое поле счёта дописать в отложенной строке - то, на которое указывает
  * замечание.
  *
- * Раньше поле выводилось из вида операции: поступлению — «на счёт», остальному
- * — «со счёта». У перевода на свой депозит не хватает счёта «куда», и выбор
+ * Раньше поле выводилось из вида операции: поступлению - «на счёт», остальному
+ * - «со счёта». У перевода на свой депозит не хватает счёта «куда», и выбор
  * счёта в строке записывался не в то поле: строка так и оставалась отложенной.
  */
 function accountField(row: ImportRow): "account_from" | "account_to" {
@@ -640,7 +640,7 @@ function accountField(row: ImportRow): "account_from" | "account_to" {
   return row.values.kind === "income" ? "account_to" : "account_from";
 }
 
-/** Новый счёт с номером из выписки: имя — подсказка, его можно переписать. */
+/** Новый счёт с номером из выписки: имя - подсказка, его можно переписать. */
 function NewAccount({
   suggestion,
   busy,
@@ -713,12 +713,12 @@ export function plural(count: number, one: string, few: string, many: string): s
  * Сверка выписки с банком.
  *
  * Банк печатает в выписке остаток на начало и на конец периода. Разобранные
- * строки обязаны пройти ровно этот путь: начало плюс движение — это конец.
- * Сходится — при разборе не потерялось ни одной операции. Не сходится — это
+ * строки обязаны пройти ровно этот путь: начало плюс движение - это конец.
+ * Сходится - при разборе не потерялось ни одной операции. Не сходится - это
  * видно до того, как операции легли в учёт, а не через месяц в отчёте.
  *
- * Здесь же — начальный остаток счёта из выписки. Без него счёт, в который
- * загрузили выписку за год, показывал минус: учёт начинался с нуля, а карта —
+ * Здесь же - начальный остаток счёта из выписки. Без него счёт, в который
+ * загрузили выписку за год, показывал минус: учёт начинался с нуля, а карта -
  * нет. Кнопка появляется, только если раньше периода по счёту ничего не было:
  * иначе остаток на начало задают прежние операции, и подгонять его нельзя.
  */
@@ -734,7 +734,7 @@ function BankCard({
   const start = check.period_start ? formatDate(check.period_start) : "начало";
   const end = check.period_end ? formatDate(check.period_end) : "конец";
   const gap = check.gap === null ? null : Number(check.gap);
-  // Остаток счёта в учёте на начало периода — против банка. Показываем, как
+  // Остаток счёта в учёте на начало периода - против банка. Показываем, как
   // только счёт выбран и начальный остаток из выписки не предлагается: тогда
   // именно эта строка говорит, сойдётся ли счёт с банком после загрузки.
   const ledgerGap =
@@ -747,7 +747,7 @@ function BankCard({
     <div className="fin-card p-4 flex flex-col gap-1">
       <p className="fin-label mb-1">Сверка с банком{who ? ` · ${who}` : ""}</p>
       {/* Решение раздела видно, а не подразумевается: счёт выбран не человеком,
-          а по номеру из выписки. Ошибись справочник — это место, где видно. */}
+          а по номеру из выписки. Ошибись справочник - это место, где видно. */}
       {check.account && check.account_by === "number" ? (
         <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
           счёт «{check.account}» узнан по номеру
@@ -788,7 +788,7 @@ function BankCard({
       {ledgerGap !== null ? (
         <div className="fin-acc-row">
           <span className="fin-acc-name">
-            В учёте на {start} ({check.account}) — {formatMoney(check.ledger_opening ?? "0")}
+            В учёте на {start} ({check.account}) - {formatMoney(check.ledger_opening ?? "0")}
           </span>
           <span className={`fin-num ${Math.abs(ledgerGap) < 0.005 ? "" : "fin-out"}`}>
             {Math.abs(ledgerGap) < 0.005 ? "сходится" : formatMoney(ledgerGap, { sign: true })}
@@ -797,7 +797,7 @@ function BankCard({
       ) : null}
       {check.can_set_start && check.opening_balance !== null ? (
         <button type="button" className="btn-ghost text-xs self-start mt-2" disabled={busy} onClick={onSetStart}>
-          Начальный остаток «{check.account}» — {formatMoney(check.opening_balance)}
+          Начальный остаток «{check.account}» - {formatMoney(check.opening_balance)}
         </button>
       ) : null}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Одна правка настройки: запрос, перечитать схему, отказ — у своего места.
+ * Одна правка настройки: запрос, перечитать схему, отказ - у своего места.
  *
  * Сохранение молчит, как в карточке: под полем прочерчивается линия и гаснет.
  * Отказ сервера («Поле «Источник» уже есть», «Главный лист не убирается»)
@@ -22,14 +22,14 @@ export type TraceState = "sending" | "done" | "failed" | undefined;
 
 /**
  * Как вернуть правку (`setup/undo.ts`): что сделано словами и обратный
- * запрос. Функцией — когда обратное зависит от ответа (у добавленного поля
+ * запрос. Функцией - когда обратное зависит от ответа (у добавленного поля
  * ключ выдаёт сервер).
  */
 export type UndoSpec = { text: string; revert: () => Promise<unknown>; after?: "schema" | "all" };
 
 export function errorText(exc: unknown): string {
   if (exc instanceof FinanceApiError) return exc.message;
-  if (exc instanceof TypeError) return "Нет связи с сервером — изменение не сохранено";
+  if (exc instanceof TypeError) return "Нет связи с сервером - изменение не сохранено";
   return exc instanceof Error && exc.message ? exc.message : "Изменение не сохранилось";
 }
 
@@ -39,13 +39,13 @@ async function reload(after: "schema" | "all"): Promise<void> {
       await reloadAll();
       return;
     } catch {
-      /* реестр целиком не перечитался — хотя бы схема */
+      /* реестр целиком не перечитался - хотя бы схема */
     }
   }
   await reloadSchema();
 }
 
-/** Вернуть последнюю правку настройки — «Вернуть» и Ctrl+Z. */
+/** Вернуть последнюю правку настройки - «Вернуть» и Ctrl+Z. */
 export async function revertLast(): Promise<boolean> {
   const entry = takeUndo();
   if (!entry) return false;
@@ -77,10 +77,10 @@ export function useSetupAction() {
 
   /**
    * `after`: что перечитать. Сведение значений меняет сами договоры, поэтому
-   * там — всё; остальное меняет только схему.
+   * там - всё; остальное меняет только схему.
    *
    * `undo`: как вернуть правку. Без него правка не отменяется (сведение двух
-   * значений в одно — обратного у него нет, об этом говорит вопрос до него).
+   * значений в одно - обратного у него нет, об этом говорит вопрос до него).
    */
   const run = useCallback(
     async <T,>(

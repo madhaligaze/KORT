@@ -12,12 +12,12 @@ import { gsap, prefersReducedMotion } from "@/components/motion/gsap";
  * «Ждут решения» (фронт-план, 6.9).
  *
  * Видна только тем, кто правит людей, и только когда есть что решать:
- * пустой полосы и «Запросов нет» не бывает. Просьба о сбросе — вес без
- * цвета (это просьба, а не отказ); пять неверных паролей — роза (может быть
+ * пустой полосы и «Запросов нет» не бывает. Просьба о сбросе - вес без
+ * цвета (это просьба, а не отказ); пять неверных паролей - роза (может быть
  * перебор). Решённая строка сменяет текст на итог и через 4 с сворачивается
- * — единственное место, где строка уходит сама: это список дел.
+ * - единственное место, где строка уходит сама: это список дел.
  *
- * «Недавно» — одна приглушённая строка сведений за сутки («пароль задан»);
+ * «Недавно» - одна приглушённая строка сведений за сутки («пароль задан»);
  * действия не требует.
  */
 const WINDOW_HOURS = 72;
@@ -102,9 +102,9 @@ export function PendingStrip({
           Недавно:{" "}
           {recent
             .map((item) => {
-              const who = shortName(item.subject?.name) || "—";
+              const who = shortName(item.subject?.name) || "-";
               const device = item.payload?.user_agent ? ` · ${deviceOf(String(item.payload.user_agent))}` : "";
-              return `${who} — пароль задан${device} · ${when(item.created_at)}`;
+              return `${who} - пароль задан${device} · ${when(item.created_at)}`;
             })
             .join("; ")}
         </p>
@@ -147,7 +147,7 @@ function PendingRow({
   const row = useRef<HTMLDivElement>(null);
   const locked = item.kind === "login_locked";
   const count = Number(item.payload?.count ?? 5) || 5;
-  // Колбэк — через ссылку: новый на каждой отрисовке перезапускал бы таймер,
+  // Колбэк - через ссылку: новый на каждой отрисовке перезапускал бы таймер,
   // и строка не ушла бы никогда, пока идёт опрос.
   const gone = useRef(onGone);
   useEffect(() => {
@@ -178,7 +178,7 @@ function PendingRow({
   const what = locked ? `${count} неверных паролей подряд` : "просит сбросить пароль";
   return (
     <div ref={row} className="cab-pending-row" data-kind={locked ? "locked" : "reset"}>
-      <span className="cab-pending-who">{item.subject?.name || item.subject?.phone || "—"}</span>
+      <span className="cab-pending-who">{item.subject?.name || item.subject?.phone || "-"}</span>
       <span className={`cab-pending-what ${locked && !done ? "fin-fail" : ""}`}>{done ?? what}</span>
       <span className="cab-pending-time fin-mono fin-soft">{when(item.created_at)}</span>
       <span className="cab-pending-act">

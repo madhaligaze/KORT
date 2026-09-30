@@ -5,7 +5,7 @@
  *
  * Не нативный `<select>`: его выпадающий список рисует система, и на тёмной
  * плите он белый (полупрозрачный `--input-bg` система не понимает), а шрифт у
- * него чужой. Здесь список — слой `.fin-pop`, как у меню «⋯».
+ * него чужой. Здесь список - слой `.fin-pop`, как у меню «⋯».
  *
  * Слой рендерится порталом с `position: fixed` по координатам кнопки: фраза
  * правила переносится на узком экране, и абсолютный слой внутри строки уехал
@@ -150,7 +150,7 @@ export function ChoicePop({
   value,
   options,
   onPick,
-  empty = "—",
+  empty = "-",
   text,
   label,
   disabled,
@@ -159,14 +159,14 @@ export function ChoicePop({
   autoOpen = false,
   onClosed,
 }: ChoiceProps) {
-  // Пункт со значением "" — «пустое разрешено», а не значение: в список он не
-  // идёт (стандарт `ChoiceSelect`), его подпись — то, что написано, пока
-  // ничего не выбрано, а вернуться к пустому — крестиком у кнопки. До 27.09
-  // «—» и «не назначен» стояли в списке наравне с фазами и отделами.
+  // Пункт со значением "" - «пустое разрешено», а не значение: в список он не
+  // идёт (стандарт `ChoiceSelect`), его подпись - то, что написано, пока
+  // ничего не выбрано, а вернуться к пустому - крестиком у кнопки. До 27.09
+  // «-» и «не назначен» стояли в списке наравне с фазами и отделами.
   const blank = options.find((item) => item.value === "");
   const choices = blank ? options.filter((item) => item.value !== "") : options;
   const none = !value;
-  const emptyText = blank && blank.label !== "—" ? blank.label : empty;
+  const emptyText = blank && blank.label !== "-" ? blank.label : empty;
   const [open, setOpen] = useState(autoOpen);
   const [active, setActive] = useState(() => Math.max(0, choices.findIndex((item) => item.value === value)));
   const button = useRef<HTMLButtonElement>(null);
@@ -214,7 +214,7 @@ export function ChoicePop({
         data-empty={!current && text === undefined ? "true" : undefined}
         aria-haspopup="listbox"
         aria-expanded={open}
-        // Кнопка «+ условие» ничего не выбрала — её имя не должно кончаться «: —».
+        // Кнопка «+ условие» ничего не выбрала - её имя не должно кончаться «: -».
         aria-label={current ? `${label}: ${current.label}` : text !== undefined ? label : `${label}: ${emptyText}`}
         disabled={disabled}
         onClick={() => {
@@ -309,7 +309,7 @@ export function MultiPop({
   const search = searchable ?? options.length > 10;
   const needle = query.trim().toLowerCase();
   const chosen = useMemo(() => new Set(values), [values]);
-  // Отмеченные — наверху: их проверяют глазами первыми, и в списке из сорока
+  // Отмеченные - наверху: их проверяют глазами первыми, и в списке из сорока
   // предметов отметка не должна теряться внизу.
   const shown = useMemo(() => {
     const list = needle

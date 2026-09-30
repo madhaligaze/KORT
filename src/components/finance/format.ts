@@ -1,8 +1,8 @@
 /**
  * Набор текста «Финансов»: склонения, даты, короткие имена, деньги договоров.
  *
- * Правила — раздел 2.4 фронт-плана: деньги через `formatMoney` (узкий
- * неразрывный пробел), даты `дд.мм.гггг`, имя в списках — «Фамилия И.»,
+ * Правила - раздел 2.4 фронт-плана: деньги через `formatMoney` (узкий
+ * неразрывный пробел), даты `дд.мм.гггг`, имя в списках - «Фамилия И.»,
  * заглавные буквы в своих подписях не используются.
  */
 import { formatMoney } from "@/components/finance/api";
@@ -17,7 +17,7 @@ export function plural(count: number, one: string, few: string, many: string): s
   return many;
 }
 
-/** «2026-07-15» → «15.07.2026». Пусто — пусто. */
+/** «2026-07-15» → «15.07.2026». Пусто - пусто. */
 export function formatDay(iso: unknown): string {
   if (typeof iso !== "string" || !iso) return "";
   const [year, month, day] = iso.slice(0, 10).split("-");
@@ -25,7 +25,7 @@ export function formatDay(iso: unknown): string {
   return `${day}.${month}.${year}`;
 }
 
-/** «15.07.2026», «15.07.26», «2026-07-15» → ISO; не дата — null. */
+/** «15.07.2026», «15.07.26», «2026-07-15» → ISO; не дата - null. */
 export function parseDay(text: string): string | null {
   const clean = text.trim();
   if (!clean) return null;
@@ -50,7 +50,7 @@ export function formatTime(iso: string | null | undefined): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-/** «Сегодня», «Вчера», «12 сентября» — заголовок дня в истории. */
+/** «Сегодня», «Вчера», «12 сентября» - заголовок дня в истории. */
 export function dayTitle(iso: string | null | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
@@ -77,7 +77,7 @@ export function shortName(full: string | null | undefined): string {
 }
 
 /** Сумма договора без копеек, если их нет: реестр читают по разрядам, но
- *  «250 000,00» у абонентского договора — шум. */
+ *  «250 000,00» у абонентского договора - шум. */
 export function contractMoney(value: unknown): string {
   if (value === null || value === undefined || value === "") return "";
   const number = Number(value);
@@ -85,14 +85,14 @@ export function contractMoney(value: unknown): string {
   return formatMoney(number, { whole: Number.isInteger(number) });
 }
 
-/** Номер договора в столбце: ведущий «№» срезается — он уже в шапке. */
+/** Номер договора в столбце: ведущий «№» срезается - он уже в шапке. */
 export function bareNumber(number: unknown): string {
   return String(number ?? "").replace(/^\s*№\s*/, "").trim();
 }
 
 /**
  * Отдел в списках кабинета: «ОБО · Отдел бухгалтерского обслуживания». Без
- * расшифровки — один код: до 30.09.2026 выходило «ОБО · ОБО», а расшифровка
+ * расшифровки - один код: до 30.09.2026 выходило «ОБО · ОБО», а расшифровка
  * читалась только у ЮО.
  */
 export function departmentLabel(item: { code: string; title?: string | null }): string {
