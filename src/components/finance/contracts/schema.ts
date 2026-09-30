@@ -27,8 +27,16 @@ export function listText(schema: RegistrySchema | null, field: string, id: unkno
   return listValue(schema, field, id)?.value ?? "";
 }
 
-export function departmentText(schema: RegistrySchema | null, id: unknown): string {
-  return schema?.departments.find((item) => item.id === id)?.code ?? "";
+/**
+ * Отделы кодами: «HR, ЮО». У договора отделов список (30.09.2026), у своего
+ * поля типа «отдел» — один идентификатор.
+ */
+export function departmentText(schema: RegistrySchema | null, value: unknown): string {
+  const ids = Array.isArray(value) ? value : value ? [value] : [];
+  return ids
+    .map((id) => schema?.departments.find((item) => item.id === id)?.code ?? "")
+    .filter(Boolean)
+    .join(", ");
 }
 
 export function phaseOf(schema: RegistrySchema | null, contract: Contract): string {

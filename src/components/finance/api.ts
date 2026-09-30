@@ -1093,8 +1093,9 @@ export type RegistrySchema = {
   economic_roles: string[];
   status_phases: string[];
   today: string;
-  /** `payments` — открыты ли оплаты по выписке (нужен журнал); нет поля — старый сервер, спросить. */
-  access: { edit: boolean; setup: boolean; payments?: boolean };
+  /** `payments` — открыты ли оплаты по выписке (нужен журнал); нет поля — старый сервер, спросить.
+   *  `admin` — владелец или администратор: только он убирает отдел из договора. */
+  access: { edit: boolean; setup: boolean; admin?: boolean; payments?: boolean };
 };
 
 /** Книга-сводка компании: откуда «Оплачено (сводка)» (`contracts/summary.py`). */
@@ -1147,6 +1148,9 @@ export type Contract = {
   roles?: { executor?: string; customer?: string };
   /** Договор «другого отдела»: виден, но не правится. */
   readonly?: boolean;
+  /** Кто вписал отдел договора: отдел → учётка. Сотрудник убирает только
+   *  вписанный им самим (и пока без доли); нет ключа — вписал не он. */
+  departments_by?: Record<string, string>;
   file_snapshot: { paid?: string; remaining?: string; as_of?: string; file?: string };
   position: number;
   source: string;
@@ -1279,7 +1283,6 @@ export type DepartmentShare = {
   department_id: string;
   code: string;
   title: string;
-  main: boolean;
   amount: string | null;
   percent: string | null;
   entered: ShareUnit | null;
@@ -1299,13 +1302,15 @@ export type ContractShares = {
     rows: PersonShare[];
     summary?: ShareSummary;
   };
-  /** `null` — доли отделов этому человеку не открыты. */
+  /** `null` — доли отделов этому человеку не открыты. Строки — это и поле
+   *  «Отдел» договора: главного отдела нет (30.09.2026). */
   departments: {
     can_edit: boolean;
+    /** Убрать отдел из договора — только владелец или администратор. */
+    can_remove: boolean;
     unit: ShareUnit | null;
     rows: DepartmentShare[];
     summary: ShareSummary;
-    main: string | null;
     choices: { id: string; code: string; title: string }[];
   } | null;
 };
@@ -1583,6 +1588,8 @@ export type ContractScope = {
   departments?: string[];
   /** Личная запись «шире отдела» — пометка администратора, потолок отдела её не режет. */
   beyond?: boolean;
+  /** У начальника («Сотрудники и права» своего отдела): `false` — доли отделов ему не показывать. */
+  shares?: boolean;
 };
 export type Grant = { level: AccessLevel; scope?: ContractScope };
 
@@ -1605,6 +1612,8 @@ export type SubjectAccess = {
   /** У отдела: люди со входом и кто из них начальник («Сотрудники и права» своего отдела). */
   members?: { id: string; name: string; admin: boolean }[];
   heads?: string[];
+  /** Начальники, которым администратор снял «видит доли отделов» (по умолчанию видят). */
+  heads_without_shares?: string[];
 };
 
 export type GrantChange = AccessLevel | { level: AccessLevel; scope?: ContractScope } | null;

@@ -17,6 +17,10 @@
  * Полоса над строками — пропорции одной тушью: цвет в продукте только у
  * отказа, поэтому перебор суммы — розой, а «всё распределено» ничем не
  * отмечено, кроме полной полосы.
+ *
+ * Отделы долей — это поле «Отдел» договора (30.09.2026): главного отдела нет,
+ * строк столько, сколько отделов в поле. Убрать отдел может только владелец
+ * или администратор (`can_remove`), дописать — тот, кому доли открыты.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -26,7 +30,7 @@ import {
   type ShareUnit,
   contractsApi,
 } from "@/components/finance/api";
-import { ensureShares } from "@/components/finance/contracts/store";
+import { ensureShares, refreshOne, useRegistry } from "@/components/finance/contracts/store";
 import { contractMoney, plural } from "@/components/finance/format";
 
 type Row = {
@@ -37,7 +41,6 @@ type Row = {
   percent: string | null;
   entered: ShareUnit | null;
   mine?: boolean;
-  main?: boolean;
 };
 
 function num(raw: string | null | undefined): number | null {
@@ -152,6 +155,8 @@ type BlockProps = {
   total: number | null;
   monthly: boolean;
   canEdit: boolean;
+  /** Можно ли убрать сохранённую строку (отдел из договора); добавленную в правке — всегда. */
+  removable?: (id: string) => boolean;
   /** Какие ещё строки можно добавить (отделы); `null` — набор строк задан (люди). */
   choices: { id: string; name: string; sub: string }[] | null;
   editLabel: string;
@@ -162,7 +167,7 @@ type BlockProps = {
   onClose?: () => void;
 };
 
-function ShareBlock({ title, rows, unit, summary, total, monthly, canEdit, choices, editLabel, onSave, startOpen, onClose }: BlockProps) {
+function ShareBlock({ title, rows, unit, summary, total, monthly, canEdit, removable, choices, editLabel, onSave, startOpen, onClose }: BlockProps) {
   const [draft, setDraft] = useState<Draft | null>(() =>
     startOpen ? toDraft(rows, unit ?? (total ? "amount" : "percent")) : null,
   );
@@ -267,7 +272,7 @@ function ShareBlock({ title, rows, unit, summary, total, monthly, canEdit, choic
                 <span className="share-unit">{draft.unit === "percent" ? "%" : "₸"}</span>
               </span>
               <span className="share-pct">{other(id)}</span>
-              {choices ? (
+              {choices && (!byId.has(id) || removable?.(id)) ? (
                 <button
                   type="button"
                   className="fin-link-btn share-drop"
@@ -355,7 +360,6 @@ function ShareBlock({ title, rows, unit, summary, total, monthly, canEdit, choic
           <span className="share-name">
             {row.name}
             {row.sub ? <span className="share-sub">{row.sub}</span> : null}
-            {row.main ? <span className="share-sub">отдел договора</span> : null}
           </span>
           <span className="share-val">{row.entered ? moneyText(row.amount, monthly) || "—" : "не задана"}</span>
           <span className="share-pct">{row.entered ? percentText(row.percent) : ""}</span>
@@ -372,17 +376,11 @@ function departmentChoices(value: DepartmentsValue): { id: string; name: string;
   return value.choices.map((choice) => ({ id: choice.id, name: choice.code, sub: choice.title !== choice.code ? choice.title : "" }));
 }
 
-/** Разделение начинается с отдела договора — он почти всегда в нём участвует. */
-function mainRow(value: DepartmentsValue): Row[] {
-  const main = value.choices.find((choice) => choice.id === value.main);
-  return main
-    ? [{ id: main.id, name: main.code, sub: main.title !== main.code ? main.title : "", amount: null, percent: null, entered: null, main: true }]
-    : [];
-}
-
 export function Shares({ contractId, seq }: { contractId: string; seq: number }) {
   const [data, setData] = useState<{ id: string; value: ContractShares } | null>(null);
   const [splitting, setSplitting] = useState(false);
+  const me = useRegistry((s) => s.me);
+  const addedBy = useRegistry((s) => s.byId.get(contractId)?.departments_by);
   useEffect(() => {
     let alive = true;
     contractsApi.shares
@@ -418,9 +416,23 @@ export function Shares({ contractId, seq }: { contractId: string; seq: number })
     amount: row.amount,
     percent: row.percent,
     entered: row.entered,
-    main: row.main,
   }));
   const showDepartments = Boolean(departments && (departmentRows.length || departments.can_edit));
+  // Убрать отдел: администратор — любой, сотрудник — вписанный им самим и без доли.
+  const removableDepartment = (id: string) =>
+    Boolean(departments?.can_remove) ||
+    (me !== null && addedBy?.[id] === me && !departmentRows.find((row) => row.id === id)?.entered);
+  const saveDepartments = async (unit: ShareUnit, items: { id: string; value: string | null }[]) => {
+    const next = await contractsApi.shares.setDepartments(
+      contractId,
+      unit,
+      items.map((item) => ({ department_id: item.id, value: item.value })),
+    );
+    setData({ id: contractId, value: next });
+    // Отделы долей — это и поле «Отдел»: карточка и лист показывают его сразу,
+    // не дожидаясь опроса.
+    void refreshOne(contractId);
+  };
   if (!showPeople && !showDepartments) return null;
 
   const others = people.count - personRows.length;
@@ -480,38 +492,26 @@ export function Shares({ contractId, seq }: { contractId: string; seq: number })
             total={total}
             monthly={monthly}
             canEdit={departments.can_edit}
+            removable={removableDepartment}
             choices={departmentChoices(departments)}
-            editLabel="Изменить"
-            onSave={async (unit, items) => {
-              const next = await contractsApi.shares.setDepartments(
-                contractId,
-                unit,
-                items.map((item) => ({ department_id: item.id, value: item.value })),
-              );
-              setData({ id: contractId, value: next });
-            }}
+            editLabel={departmentRows.some((row) => row.entered) ? "Изменить" : "Распределить"}
+            onSave={saveDepartments}
           />
         ) : splitting ? (
           <ShareBlock
             title="Отделы"
-            rows={mainRow(departments)}
+            rows={[]}
             unit={null}
             summary={undefined}
             total={total}
             monthly={monthly}
             canEdit
+            removable={removableDepartment}
             choices={departmentChoices(departments)}
             editLabel="Распределить"
             startOpen
             onClose={() => setSplitting(false)}
-            onSave={async (unit, items) => {
-              const next = await contractsApi.shares.setDepartments(
-                contractId,
-                unit,
-                items.map((item) => ({ department_id: item.id, value: item.value })),
-              );
-              setData({ id: contractId, value: next });
-            }}
+            onSave={saveDepartments}
           />
         ) : (
           <p className="share-foot">

@@ -445,6 +445,50 @@ export function RightsMatrix({
           {headError ? <span className="cab-line-error fin-fail">{headError}</span> : null}
         </div>
       ) : null}
+      {!person && data.heads?.length ? (
+        // Доли отделов в договорах своего отдела начальник видит, пока
+        // администратор не снял (решение владельца 30.09.2026): пометка
+        // `shares: false` в том же праве «Сотрудники и права».
+        <div className="cab-right cab-right-sub-row cab-heads">
+          <span className="cab-right-title">
+            Видит доли отделов
+            <span className="cab-right-sub fin-soft">в договорах, где стоит его отдел</span>
+          </span>
+          <span className="cab-entity-list">
+            {(data.members ?? [])
+              .filter((member) => data.heads?.includes(member.id))
+              .map((member) => {
+                const on = !(data.heads_without_shares ?? []).includes(member.id);
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    className="cab-toggle"
+                    aria-pressed={on}
+                    disabled={readOnly || !admin || headBusy !== ""}
+                    title={admin ? undefined : "Решает администратор"}
+                    onClick={async () => {
+                      setHeadBusy(member.id);
+                      setHeadError("");
+                      try {
+                        await peopleApi.access.put("employee", member.id, {
+                          people: { level: "edit", scope: on ? { rows: "department", shares: false } : { rows: "department" } },
+                        });
+                        setData(await peopleApi.access.get("department", id));
+                      } catch (exc) {
+                        setHeadError(exc instanceof Error ? exc.message : "Не записалось");
+                      } finally {
+                        setHeadBusy("");
+                      }
+                    }}
+                  >
+                    {member.name}
+                  </button>
+                );
+              })}
+          </span>
+        </div>
+      ) : null}
       {person ? (
         <div className="cab-right cab-right-head" aria-hidden="true">
           <span />

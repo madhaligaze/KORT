@@ -979,6 +979,8 @@ export function choicesOf(
       values = (schema.lists[column.key] ?? []).filter((item) => !only || only.includes(item.id)).map((item) => item.value);
       break;
     case "department":
+      // Один отдел из списка; «HR, ЮО» и «ОБО, НО, ЮО, HR» вписывают через
+      // запятую (как людей) или в карточке — у таких строк списка нет.
       values = schema.departments.map((item) => item.code);
       break;
     case "people":
@@ -1028,6 +1030,34 @@ function isPurchaseRow(model: SheetModel, row: number, key: string, state: Regis
   return own(other) && !own(key);
 }
 
+/**
+ * Какие чужие отделы договора пропадут от напечатанного в ячейке — кодами.
+ * Убрать отдел может владелец или администратор, а сотрудник — только
+ * вписанный им самим (`departments_by`). Чужой лист возвращает сам, не
+ * отправляя правку, которая получила бы отказ, — иначе в ячейке оставалось бы
+ * «HR», а у договора «HR, ЮО».
+ */
+function droppedDepartments(
+  state: RegistryState,
+  contract: { values: Record<string, unknown>; departments_by?: Record<string, string> },
+  raw: string,
+): string[] {
+  const departments = state.schema?.departments ?? [];
+  const plain = (text: string) => text.trim().toLowerCase().replace(/ё/g, "е");
+  const typed = new Set(
+    raw
+      .split(/[,;\n/]+/)
+      .map(plain)
+      .filter(Boolean)
+      .map((text) => departments.find((item) => plain(item.code) === text || plain(item.title) === text)?.id ?? text),
+  );
+  const current = Array.isArray(contract.values.department) ? (contract.values.department as string[]) : [];
+  const mine = (id: string) => state.me !== null && contract.departments_by?.[id] === state.me;
+  return current
+    .filter((id) => !typed.has(id) && !mine(id))
+    .map((id) => departments.find((item) => item.id === id)?.code ?? id);
+}
+
 /** В строке несколько значений (ответственных, пунктов списка) — одиночный список их не покажет. */
 function isCrowdRow(model: SheetModel, row: number, key: string, state: RegistryState): boolean {
   const slot = model.slots[row];
@@ -1036,10 +1066,15 @@ function isCrowdRow(model: SheetModel, row: number, key: string, state: Registry
   return Array.isArray(value) && value.length > 1;
 }
 
-/** Строки, где у колонки списка не должно быть: покупка по стороне, несколько людей. */
+/** Колонка, где в ячейке бывает несколько значений через запятую: люди, отделы договора, пункты списка. */
+function isMultiple(column: SheetColumn): boolean {
+  return column.kind === "people" || column.key === "department" || column.field?.type === "multi_list";
+}
+
+/** Строки, где у колонки списка не должно быть: покупка по стороне, несколько людей или отделов. */
 function skipRow(model: SheetModel, row: number, column: SheetColumn, block: BlockLayout, state: RegistryState): boolean {
   if (column.kind === "party") return !block.ownSide && isPurchaseRow(model, row, column.key, state);
-  if (column.kind === "people" || column.field?.type === "multi_list") return isCrowdRow(model, row, column.key, state);
+  if (isMultiple(column)) return isCrowdRow(model, row, column.key, state);
   return false;
 }
 
@@ -1093,7 +1128,7 @@ function rulesOf(model: SheetModel, state: RegistryState, extra?: ReadonlyMap<st
       const choices = choicesOf(column, state, layout.ownSide, layout.choices?.[column.key] ?? null);
       if (!choices) return;
       const ranges: Range[] =
-        (column.kind === "party" && !layout.ownSide) || column.kind === "people" || column.field?.type === "multi_list"
+        (column.kind === "party" && !layout.ownSide) || isMultiple(column)
           ? rangesWithout(model, top, bottom, index, (row) => skipRow(model, row, column, layout, state))
           : [{ startRow: top, endRow: bottom, startColumn: index, endColumn: index }];
       if (!ranges.length) return;
@@ -1451,7 +1486,15 @@ export class RegistryBinding {
   /** Больше нуля — лист пишет в себя сам, и эти правки не человеческие. */
   private writing = 0;
   private editing: { sheet: string; row: number; col: number } | null = null;
-  private deferred = new Set<string>();
+  /**
+   * Строки, которые перерисовка отложила до выхода из редактора ячейки, — с
+   * режимом. Возврат напечатанного («Номер строки ставит лист», «убрать отдел
+   * может только администратор») идёт `force`, пока редактор ещё числится
+   * открытым: до 30.09.2026 отложенное догонялось `diff`, отпечаток ячейки был
+   * прежним — и напечатанное «77» или «HR» оставалось в ячейке под словами
+   * отказа.
+   */
+  private deferred = new Map<string, "diff" | "force">();
   private creating = new Map<string, number>();
   private local = new Map<string, number>();
   private queuedCells = new Map<string, Set<string>>();
@@ -1665,6 +1708,11 @@ export class RegistryBinding {
 
   private isAdmin(): boolean {
     return Boolean(this.ctx.state.schema?.access.setup);
+  }
+
+  /** Убрать любой отдел договора — владелец или администратор (30.09.2026). */
+  private canRemoveDepartments(): boolean {
+    return Boolean(this.ctx.state.schema?.access.admin);
   }
 
   /**
@@ -2354,7 +2402,9 @@ export class RegistryBinding {
         const markChanged = !old || old.marks[column] !== next.marks[column];
         if (mode === "diff" && !valueChanged && !markChanged) continue;
         if (this.isEditingCell(sheet, row, column)) {
-          this.deferred.add(`${sheet}|${row}`);
+          const key = `${sheet}|${row}`;
+          if (mode !== "diff") this.deferred.set(key, "force");
+          else if (!this.deferred.has(key)) this.deferred.set(key, "diff");
           if (old) {
             next.canon[column] = old.canon[column];
             next.marks[column] = old.marks[column];
@@ -2564,8 +2614,7 @@ export class RegistryBinding {
     const found = this.listAt(sheet, row, column);
     const model = this.models.get(sheet);
     if (!found || !model || found.choices.closed || !raw) return;
-    const multiple = found.spec.kind === "people" || found.spec.field?.type === "multi_list";
-    const parts = multiple ? raw.split(/[,;\n]+/) : [raw];
+    const parts = isMultiple(found.spec) ? raw.split(/[,;\n]+/) : [raw];
     const fresh = parts.map((part) => part.trim()).filter((part) => part && !found.choices.values.includes(part));
     if (!fresh.length) return;
     const uid = `creg-dv-${sheet}-${found.block}-${column}`;
@@ -2771,10 +2820,10 @@ export class RegistryBinding {
     if (!this.alive) return;
     const deferred = [...this.deferred];
     this.deferred.clear();
-    for (const key of deferred) {
+    for (const [key, mode] of deferred) {
       const [sheet, row] = key.split("|");
       const model = this.models.get(sheet);
-      if (model) this.paint(model, [Number(row)], "diff");
+      if (model) this.paint(model, [Number(row)], mode);
     }
     for (const model of this.models.values()) this.flushStructure(model);
   }
@@ -3259,9 +3308,18 @@ export class RegistryBinding {
         else if (spec) note = `«${spec.label}» — только для чтения`;
         continue;
       }
+      const raw = rawOf(spec, cell);
+      const gone = spec.key === "department" && !this.canRemoveDepartments() ? droppedDepartments(this.ctx.state, contract, raw) : [];
+      if (gone.length) {
+        revert = true;
+        note =
+          gone.length === 1
+            ? `Отдел ${gone[0]} в договор вписали не вы — убрать его может администратор или владелец`
+            : `Отделы ${gone.join(", ")} в договор вписали не вы — убрать их может администратор или владелец`;
+        continue;
+      }
       if (state) state.canon[column] = typed;
       this.touch([{ id, key: spec.key }]);
-      const raw = rawOf(spec, cell);
       this.extendList(model.layout.key, row, column, raw);
       edit(id, spec.key, raw);
       if (getRegistry().edits.get(id)?.get(spec.key)?.state === "asking") asks.push({ id, key: spec.key });

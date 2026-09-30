@@ -162,6 +162,7 @@ export function InlineField({ contractId, field, label, labelNote, wide, suffix,
         onCancel={stopEditing}
         placeholder={placeholder ?? label ?? field.title}
         draftKey={`${draftKey}.text`}
+        contractId={contractId}
       />
     );
   } else if (field.type === "url" && typeof value === "string" && value) {
@@ -262,6 +263,7 @@ function Editor({
   onCancel,
   placeholder,
   draftKey,
+  contractId = null,
 }: {
   field: RegistryField;
   value: unknown;
@@ -271,6 +273,8 @@ function Editor({
   placeholder: string;
   /** Где в сессии лежит набранный текст (`TextEditor`). */
   draftKey: string;
+  /** Договор поля; `null` — новый, ещё не заведённый. */
+  contractId?: string | null;
 }) {
   const schema = useRegistry((s) => s.schema);
   const people = useRegistry((s) => s.people);
@@ -318,6 +322,17 @@ function Editor({
         />
         {failure ? <div className="ifield-error">{failure}</div> : null}
       </>
+    );
+  }
+  if (field.key === "department") {
+    return (
+      <DepartmentsEditor
+        value={Array.isArray(value) ? (value as string[]) : value ? [String(value)] : []}
+        contractId={contractId}
+        closed={field.fill === "list"}
+        onCommit={onCommit}
+        onCancel={onCancel}
+      />
     );
   }
   if (field.type === "list" || field.type === "department" || field.type === "choice" || field.type === "bool") {
@@ -560,6 +575,93 @@ function DateEditor({
  * «Людях», выбрать было нельзя, а напечатанное «Асхат» заводило второго
  * «Асхата» рядом с «Асхатом Ибраевым».
  */
+/**
+ * «Отдел» договора — списком, как «Ответственное лицо» (30.09.2026): «HR,
+ * ЮО», «ОБО, НО, ЮО, HR» у договора «4 в 1». Дописать отдел может каждый, кто
+ * правит поле; убрать — владелец или администратор, а сотрудник — только
+ * вписанный им самим (свою ошибку исправляет сам). Где убрать нельзя, крестика
+ * нет; отдел с долей сервер не отдаст и «своему» — откажет словами.
+ */
+function DepartmentsEditor({
+  value,
+  contractId,
+  closed,
+  onCommit,
+  onCancel,
+}: {
+  value: string[];
+  contractId: string | null;
+  closed: boolean;
+  onCommit: (value: unknown) => void;
+  onCancel: () => void;
+}) {
+  const schema = useRegistry((s) => s.schema);
+  const me = useRegistry((s) => s.me);
+  const addedBy = useRegistry((s) => (contractId ? s.byId.get(contractId)?.departments_by : undefined));
+  const [chosen, setChosen] = useState<string[]>(value);
+  const [adding, setAdding] = useState(value.length === 0);
+  const departments = schema?.departments ?? [];
+  // Новый договор ещё не заведён — всё в нём вписано самим человеком.
+  const canRemove = (id: string) => Boolean(schema?.access.admin) || !contractId || (me !== null && addedBy?.[id] === me);
+  const codeOf = (id: string) => departments.find((item) => item.id === id)?.code ?? id;
+  const options: ComboOption[] = departments
+    .filter((item) => !chosen.includes(item.id))
+    .map((item) => ({ id: item.id, label: item.code, hint: item.title !== item.code ? item.title : undefined }));
+  const save = (next: string[]) => {
+    setChosen(next);
+    onCommit(next);
+  };
+  return (
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem 0.75rem", alignItems: "baseline", minHeight: "2rem" }}>
+        {chosen.map((id) => (
+          <span key={id}>
+            {codeOf(id)}
+            {canRemove(id) ? (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="fin-link-btn"
+                  aria-label={`Убрать ${codeOf(id)}`}
+                  onClick={() => save(chosen.filter((item) => item !== id))}
+                >
+                  ×
+                </button>
+              </>
+            ) : null}
+          </span>
+        ))}
+        {!adding && options.length ? (
+          <button type="button" className="fin-link-btn" aria-label="Добавить отдел" onClick={() => setAdding(true)}>
+            +
+          </button>
+        ) : null}
+        <button type="button" className="fin-link-btn fin-muted" onClick={onCancel}>
+          Готово
+        </button>
+      </div>
+      {adding ? (
+        <Combo
+          options={options}
+          placeholder="Отдел"
+          allowCreate={!closed}
+          emptyText={closed ? "Такого отдела нет — отделы заводят в личном кабинете" : undefined}
+          onPick={(option) => {
+            setAdding(false);
+            save([...chosen, option.id]);
+          }}
+          onCreate={(text) => {
+            setAdding(false);
+            save([...chosen, text]);
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function PeopleEditor({
   value,
   people,
