@@ -176,7 +176,7 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
   useEffect(() => {
     void ensureStaff();
   }, []);
-  // Доли исполнителей - последняя колонка листа и «По сотрудникам» у
+  // Доли сотрудников - последняя колонка листа и «По сотрудникам» у
   // «Разовых»; те, что открыты человеку. Книга собирается, когда они
   // прочитаны (или отказали): иначе ширина колонки встала бы по пустым ячейкам.
   const [sharesRead, setSharesRead] = useState(false);

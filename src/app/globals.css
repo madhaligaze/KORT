@@ -3285,7 +3285,7 @@ textarea.ifield-input { resize: vertical; field-sizing: content; min-height: 4.5
 .piece-row input, .piece-row select { height: 1.875rem; padding: 0 0.5rem; border-radius: 6px; border: 1px solid var(--fin-line); background: var(--input-bg); color: var(--fin-text); font: inherit; font-size: 0.8125rem; }
 .snapshot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem 1.5rem; font-size: 0.875rem; color: var(--fin-text-soft); font-variant-numeric: tabular-nums; }
 
-/* ─── Доли исполнителей и отделов в карточке ───
+/* ─── Доли сотрудников и отделов в карточке ───
    Полоса - пропорции одной тушью, сегменты разделены просветом; своя доля
    сотрудника - полной тушью, остальные тише. Перебор - рамкой розой.
    Нераспределённое - пунктирная дорожка под сегментами. */

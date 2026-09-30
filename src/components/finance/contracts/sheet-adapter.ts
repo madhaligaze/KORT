@@ -124,15 +124,18 @@ const SNAPSHOT_KEYS = new Set(["paid_snapshot", "remaining_snapshot"]);
  */
 const LIVE_KEYS = new Set(["paid", "remaining", "summary_paid", "summary_remaining", "__shares"]);
 /**
- * «Доли исполнителей» - колонка, которую ставит сам лист в конце каждой
+ * «Доли сотрудников» - колонка, которую ставит сам лист в конце каждой
  * части (29.09.2026: «раз доли есть в карточке, пусть будут и в таблице»).
  * Не поле реестра: приходит своим запросом (`ensureShares`) и только то, что
  * открыто этому человеку - сотруднику своя доля, начальнику и
  * администратору все. Правится в карточке: у распределения своё правило
- * (не больше суммы договора и 100%), ячейка его не удержит.
+ * (не больше суммы договора и 100%), ячейка его не удержит. До 30.09.2026
+ * называлась «Доли исполнителей»; в карточке блок людей - «Сотрудники», и
+ * колонка названа так же (просьба владельца). Личный вид хранит колонку по
+ * ключу, поэтому «скрыть у себя» переименование пережило.
  */
 export const SHARES_KEY = "__shares";
-const SHARES_LABEL = "Доли исполнителей";
+const SHARES_LABEL = "Доли сотрудников";
 /**
  * Поля, которых нет в листе без явного списка колонок: сводка и «Срок, мес»
  * нужны «Разовым», а в «Все договоры» новой компании встали бы пустыми.
@@ -284,7 +287,7 @@ export function layoutOf(schema: RegistrySchema, view: RegistryView): ViewLayout
         key: ORDINAL_KEY, label: "№", width: DEFAULT_WIDTH.ordinal, kind: "ordinal", field: null, readOnly: true,
       });
     }
-    // Доли исполнителей - последней колонкой каждой части, только чтение.
+    // Доли сотрудников - последней колонкой каждой части, только чтение.
     columns.push({
       key: SHARES_KEY, label: SHARES_LABEL, width: DEFAULT_WIDTH.shares, kind: "shares", field: null, readOnly: true,
     });
@@ -1687,7 +1690,7 @@ export class RegistryBinding {
             if (slot?.kind === "row" && slot.id && event.eventType === DBLCLICK) {
               this.events.openCard(slot.id, { view: sheet, block: slot.block });
             } else {
-              this.events.note("Доли исполнителей правятся в карточке договора - двойной щелчок по ячейке или Alt+Enter", false);
+              this.events.note(`${SHARES_LABEL} правятся в карточке договора - двойной щелчок по ячейке или Alt+Enter`, false);
             }
             return;
           }
@@ -2211,7 +2214,7 @@ export class RegistryBinding {
     }
     const labels = cols.map((col) => this.columnLabel(model, col));
     const named = labels.map((label) => `«${label}»`).join(", ");
-    // «Доли исполнителей» - колонка самого листа, не поле: у всех её не убрать.
+    // «Доли сотрудников» - колонка самого листа, не поле: у всех её не убрать.
     const own = cols.filter((col) => model.layout.blocks.some((block) => block.columns[col] && block.columns[col].kind !== "shares"));
     const keys = own.map((col) =>
       model.layout.blocks.map((block) => {
@@ -2288,7 +2291,7 @@ export class RegistryBinding {
     }
     const label = this.columnLabel(model, from.startColumn);
     if (model.layout.blocks.some((block) => block.columns[from.startColumn]?.kind === "shares")) {
-      return this.refuse("«Доли исполнителей» стоит последней всегда", [
+      return this.refuse(`«${SHARES_LABEL}» стоит последней всегда`, [
         "Эту колонку ставит сам лист в конце каждой части. У себя её можно сузить или скрыть.",
       ]);
     }
@@ -3200,7 +3203,7 @@ export class RegistryBinding {
       return;
     }
     if (spec.kind === "shares") {
-      this.refuse("«Доли исполнителей» не переименовывается", ["Эту колонку ставит сам лист, её подпись одна у всех."]);
+      this.refuse(`«${SHARES_LABEL}» не переименовывается`, ["Эту колонку ставит сам лист, её подпись одна у всех."]);
       return;
     }
     if (!this.isAdmin()) {
@@ -3391,7 +3394,7 @@ export class RegistryBinding {
       if (!spec || spec.readOnly) {
         revert = true;
         if (spec?.kind === "ordinal") note = "Номер строки ставит лист";
-        else if (spec?.kind === "shares") note = "Доли исполнителей правятся в карточке договора - двойной щелчок по ячейке или Alt+Enter";
+        else if (spec?.kind === "shares") note = `${SHARES_LABEL} правятся в карточке договора - двойной щелчок по ячейке или Alt+Enter`;
         else if (spec) note = `«${spec.label}» - только для чтения`;
         continue;
       }
