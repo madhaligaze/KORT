@@ -244,6 +244,7 @@ export function Cabinet({
   };
   const departments = data?.departments ?? [];
   const pickedRightsDept = rightsDept ?? (department !== PEOPLE_ALL && departments.some((d) => d.id === department) ? department : departments[0]?.id ?? null);
+  const rightsDeptItem = departments.find((d) => d.id === pickedRightsDept);
 
   // Почта — не имя. Владелец без ФИО заведён сотрудником под своей почтой, и
   // портрет крупно повторял её в третий раз за экран (шапка, портрет, профиль).
@@ -374,7 +375,7 @@ export function Cabinet({
                 {pickedRightsDept ? (
                   <>
                     <p className="cab-rights-head">
-                      {departments.find((d) => d.id === pickedRightsDept)?.title} · права отдела
+                      {rightsDeptItem?.title || rightsDeptItem?.code} · права отдела
                     </p>
                     <RightsMatrix
                       kind="department"

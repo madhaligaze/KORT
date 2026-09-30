@@ -90,6 +90,16 @@ export function bareNumber(number: unknown): string {
   return String(number ?? "").replace(/^\s*№\s*/, "").trim();
 }
 
+/**
+ * Отдел в списках кабинета: «ОБО · Отдел бухгалтерского обслуживания». Без
+ * расшифровки — один код: до 30.09.2026 выходило «ОБО · ОБО», а расшифровка
+ * читалась только у ЮО.
+ */
+export function departmentLabel(item: { code: string; title?: string | null }): string {
+  const title = (item.title ?? "").trim();
+  return title && title !== item.code ? `${item.code} · ${title}` : item.code;
+}
+
 /** Адрес с многоточием в середине: «bitrix24.kz/…/4411». */
 export function middleEllipsis(text: string, max = 40): string {
   const clean = text.replace(/^https?:\/\//, "");

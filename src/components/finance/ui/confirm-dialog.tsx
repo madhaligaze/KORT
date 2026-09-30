@@ -22,6 +22,14 @@ type Props = {
 
 export function ConfirmDialog({ open, title, text, confirm, danger, busy, onConfirm, onCancel }: Props) {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  // Отмена — по ссылке: родитель передаёт её новой стрелкой на каждой
+  // перерисовке, и фокус возвращался на «Отмена» с каждым опросом реестра —
+  // даже когда человек уже перешёл на опасную кнопку (как у карточки, см.
+  // `card-layer.tsx`).
+  const onCancelRef = useRef(onCancel);
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  });
   useEffect(() => {
     if (!open) return;
     cancelRef.current?.focus();
@@ -29,12 +37,12 @@ export function ConfirmDialog({ open, title, text, confirm, danger, busy, onConf
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        onCancel();
+        onCancelRef.current();
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [open, onCancel]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
   return createPortal(

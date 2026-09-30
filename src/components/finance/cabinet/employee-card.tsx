@@ -9,7 +9,7 @@ import { EditLine } from "@/components/finance/cabinet/edit-line";
 import { RightsMatrix } from "@/components/finance/cabinet/rights";
 import { SessionsList } from "@/components/finance/cabinet/sessions-list";
 import { ROLE_TITLES, employeeStatus, stamp } from "@/components/finance/cabinet/status";
-import { shortName } from "@/components/finance/format";
+import { departmentLabel, shortName } from "@/components/finance/format";
 import { CardLayer } from "@/components/finance/ui/card-layer";
 import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 import { PhoneInput, formatPhone, phoneValue } from "@/components/finance/ui/phone-input";
@@ -358,8 +358,8 @@ export function EmployeeCard({
                 label="Отдел"
                 value={employee.department_id ?? ""}
                 kind="select"
-                options={[{ value: "", label: "Без отдела" }, ...departments.map((d) => ({ value: d.id, label: `${d.code} · ${d.title}` }))]}
-                shown={department ? `${department.code} · ${department.title}` : undefined}
+                options={[{ value: "", label: "Без отдела" }, ...departments.map((d) => ({ value: d.id, label: departmentLabel(d) }))]}
+                shown={department ? departmentLabel(department) : undefined}
                 // Начальник отдела переводит людей только администратором.
                 editable={manage && !headOnly(me)}
                 onSave={(v) => save({ department_id: v || null })()}

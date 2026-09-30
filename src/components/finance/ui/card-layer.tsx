@@ -36,6 +36,16 @@ export function CardLayer({ open, onClose, label, children }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<Element | null>(null);
+  // Закрытие — по ссылке, а не зависимостью эффекта. Раздел передаёт
+  // `onClose` новой стрелкой на каждой перерисовке, и эффект снимался и
+  // ставился заново при открытой карточке — а снимаясь, возвращал фокус туда,
+  // где тот был до открытия. Над листом это редактор ячейки Univer: до
+  // 30.09.2026 опрос реестра перерисовывал раздел, и доля, которую набирали в
+  // карточке, теряла фокус после первой-второй цифры.
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -43,7 +53,7 @@ export function CardLayer({ open, onClose, label, children }: Props) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
-        onClose();
+        closeRef.current();
       }
       if (event.key === "Tab" && sheet.current) {
         const focusable = sheet.current.querySelectorAll<HTMLElement>(
@@ -71,7 +81,7 @@ export function CardLayer({ open, onClose, label, children }: Props) {
       const back = returnFocus.current;
       if (back instanceof HTMLElement && document.contains(back)) back.focus({ preventScroll: true });
     };
-  }, [open, onClose]);
+  }, [open]);
 
   useGSAP(
     () => {

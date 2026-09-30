@@ -8,6 +8,7 @@ import { type Department, type EmployeeRow, type Me, peopleApi } from "@/compone
 import { FilterChips } from "@/components/finance/cabinet/filter-chips";
 import { EmployeeCard } from "@/components/finance/cabinet/employee-card";
 import { employeeStatus, sortPeople } from "@/components/finance/cabinet/status";
+import { departmentLabel } from "@/components/finance/format";
 import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 import { PhoneInput, formatPhone, phoneValue } from "@/components/finance/ui/phone-input";
 import { useSessionDrop, useSessionState } from "@/components/session-state";
@@ -139,9 +140,7 @@ export function PeopleTab({
             <>
               {/* Код — не моноширинным: в Martian Mono кириллическая «О» кода
                   «ЮО» читалась нулём. */}
-              <span className="cab-dept-title">
-                {current.code} · {current.title}
-              </span>
+              <span className="cab-dept-title">{departmentLabel(current)}</span>
               {can(me, "people", "view") ? (
                 <button type="button" className="fin-link-btn cab-dept-act" onClick={() => onDepartmentRights(current.id)}>
                   Права отдела
@@ -348,7 +347,7 @@ function PersonForm({
           >
             {departments.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.code} · {item.title}
+                {departmentLabel(item)}
               </option>
             ))}
           </ChoiceSelect>
@@ -437,18 +436,13 @@ function DepartmentForm({
           onChange={(e) => setCode(e.target.value)}
           autoFocus
           autoComplete="off"
-          placeholder="ЮО"
         />
       </label>
+      {/* Без подсказок «ЮО» и «Юридический отдел»: у каждого нового отдела
+          поля выглядели заполненными под юротдел (30.09.2026). */}
       <label className="auth-field cab-add-title">
-        <span className="eyebrow">Название</span>
-        <input
-          className="input-field"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          autoComplete="off"
-          placeholder="Юридический отдел"
-        />
+        <span className="eyebrow">Расшифровка</span>
+        <input className="input-field" value={title} onChange={(e) => setTitle(e.target.value)} autoComplete="off" />
       </label>
       <span className="cab-add-actions">
         {initial ? (

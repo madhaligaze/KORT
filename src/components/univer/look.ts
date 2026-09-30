@@ -27,6 +27,11 @@
  *   рождённая командой оформления, помечена видом «до» и «после».
  * * Хранится на сервере за учёткой и компанией (`/finance/looks/{key}`) —
  *   раздел даёт `store`, корень про адрес не знает.
+ * * **Масштаб** — у всей книги, а не у вкладки: человек подбирает его под свой
+ *   экран. Univer держит его в настройке листа, а книга реестра
+ *   пересобирается, поэтому до 30.09.2026 после каждой перезагрузки лист
+ *   снова стоял на 100%. «Сбросить мой вид» его не трогает — у масштаба свой
+ *   сброс, в строке под листом.
  */
 import { ICommandService, IUndoRedoService, IUniverInstanceService } from "@univerjs/core";
 
@@ -61,7 +66,8 @@ type SheetLook = {
   fields?: Record<string, Style>;
 };
 
-export type Look = { v: 1; sheets: Record<string, SheetLook> };
+/** `zoom` — масштаб книги (0.8 — 80%); нет — 100%. */
+export type Look = { v: 1; sheets: Record<string, SheetLook>; zoom?: number };
 
 export type LookStore = {
   load: () => Promise<Look | null>;
@@ -90,6 +96,9 @@ const M = {
   colVisible: "sheet.mutation.set-col-visible",
   rowHeight: "sheet.mutation.set-worksheet-row-height",
 };
+
+/** Все способы сменить масштаб — ползунок, Ctrl+колесо, «100%» — сходятся здесь. */
+const ZOOM = "sheet.operation.set-zoom-ratio";
 
 /**
  * Команды, которые меняют только вид. Пока идёт такая команда (и её вложенные
@@ -177,6 +186,29 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
       api.syncExecuteCommand(id, { unitId, ...params });
     } catch (exc) {
       console.warn(`вид листа: ${id} не встал:`, exc);
+    }
+  };
+
+  type ZoomSheet = { getSheetId: () => string; getConfig: () => { zoomRatio?: number } };
+  /**
+   * Масштаб — на каждую вкладку книги. В настройку листа он пишется так же,
+   * как это делает сам Univer: невидимая вкладка возьмёт его при переходе, а
+   * ещё не нарисованная книга — при первой отрисовке. Видимой вкладке нужна
+   * ещё и операция: она двигает сам холст.
+   */
+  const spreadZoom = (zoom: number, except?: string) => {
+    const workbook = model();
+    const sheets = (workbook?.getSheets?.() ?? []) as ZoomSheet[];
+    for (const ws of sheets) {
+      if (ws.getSheetId() !== except) ws.getConfig().zoomRatio = zoom;
+    }
+    const active = (workbook?.getActiveSheet?.() as ZoomSheet | undefined)?.getSheetId();
+    if (!active || active === except) return;
+    applying = true;
+    try {
+      exec(ZOOM, { subUnitId: active, zoomRatio: zoom });
+    } finally {
+      applying = false;
     }
   };
 
@@ -352,6 +384,16 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
       restoring = false;
       return;
     }
+    if (command.id === ZOOM) {
+      const params = command.params as { unitId?: string; subUnitId?: string; zoomRatio?: number } | undefined;
+      if (applying || params?.unitId !== unitId || typeof params.zoomRatio !== "number") return;
+      const zoom = Math.round(params.zoomRatio * 100) / 100;
+      if (zoom === 1) delete look.zoom;
+      else look.zoom = zoom;
+      spreadZoom(zoom, params.subUnitId);
+      changed();
+      return;
+    }
     if (LOOK_COMMAND.test(command.id)) {
       depth = Math.max(0, depth - 1);
       if (depth === 0) {
@@ -370,7 +412,9 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
 
   // ── Наложить вид на собранный лист ──
   const apply = () => {
-    if (!alive || isEmpty()) return;
+    if (!alive) return;
+    if (look.zoom) spreadZoom(look.zoom);
+    if (isEmpty()) return;
     const workbook = model();
     applying = true;
     try {
@@ -424,6 +468,7 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
       // Успели оформить до ответа сервера — своё не теряем, дописываем поверх.
       const early = !isEmpty();
       if (saved && saved.v === 1 && saved.sheets && !early) look = saved;
+      else if (early && saved?.zoom && look.zoom === undefined) look.zoom = saved.zoom;
       loaded = true;
       notify();
       if (early) changed();
@@ -444,10 +489,13 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
     apply,
     empty: isEmpty,
     reset: async () => {
-      look = { v: 1, sheets: {} };
+      // Масштаб остаётся: у него свой сброс, «100%» в строке под листом.
+      const zoom = look.zoom;
+      look = zoom ? { v: 1, sheets: {}, zoom } : { v: 1, sheets: {} };
       window.clearTimeout(saveTimer);
       notify();
-      await store.clear();
+      if (zoom) await store.save(clone(look));
+      else await store.clear();
     },
     subscribe: (listener) => {
       listeners.add(listener);

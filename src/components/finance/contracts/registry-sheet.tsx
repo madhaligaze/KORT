@@ -191,8 +191,13 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
   }, []);
   // «Оплачено/Остаток по выписке» меняют выписки и разнесение, а не правки
   // договоров — опросу реестра о них неоткуда узнать. Раз в минуту, пока
-  // вкладка на виду, и сразу при возвращении на неё.
+  // вкладка на виду, и сразу при возвращении на неё. Первый раз — когда
+  // схема прочитана: она говорит, открыт ли журнал. До 30.09.2026 лист
+  // спрашивал раньше неё, и у каждого юриста в консоли висел 403, а за ним
+  // лишнее перечитывание прав.
+  const schemaKnown = state.schema !== null;
   useEffect(() => {
+    if (!schemaKnown) return;
     void ensurePayments();
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
@@ -205,7 +210,7 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
+  }, [schemaKnown]);
 
   // «Оплачено/Остаток (сводка)» — из книги-сводки: раз в минуту, пока вкладка
   // на виду, и сразу при возвращении на неё (сервер держит книгу пять минут).
@@ -358,14 +363,21 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
   }, [openId]);
 
   // Стрелки карточки ведут по строкам листа: соседи пересчитываются, когда
-  // открыт другой договор или строки листа поменялись.
+  // открыт другой договор или строки листа поменялись. Эффект идёт на каждую
+  // перемену хранилища (опрос раз в 2 с), поэтому наверх уходят только
+  // новые соседи: объект с прежними перерисовывал раздел вместе с карточкой.
+  const sentNeighbors = useRef<{ prev: string | null; next: string | null } | null>(null);
   useEffect(() => {
     if (!onNeighbors) return;
     const now = binding.current;
-    onNeighbors({
+    const around = {
       prev: openId && now ? now.neighbor(openId, -1) : null,
       next: openId && now ? now.neighbor(openId, 1) : null,
-    });
+    };
+    const last = sentNeighbors.current;
+    if (last && last.prev === around.prev && last.next === around.next) return;
+    sentNeighbors.current = around;
+    onNeighbors(around);
   }, [openId, state, built, onNeighbors]);
 
   /**

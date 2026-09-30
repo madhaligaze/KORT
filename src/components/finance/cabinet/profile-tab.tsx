@@ -8,7 +8,7 @@ import { ROLE_TITLES } from "@/components/finance/cabinet/status";
 import { ChoiceSelect } from "@/components/choice-select";
 import { SelectLine } from "@/components/finance/ui/select-line";
 import { EditLine } from "@/components/finance/cabinet/edit-line";
-import { plural } from "@/components/finance/format";
+import { departmentLabel, plural } from "@/components/finance/format";
 
 /**
  * «Моё · Профиль» (фронт-план, 6.9).
@@ -120,9 +120,9 @@ export function ProfileTab({
         kind="select"
         options={[
           { value: "", label: "Без отдела" },
-          ...(departments ?? []).map((item) => ({ value: item.id, label: `${item.code} · ${item.title}` })),
+          ...(departments ?? []).map((item) => ({ value: item.id, label: departmentLabel(item) })),
         ]}
-        shown={department ? `${department.code} · ${department.title}` : undefined}
+        shown={department ? departmentLabel(department) : undefined}
         editable={Boolean(ownRecord) && departments !== null}
         onSave={(value) => saveRecord({ department_id: value || null })}
       />
