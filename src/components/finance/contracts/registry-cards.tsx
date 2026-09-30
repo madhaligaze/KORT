@@ -480,10 +480,10 @@ export function Registry({
             ) : null}
           </div>
 
-          {/* «Общая сумма» на три секунды у договоров, где в «Сумме» доля
-              отдела (`total-preview.tsx`). Смена листа, поиска или отбора -
-              новое появление для видимых строк. */}
-          <TotalPreview reset={[view.key, needle, issuesOnly, sharesOnly, Boolean(mineOnly)].join("|")}>
+          {/* «Сумма» ↔ «Общая сумма» каждые три секунды, пока на экране
+              договор, где в «Сумме» доля отдела (`total-preview.tsx`); под
+              открытой карточкой круг стоит. */}
+          <TotalPreview paused={!!openId || !!draft}>
             <div className="creg-list">
               <Head
                 sort={sort}
@@ -837,7 +837,7 @@ type RowProps = {
   peopleCount: number;
   /** Сумма строки: в книге отдела - его доля (`book-share.ts`), иначе сумма договора. */
   amount: string | number | null | undefined;
-  /** Вся сумма договора, если в `amount` доля меньше неё, - её на три секунды показывает `ShareAmount`. */
+  /** Вся сумма договора, если в `amount` доля меньше неё, - её по очереди с долей показывает `ShareAmount`. */
   whole: number | null;
   /** Откуда сумма, если это не весь договор одного отдела: «Доля ЮО - 30% от 348 000». */
   amountNote: string;

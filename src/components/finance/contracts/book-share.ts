@@ -57,7 +57,7 @@ export function bookAmount(contract: Contract, share: BookShare | null): unknown
 /**
  * Вся сумма договора, если в «Сумме» книги стоит доля и она от неё
  * отличается (ОКР/59: доля 104 400 из 348 000); иначе `null` - в «Сумме» и
- * так весь договор. Её на три секунды показывает `total-preview.tsx`.
+ * так весь договор. Её по очереди с долей показывает `total-preview.tsx`.
  */
 export function wholeAmount(contract: Contract, share: BookShare | null): number | null {
   if (share?.kind !== "share" || share.amount === null) return null;
