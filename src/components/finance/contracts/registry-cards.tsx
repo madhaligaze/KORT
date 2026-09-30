@@ -54,7 +54,8 @@ import {
   roleLabels,
   viewCounts,
 } from "@/components/finance/contracts/schema";
-import { blockTally, bookAmount, bookShareOf, shareNote } from "@/components/finance/contracts/book-share";
+import { blockTally, bookAmount, bookShareOf, shareNote, wholeAmount } from "@/components/finance/contracts/book-share";
+import { AmountTitle, ShareAmount, TotalPreview } from "@/components/finance/contracts/total-preview";
 import {
   boot,
   ensureShares,
@@ -479,49 +480,54 @@ export function Registry({
             ) : null}
           </div>
 
-          <div className="creg-list">
-            <Head
-              sort={sort}
-              onSort={(key) => {
-                const next = !sort || sort.key !== key ? { key, dir: 1 as const } : sort.dir === 1 ? { key, dir: -1 as const } : null;
-                setSortPick({ view: view.key, sort: next });
-                writeSort(view.key, next);
-              }}
-            />
-            {rows.length === 0 ? (
-              <p className="creg-empty">
-                {needle ? (
-                  <>
-                    Ничего не нашлось ·{" "}
-                    <button type="button" className="fin-link-btn" onClick={() => setQuery("")}>
-                      Сбросить поиск
-                    </button>
-                  </>
-                ) : sharesOnly ? (
-                  <>
-                    {isAdmin(me) ? "В этом листе совместных договоров нет" : "В этом листе нет договоров, где у вас доля"} ·{" "}
-                    <button type="button" className="fin-link-btn" onClick={() => setSharesOnly(false)}>
-                      Показать все
-                    </button>
-                  </>
-                ) : mineOnly ? (
-                  "Здесь нет договоров, где вы ответственный"
-                ) : (
-                  "В этом листе пока пусто"
-                )}
-              </p>
-            ) : (
-              <Rows
-                view={view}
-                rows={rows}
-                grouped={view.blocks.length > 1 && !sort}
-                openId={openId}
-                fresh={fresh}
-                needle={needle}
-                onOpen={openRow}
+          {/* «Общая сумма» на три секунды у договоров, где в «Сумме» доля
+              отдела (`total-preview.tsx`). Смена листа, поиска или отбора -
+              новое появление для видимых строк. */}
+          <TotalPreview reset={[view.key, needle, issuesOnly, sharesOnly, Boolean(mineOnly)].join("|")}>
+            <div className="creg-list">
+              <Head
+                sort={sort}
+                onSort={(key) => {
+                  const next = !sort || sort.key !== key ? { key, dir: 1 as const } : sort.dir === 1 ? { key, dir: -1 as const } : null;
+                  setSortPick({ view: view.key, sort: next });
+                  writeSort(view.key, next);
+                }}
               />
-            )}
-          </div>
+              {rows.length === 0 ? (
+                <p className="creg-empty">
+                  {needle ? (
+                    <>
+                      Ничего не нашлось ·{" "}
+                      <button type="button" className="fin-link-btn" onClick={() => setQuery("")}>
+                        Сбросить поиск
+                      </button>
+                    </>
+                  ) : sharesOnly ? (
+                    <>
+                      {isAdmin(me) ? "В этом листе совместных договоров нет" : "В этом листе нет договоров, где у вас доля"} ·{" "}
+                      <button type="button" className="fin-link-btn" onClick={() => setSharesOnly(false)}>
+                        Показать все
+                      </button>
+                    </>
+                  ) : mineOnly ? (
+                    "Здесь нет договоров, где вы ответственный"
+                  ) : (
+                    "В этом листе пока пусто"
+                  )}
+                </p>
+              ) : (
+                <Rows
+                  view={view}
+                  rows={rows}
+                  grouped={view.blocks.length > 1 && !sort}
+                  openId={openId}
+                  fresh={fresh}
+                  needle={needle}
+                  onOpen={openRow}
+                />
+              )}
+            </div>
+          </TotalPreview>
 
           {canEdit ? (
             <button type="button" className="btn-primary creg-fab only-mobile" onClick={newContract} hidden={!!openId || !!draft}>
@@ -691,7 +697,7 @@ function Head({ sort, onSort }: { sort: { key: SortKey; dir: 1 | -1 } | null; on
           aria-sort={sort?.key === column.key ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
           onClick={() => onSort(column.key)}
         >
-          {column.title}
+          {column.key === "amount" ? <AmountTitle /> : column.title}
           {sort?.key === column.key ? (sort.dir === 1 ? " ↓" : " ↑") : ""}
         </button>
       ))}
@@ -774,6 +780,7 @@ function Rows({
         peopleTitle={personIds.map((id) => people[id]?.name ?? "").join(", ")}
         peopleCount={personIds.length}
         amount={bookAmount(contract, share) as string | number | null | undefined}
+        whole={wholeAmount(contract, share)}
         amountNote={shareNote(contract, share, code)}
         amountUnset={share?.kind === "unset"}
         onOpen={onOpen}
@@ -830,6 +837,8 @@ type RowProps = {
   peopleCount: number;
   /** Сумма строки: в книге отдела - его доля (`book-share.ts`), иначе сумма договора. */
   amount: string | number | null | undefined;
+  /** Вся сумма договора, если в `amount` доля меньше неё, - её на три секунды показывает `ShareAmount`. */
+  whole: number | null;
   /** Откуда сумма, если это не весь договор одного отдела: «Доля ЮО - 30% от 348 000». */
   amountNote: string;
   /** Отделов несколько, доли отдела книги нет - стоит вся сумма, приглушённо. */
@@ -852,6 +861,7 @@ const Row = memo(function Row({
   peopleTitle,
   peopleCount,
   amount,
+  whole,
   amountNote,
   amountUnset,
   onOpen,
@@ -902,7 +912,9 @@ const Row = memo(function Row({
         {kind}
       </span>
       <span className="creg-money" title={[amountNote, terms].filter(Boolean).join("\n") || undefined}>
-        {amount !== undefined && amount !== null ? (
+        {whole !== null && amount !== undefined && amount !== null ? (
+          <ShareAmount part={amount} whole={whole} monthly={billing === "month"} />
+        ) : amount !== undefined && amount !== null ? (
           <span className={amountUnset ? "fin-muted" : undefined}>
             {contractMoney(amount)}
             {billing === "month" ? <small> /мес</small> : null}

@@ -36,9 +36,9 @@ import {
 import { useRegistry } from "@/components/finance/contracts/store";
 import { shortName } from "@/components/finance/format";
 import { ChoicePop, MultiPop, type PopOption } from "@/components/finance/contracts/setup/popover";
-import { Rise } from "@/components/finance/contracts/setup/rise";
 import { errorText } from "@/components/finance/contracts/setup/use-setup-action";
 import { ECONOMIC_WORDS, PHASE_WORDS, lowerFirst } from "@/components/finance/contracts/setup/words";
+import { RiseSwap } from "@/components/motion/rise-swap";
 
 // ── Каталог полей ────────────────────────────────────────────────────────────
 
@@ -366,7 +366,7 @@ export function RuleCount({ filter }: { filter: ViewFilter }) {
     <span className="setup-count" aria-live="polite">
       {count === null ? "" : (
         <>
-          подходит <Rise text={String(count)} className="setup-count-num" />
+          подходит <RiseSwap value={String(count)} className="setup-count-num" />
         </>
       )}
     </span>

@@ -547,12 +547,6 @@ button[data-tip], label[data-tip], [data-tip] input, [data-tip] button { cursor:
 .setup-count { min-width: 6rem; color: var(--fin-text-soft); font-variant-numeric: tabular-nums; }
 .setup-count-num { color: var(--fin-text); font-weight: 500; }
 
-/* Подъём числа: окно строки с запасом сверху и снизу, как у `.sr-line-mask`.
-   Сдвиг задаёт только GSAP - в CSS transform здесь не пишется. */
-.setup-rise { position: relative; display: inline-block; overflow: clip; vertical-align: bottom; padding: 0.14em 0; margin: -0.14em 0; }
-.setup-rise > span { display: inline-block; }
-.setup-rise-out { position: absolute; left: 0; top: 0.14em; }
-
 /* У слота стороны своя ширина: подпись внутри тянется на 100% родителя, и
    при ширине «по содержимому» ряд не переносился, а наезжал сам на себя
    («исполнитель→», «заказчикПоменять местами» на 800). */

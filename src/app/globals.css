@@ -296,6 +296,23 @@ body {
   margin-block: -0.14em;
 }
 
+/* Подъём (`motion/rise-swap.tsx`): окно строки с тем же запасом. Уходящий и
+   приходящий текст - в одной клетке сетки, окно на время смены шириной в
+   больший. Обрезка только по вертикали: по горизонтали уходящее бывает шире
+   нового («Общая сумма» → «Сумма»), и срезать ему начало незачем. Сдвиг
+   задаёт только GSAP - transform здесь не пишется. */
+.rise-swap {
+  display: inline-grid;
+  justify-items: start;
+  overflow-x: visible;
+  overflow-y: clip;
+  padding-block: 0.14em;
+  margin-block: -0.14em;
+  vertical-align: bottom;
+}
+.rise-swap[data-align="end"] { justify-items: end; }
+.rise-swap > span { grid-area: 1 / 1; }
+
 /* ─── Card ────────────────────────────────────────────────────── */
 .card {
   background: var(--bg-surface);
@@ -2912,6 +2929,9 @@ html:has(.usheet) { overscroll-behavior-x: none; }
 .creg-num { font-family: var(--font-martian), ui-monospace, monospace; font-variation-settings: "wdth" 87.5; font-size: 0.75rem; color: var(--text-secondary); }
 .creg-money { text-align: right; font-variant-numeric: tabular-nums; }
 .creg-money small { color: var(--text-muted); font-size: 0.75rem; }
+/* «общая» у всей суммы на время показа (`total-preview.tsx`) - только там,
+   где нет шапки колонок: на широком окне это говорит сама шапка. */
+.creg-whole-tag { display: none; }
 .creg-status[data-phase="active"] { color: var(--fin-text-soft); }
 .creg-status:not([data-phase="active"]) { font-weight: 500; }
 .creg-issues { text-align: right; color: var(--fin-fail); font-size: 0.75rem; cursor: default; }
@@ -2972,6 +2992,7 @@ html:has(.usheet) { overscroll-behavior-x: none; }
   }
   .creg-row .creg-party { grid-area: party; font-size: 0.9375rem; }
   .creg-row .creg-money { grid-area: money; }
+  .creg-row .creg-whole-tag { display: inline; }
   .creg-row .creg-meta { grid-area: meta; display: block; font-size: 0.75rem; color: var(--fin-text-soft); }
   .creg-row .creg-col-num, .creg-row .creg-col-own, .creg-row .creg-col-kind, .creg-row .creg-col-term,
   .creg-row .creg-status, .creg-row .creg-col-people, .creg-row .creg-issues, .creg-row .creg-note { display: none; }
