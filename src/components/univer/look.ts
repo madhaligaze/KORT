@@ -33,7 +33,7 @@
  *   снова стоял на 100%. «Сбросить мой вид» его не трогает - у масштаба свой
  *   сброс, в строке под листом.
  */
-import { ICommandService, IUndoRedoService, IUniverInstanceService } from "@univerjs/core";
+import { ICommandService, IUndoRedoService, IUniverInstanceService, LifecycleStages } from "@univerjs/core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type UniverApi = any;
@@ -190,11 +190,68 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
   };
 
   type ZoomSheet = { getSheetId: () => string; getConfig: () => { zoomRatio?: number } };
+  /** Univer дошёл до отрисовки листа (`LifecycleStages.Rendered`). */
+  const drawn = () => {
+    try {
+      return (api.getCurrentLifecycleStage?.() ?? LifecycleStages.Rendered) >= LifecycleStages.Rendered;
+    } catch {
+      return true;
+    }
+  };
+  /** Операция масштаба на видимой вкладке. `false` - холст её ещё не принимает. */
+  const zoomView = (zoom: number, except?: string): boolean => {
+    const active = (model()?.getActiveSheet?.() as ZoomSheet | undefined)?.getSheetId();
+    if (!active || active === except) return true;
+    applying = true;
+    try {
+      api.syncExecuteCommand(ZOOM, { unitId, subUnitId: active, zoomRatio: zoom });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      applying = false;
+    }
+  };
+  let zoomWait: { dispose?: () => void } | null = null;
+  let zoomFrame = 0;
+  disposers.push(() => {
+    zoomWait?.dispose?.();
+    cancelAnimationFrame(zoomFrame);
+  });
+  /**
+   * Операция масштаба - кадром позже отрисовки листа: до неё у холста нет
+   * контроллера масштаба, а на самой стадии «нарисован» он может заводиться
+   * позже нашего слушателя. Не вышло - ещё раз на следующей стадии.
+   */
+  const zoomLater = () => {
+    const attempt = () => {
+      cancelAnimationFrame(zoomFrame);
+      zoomFrame = requestAnimationFrame(() => {
+        if (!alive || !zoomView(look.zoom ?? 1)) return;
+        zoomWait?.dispose?.();
+        zoomWait = null;
+      });
+    };
+    if (!zoomWait) {
+      try {
+        zoomWait = api.addEvent(api.Event.LifeCycleChanged, ({ stage }: { stage: number }) => {
+          if (stage >= LifecycleStages.Rendered) attempt();
+        });
+      } catch {
+        zoomWait = null;
+      }
+    }
+    if (drawn()) attempt();
+  };
   /**
    * Масштаб - на каждую вкладку книги. В настройку листа он пишется так же,
    * как это делает сам Univer: невидимая вкладка возьмёт его при переходе, а
    * ещё не нарисованная книга - при первой отрисовке. Видимой вкладке нужна
-   * ещё и операция: она двигает сам холст.
+   * ещё и операция: она двигает холст и переставляет ползунок под листом.
+   *
+   * Вид с сервера часто приходит раньше, чем лист нарисован, и операция тогда
+   * падала. Холст брал масштаб из настройки сам, без события, и до 30.09.2026
+   * лист стоял на 70%, а ползунок показывал 100%. Теперь операция ждёт холст.
    */
   const spreadZoom = (zoom: number, except?: string) => {
     const workbook = model();
@@ -202,14 +259,8 @@ export function keepLook(api: UniverApi, ids: LookIds, store: LookStore): LookKe
     for (const ws of sheets) {
       if (ws.getSheetId() !== except) ws.getConfig().zoomRatio = zoom;
     }
-    const active = (workbook?.getActiveSheet?.() as ZoomSheet | undefined)?.getSheetId();
-    if (!active || active === except) return;
-    applying = true;
-    try {
-      exec(ZOOM, { subUnitId: active, zoomRatio: zoom });
-    } finally {
-      applying = false;
-    }
+    if (drawn() && zoomView(zoom, except)) return;
+    zoomLater();
   };
 
   type Command = { id: string; params?: Record<string, unknown> };
