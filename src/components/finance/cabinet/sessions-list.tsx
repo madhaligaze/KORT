@@ -10,10 +10,20 @@ import { ago, deviceOf, when } from "@/components/finance/cabinet/status";
  *
  * Свои (`employeeId` пуст) - текущий помечен « · этот», и «Завершить» у него
  * нет: выйти можно кнопкой «Выйти». Сеансы сотрудника - у каждого
- * «Завершить», и один «Завершить все» для всех разом (сервер закрывает все
- * сеансы человека в компании).
+ * «Завершить», закрывает он только свою строку; все разом - «Завершить
+ * сеансы» в карточке. До 01.10.2026 «Завершить» в строке закрывало все сеансы
+ * человека, и кнопки стояли и у того, кому менять человека нельзя.
  */
-export function SessionsList({ employeeId, onChanged }: { employeeId?: string; onChanged?: () => void }) {
+export function SessionsList({
+  employeeId,
+  canEnd = true,
+  onChanged,
+}: {
+  employeeId?: string;
+  /** Можно ли закрывать чужие сеансы: у сотрудника - если его можно менять. */
+  canEnd?: boolean;
+  onChanged?: () => void;
+}) {
   const [items, setItems] = useState<SessionRow[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -69,14 +79,14 @@ export function SessionsList({ employeeId, onChanged }: { employeeId?: string; o
             {item.last_seen_at ? `последнее действие ${ago(item.last_seen_at)}` : `вход ${when(item.created_at)}`}
           </span>
           <span className="cab-row-act">
-            {item.current ? null : (
+            {item.current || !canEnd ? null : (
               <button
                 type="button"
                 className="btn-ghost btn-sm"
                 disabled={busy !== null}
                 onClick={() =>
                   run(item.id, () =>
-                    employeeId ? peopleApi.employees.endSessions(employeeId) : financeApi.revokeSession(item.id),
+                    employeeId ? peopleApi.employees.endSession(employeeId, item.id) : financeApi.revokeSession(item.id),
                   )
                 }
               >

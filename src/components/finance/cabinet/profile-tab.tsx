@@ -51,6 +51,7 @@ export function ProfileTab({
   const [changing, setChanging] = useState(false);
   const [changingEmail, setChangingEmail] = useState(false);
   const [handing, setHanding] = useState(false);
+  const [switchError, setSwitchError] = useState("");
   const role = me.role ?? me.company?.role ?? null;
   // Владелец, зарегистрированный без имени, заведён сотрудником под своей
   // почтой. Показать почту в строке ФИО - значит выдать её за имя; пустая
@@ -204,12 +205,24 @@ export function ProfileTab({
                   key={company.id}
                   type="button"
                   className="fin-link-btn cab-company"
-                  onClick={async () => onMe(await financeApi.switchCompany(company.id))}
+                  onClick={async () => {
+                    setSwitchError("");
+                    try {
+                      onMe(await financeApi.switchCompany(company.id));
+                    } catch (exc) {
+                      setSwitchError(exc instanceof Error ? exc.message : "Компания не открылась");
+                    }
+                  }}
                 >
                   {company.title}
                 </button>
               ),
             )}
+            {switchError ? (
+              <span className="cab-line-error fin-fail" role="alert">
+                {switchError}
+              </span>
+            ) : null}
           </span>
         </div>
       ) : null}

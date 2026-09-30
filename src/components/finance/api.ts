@@ -1688,6 +1688,9 @@ export const peopleApi = {
     unblock: (id: string) => request<EmployeeRow>(`${P}/employees/${id}/unblock`, { method: "POST" }),
     endSessions: (id: string) =>
       request<EmployeeRow & { sessions_closed?: number }>(`${P}/employees/${id}/end-sessions`, { method: "POST" }),
+    /** Закрыть один сеанс сотрудника - «Завершить» в строке его «Сеансов». */
+    endSession: (id: string, sessionId: string) =>
+      request<EmployeeRow>(`${P}/employees/${id}/sessions/${sessionId}`, { method: "DELETE" }),
     sessions: (id: string) => request<{ items: SessionRow[] }>(`${P}/employees/${id}/sessions`),
   },
   access: {

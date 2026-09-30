@@ -1081,9 +1081,15 @@ export function FinanceClient() {
               style={{ border: "none", outline: "none", padding: 0 }}
               value={me.company?.id ?? ""}
               onChange={async (event) => {
-                const next = await financeApi.switchCompany(event.target.value);
-                setMe(next);
-                reload();
+                // Отказ («Эта компания вам не открыта») - словами над разделом,
+                // а не молча: выбор в шапке просто откатывался бы назад.
+                try {
+                  const next = await financeApi.switchCompany(event.target.value);
+                  setMe(next);
+                  reload();
+                } catch (exc) {
+                  setError(exc instanceof Error ? exc.message : "Компания не открылась");
+                }
               }}
               aria-label="Сменить компанию"
             >

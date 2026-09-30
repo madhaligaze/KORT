@@ -245,10 +245,14 @@ export function EmployeeCard({
     onChanged(row);
   };
 
+  // Сеансы владельца не видит никто, администратора - только владелец (сервер,
+  // `people.employee_sessions`). Раньше вкладка стояла и отвечала «Сотрудник
+  // не найден» о человеке, чья карточка открыта.
+  const seesSessions = hasAccount && (self || (role !== "owner" && (role !== "admin" || owner)));
   const tabs: { key: Tab; label: string }[] = [
     { key: "profile", label: "Профиль" },
     ...(hasAccount ? [{ key: "access" as Tab, label: "Доступ" }] : []),
-    ...(hasAccount ? [{ key: "sessions" as Tab, label: "Сеансы" }] : []),
+    ...(seesSessions ? [{ key: "sessions" as Tab, label: "Сеансы" }] : []),
     { key: "actions", label: "Действия" },
   ];
   const shownTab = tabs.some((item) => item.key === tab) ? tab : "profile";
@@ -420,7 +424,7 @@ export function EmployeeCard({
               onChanged={(data) => setSections(openSections(data))}
             />
           ) : null}
-          {shownTab === "sessions" ? <SessionsList employeeId={employee.id} /> : null}
+          {shownTab === "sessions" ? <SessionsList employeeId={employee.id} canEnd={touchable || self} /> : null}
           {shownTab === "actions" ? <ActionFeed fixed={{ employee_id: employee.id }} /> : null}
         </div>
       </div>
