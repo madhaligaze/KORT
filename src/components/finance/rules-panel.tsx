@@ -70,22 +70,45 @@ export function RulesPanel({
     void load();
   }, [load]);
 
-  const create = async (name: string, value: string, categoryName: string) => {
+  /**
+   * `where` - условие правила. Подсказка «С чего начать» найдена по
+   * комментарию и заводит «комментарий содержит»; до 01.10.2026 она брала поле
+   * и условие из формы «Новое правило» ниже, и если там стоял «Контрагент»,
+   * правило молча выходило про контрагента и не срабатывало.
+   */
+  const create = async (
+    name: string,
+    value: string,
+    categoryName: string,
+    where: { field: string; op: string } = { field, op },
+  ): Promise<boolean> => {
     setBusy(true);
     setError("");
     try {
       await financeApi.createRule({
         name,
         match: "all",
-        conditions: [{ field, op, value }],
+        conditions: [{ field: where.field, op: where.op, value }],
         actions: { category: categoryName },
       });
-      setKeyword("");
       await load();
+      return true;
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Правило не завелось");
+      return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** «Выключить», «Удалить» у правила: отказ - текстом, а не молчанием. */
+  const act = async (work: () => Promise<unknown>, failed: string) => {
+    setError("");
+    try {
+      await work();
+      await load();
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : failed);
     }
   };
 
@@ -143,8 +166,11 @@ export function RulesPanel({
                   defaultValue=""
                   onChange={async (event) => {
                     if (!event.target.value) return;
-                    await create(hint.keyword, hint.keyword, event.target.value);
-                    onChanged();
+                    const done = await create(hint.keyword, hint.keyword, event.target.value, {
+                      field: "comment",
+                      op: "contains",
+                    });
+                    if (done) onChanged();
                   }}
                 >
                   <PlaceholderOption>в статью…</PlaceholderOption>
@@ -225,7 +251,9 @@ export function RulesPanel({
             type="button"
             className="btn-primary"
             disabled={busy || !keyword.trim() || !category}
-            onClick={() => create(keyword.trim(), keyword.trim(), category)}
+            onClick={async () => {
+              if (await create(keyword.trim(), keyword.trim(), category)) setKeyword("");
+            }}
           >
             Завести правило
           </button>
@@ -282,20 +310,14 @@ export function RulesPanel({
                   <button
                     type="button"
                     className="fin-chip"
-                    onClick={async () => {
-                      await financeApi.toggleRule(rule.id, !rule.active);
-                      await load();
-                    }}
+                    onClick={() => void act(() => financeApi.toggleRule(rule.id, !rule.active), "Правило не переключилось")}
                   >
                     {rule.active ? "Выключить" : "Включить"}
                   </button>
                   <button
                     type="button"
                     className="fin-chip"
-                    onClick={async () => {
-                      await financeApi.deleteRule(rule.id);
-                      await load();
-                    }}
+                    onClick={() => void act(() => financeApi.deleteRule(rule.id), "Правило не удалилось")}
                   >
                     Удалить
                   </button>
