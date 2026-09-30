@@ -28,6 +28,8 @@ export type TraceState = "sending" | "done" | "failed" | undefined;
 export type UndoSpec = { text: string; revert: () => Promise<unknown>; after?: "schema" | "all" };
 
 export function errorText(exc: unknown): string {
+  // Код 0 - до сервера не дошло ни байта (`request` в api.ts).
+  if (exc instanceof FinanceApiError && exc.status === 0) return "Нет связи с сервером - изменение не сохранено";
   if (exc instanceof FinanceApiError) return exc.message;
   if (exc instanceof TypeError) return "Нет связи с сервером - изменение не сохранено";
   return exc instanceof Error && exc.message ? exc.message : "Изменение не сохранилось";

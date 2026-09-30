@@ -461,12 +461,25 @@ function signal(status: number, path: string): void {
   if (status === 403) window.dispatchEvent(new Event(FORBIDDEN_EVENT));
 }
 
+/** Что человек видит, когда до сервера не дошло ни одного байта. */
+export const OFFLINE_TEXT = "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.";
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API}${path}`, {
-    credentials: "include",
-    headers: init?.body instanceof FormData ? undefined : { "Content-Type": "application/json" },
-    ...init,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API}${path}`, {
+      credentials: "include",
+      headers: init?.body instanceof FormData ? undefined : { "Content-Type": "application/json" },
+      ...init,
+    });
+  } catch (exc) {
+    // Сеть упала или фронт перезапускается: fetch бросает TypeError с
+    // английским «Failed to fetch», и до 01.10.2026 его текст стоял на входе,
+    // в кабинете и в журнале. Код 0 - «нет связи»: хранилище реестра по нему
+    // ставит правку в очередь, как и раньше.
+    if (exc instanceof DOMException && exc.name === "AbortError") throw exc;
+    throw new FinanceApiError(OFFLINE_TEXT, 0);
+  }
   if (!response.ok) {
     signal(response.status, path);
     let message = `Сервер ответил ${response.status}`;

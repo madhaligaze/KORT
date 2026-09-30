@@ -188,6 +188,10 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
               className="hidden"
               onChange={(event) => {
                 const picked = event.target.files?.[0];
+                // Тот же файл второй раз подряд - тоже выбор: без сброса change не
+                // придёт, и выписка, поправленная после «Файл не прочитался»,
+                // молча не загружалась (так уже сделано у загрузки реестра).
+                event.target.value = "";
                 if (picked) void send(picked);
               }}
             />

@@ -4,11 +4,14 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // Headers we never forward from the client request to the backend.
+// `x-client-ip` ставит только сам прокси (см. `clientIp`): присланный
+// браузером подменял бы адрес в журнале и ключ ограничителя перебора.
 const REQUEST_STRIP_HEADERS = new Set([
   "connection",
   "content-length",
   "host",
   "transfer-encoding",
+  "x-client-ip",
 ]);
 
 // Headers we never copy from the backend response back to the browser.
@@ -57,6 +60,22 @@ function buildTargetUrl(request: NextRequest, path: string[]): string {
   return target.toString();
 }
 
+/**
+ * Адрес человека - первое значение `X-Forwarded-For`: его ставит край Railway,
+ * и браузер его не подменит (рекомендация Railway; `X-Real-IP` за их CDN
+ * врёт).
+ *
+ * API читает адрес из `x-client-ip` (`client_ip()` в `routes/finance.py`), а
+ * прокси его не ставил: до 01.10.2026 в «Сеансах», журнале действий и
+ * уведомлении «пять неверных паролей» стояли адреса узлов Railway
+ * (`100.64.0.x`), а ограничитель перебора по адресу считал всех людей за
+ * одним узлом одним человеком. Без заголовка (локальный запуск) API берёт
+ * адрес соединения сам.
+ */
+function clientIp(request: NextRequest): string {
+  return (request.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() ?? "";
+}
+
 function buildForwardHeaders(request: NextRequest): Headers {
   const headers = new Headers();
 
@@ -67,6 +86,9 @@ function buildForwardHeaders(request: NextRequest): Headers {
     }
     headers.set(key, value);
   });
+
+  const ip = clientIp(request);
+  if (ip) headers.set("x-client-ip", ip);
 
   return headers;
 }
