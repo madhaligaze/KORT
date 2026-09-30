@@ -17,6 +17,20 @@ import {
 type Line = { title: string; quantity: string; price: string };
 
 /**
+ * Число из поля: «150 000», «1 500,50» - как пишут суммы у нас. До 01.10.2026
+ * пробел в цене давал на экране «NaN» в сумме позиции и «К оплате», а на
+ * сервер уходил как есть.
+ */
+function clean(text: string): string {
+  return text.replace(/\s/g, "").replace(",", ".");
+}
+
+function amountOf(text: string): number {
+  const value = Number(clean(text) || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+/**
  * Счета-фактуры.
  *
  * Здесь появляется долг: выставили счёт - дебиторка есть сразу, вместе со
@@ -66,11 +80,8 @@ export function InvoicesPanel({
   }, [load]);
 
   const totals = useMemo(() => {
-    const net = lines.reduce(
-      (sum, line) => sum + Number(line.quantity || 0) * Number((line.price || "0").replace(",", ".")),
-      0,
-    );
-    const vat = (net * Number(vatRate || 0)) / 100;
+    const net = lines.reduce((sum, line) => sum + amountOf(line.quantity) * amountOf(line.price), 0);
+    const vat = (net * amountOf(vatRate)) / 100;
     return { net, vat, gross: net + vat };
   }, [lines, vatRate]);
 
@@ -82,14 +93,14 @@ export function InvoicesPanel({
         kind: side,
         issued_at: issuedAt,
         due_at: dueAt,
-        vat_rate: vatRate || "0",
+        vat_rate: clean(vatRate) || "0",
         counterparty_id: counterpartyId || null,
         project_id: projectId || null,
         category_id: categoryId || null,
         comment,
         lines: lines
-          .filter((line) => Number(line.price || 0) !== 0)
-          .map((line) => ({ title: line.title, quantity: line.quantity || "1", price: line.price })),
+          .filter((line) => amountOf(line.price) !== 0)
+          .map((line) => ({ title: line.title, quantity: clean(line.quantity) || "1", price: clean(line.price) })),
       });
       setForm(false);
       setLines([{ title: "", quantity: "1", price: "" }]);
@@ -252,7 +263,7 @@ export function InvoicesPanel({
                   />
                 </label>
                 <span className="fin-num" style={{ minWidth: "7rem", color: "var(--text-primary)" }}>
-                  {formatMoney(Number(line.quantity || 0) * Number((line.price || "0").replace(",", ".")))}
+                  {formatMoney(amountOf(line.quantity) * amountOf(line.price))}
                 </span>
                 {lines.length > 1 ? (
                   <button
