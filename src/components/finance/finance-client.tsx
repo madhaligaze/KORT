@@ -846,6 +846,28 @@ export function FinanceClient() {
     null,
   );
   /**
+   * Выход - один для кабинета и экрана временного пароля (там его не было до
+   * 01.10.2026, уйти можно было только очисткой cookie).
+   */
+  const logout = useCallback(async () => {
+    await financeApi.logout().catch(() => undefined);
+    // Компьютер бывает общим: черновики вышедшего не ждут следующего.
+    // Второй раз - после того как экраны снялись: лист, снимаясь,
+    // запоминает своё место.
+    dropAllSessions();
+    forgetLooks();
+    forgetRegistry();
+    setAuthNotice("");
+    // Выходят из кабинета, и раздел «кабинет» оставался выбранным:
+    // следующий вход - свой или чужой - открывался кабинетом, а не
+    // главным экраном (28.09.2026). Раздел и адрес - с чистого листа.
+    setSectionState(null);
+    setCameFrom(null);
+    writeParams({ s: null, id: null, v: null, t: null, d: null }, false);
+    setMe(null);
+    window.setTimeout(dropAllSessions, 300);
+  }, [setMe]);
+  /**
    * Счётчик перезагрузок. Меняется, когда данные изменились где угодно в
    * разделе, и по нему обновляются и сводка слева, и открытый экран.
    *
@@ -1022,9 +1044,14 @@ export function FinanceClient() {
     return (
       <PasswordChangeGate
         onDone={async () => {
-          const next = await financeApi.me();
-          setMe(next.authenticated ? next : null);
+          try {
+            const next = await financeApi.me();
+            setMe(next.authenticated ? next : null);
+          } catch {
+            setMe(null);
+          }
         }}
+        onLogout={() => void logout()}
       />
     );
   }
@@ -1169,24 +1196,7 @@ export function FinanceClient() {
                 reload();
               }}
               onBack={leaveCabinet}
-              onLogout={async () => {
-                await financeApi.logout().catch(() => undefined);
-                // Компьютер бывает общим: черновики вышедшего не ждут следующего.
-                // Второй раз - после того как экраны снялись: лист, снимаясь,
-                // запоминает своё место.
-                dropAllSessions();
-                forgetLooks();
-                forgetRegistry();
-                setAuthNotice("");
-                // Выходят из кабинета, и раздел «кабинет» оставался выбранным:
-                // следующий вход - свой или чужой - открывался кабинетом, а не
-                // главным экраном (28.09.2026). Раздел и адрес - с чистого листа.
-                setSectionState(null);
-                setCameFrom(null);
-                writeParams({ s: null, id: null, v: null, t: null, d: null }, false);
-                setMe(null);
-                window.setTimeout(dropAllSessions, 300);
-              }}
+              onLogout={logout}
               onOpenContract={openContract}
               onPending={setPending}
               hasSections={hasSections}

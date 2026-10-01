@@ -693,12 +693,16 @@ export const financeApi = {
   register: (body: { email: string; password: string; company: string; full_name?: string }) =>
     request<Me>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
   logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
-  // Вход сотрудника по номеру: номер → «пароль» или «задайте пароль».
+  // Вход сотрудника по номеру: номер → «пароль», «задайте пароль» или
+  // «время задать пароль прошло» (`expired`).
   phoneStart: (phone: string) =>
-    request<{ step: "password" | "set_password" }>("/auth/phone/start", {
+    request<{ step: "password" | "set_password" | "expired" }>("/auth/phone/start", {
       method: "POST",
       body: JSON.stringify({ phone }),
     }),
+  /** «Забыли?» у входа по почте - просьба администраторам; ответ одинаковый всегда. */
+  emailForgot: (email: string) =>
+    request<{ ok: boolean }>("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
   phoneLogin: (body: { phone: string; password: string }) =>
     request<Me>("/auth/phone/login", { method: "POST", body: JSON.stringify(body) }),
   /** Задать пароль и сразу войти - ответ как у `me`. */
@@ -1696,7 +1700,9 @@ export const peopleApi = {
     /** Открыть вход человеку из справочника: учётка по номеру ждёт пароль 72 часа. */
     openAccount: (id: string, data: { phone?: string; role?: MemberRole }) =>
       request<EmployeeRow>(`${P}/employees/${id}/account`, { method: "POST", body: JSON.stringify(data) }),
-    reset: (id: string) => request<EmployeeRow>(`${P}/employees/${id}/reset`, { method: "POST" }),
+    /** Сброс пароля. У учётки по почте - `temporary_password`: передать лично, при входе его сменят. */
+    reset: (id: string) =>
+      request<EmployeeRow & { temporary_password?: string }>(`${P}/employees/${id}/reset`, { method: "POST" }),
     block: (id: string) => request<EmployeeRow>(`${P}/employees/${id}/block`, { method: "POST" }),
     unblock: (id: string) => request<EmployeeRow>(`${P}/employees/${id}/unblock`, { method: "POST" }),
     endSessions: (id: string) =>

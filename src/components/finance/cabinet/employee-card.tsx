@@ -86,6 +86,13 @@ export function EmployeeCard({
   const [opening, setOpening] = useSessionState(`emp.${employee?.id ?? "none"}.opening`, false);
   const [digits, setDigits] = useSessionState(`emp.${employee?.id ?? "none"}.phone`, "");
   const [note, setNote] = useState("");
+  /**
+   * Временный пароль учётки, входящей по почте, - после сброса (01.10.2026).
+   * Показывается один раз, пока карточка открыта: его передают человеку
+   * лично, при входе он задаёт свой. Не запоминается - это пароль.
+   */
+  const [temporary, setTemporary] = useState<{ id: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   /** Сколько разделов открыто; `null` - не спрашивали (нет учётки, админ). */
   const [sections, setSections] = useState<number | null>(null);
 
@@ -94,7 +101,12 @@ export function EmployeeCard({
     setNote("");
     setConfirm(null);
     setSections(null);
+    setCopied(false);
   }, [employee?.id]);
+  // Карточку закрыли - временный пароль больше не показывается нигде.
+  useEffect(() => {
+    if (!open) setTemporary(null);
+  }, [open]);
 
   const accountRole = employee?.account?.role ?? null;
   const employeeId = employee?.id ?? null;
@@ -124,6 +136,9 @@ export function EmployeeCard({
   const department = departments.find((item) => item.id === employee.department_id);
   const hasRequest = employee.requests.some((item) => item.kind === "password_reset_requested");
   const hasAccount = employee.account !== null;
+  // Входит по почте, телефона нет: сброс выдаёт временный пароль (01.10.2026),
+  // раньше сервер отвечал «сначала впишите телефон».
+  const byEmail = hasAccount && !employee.account?.phone && Boolean(employee.account?.email);
 
   /** Строка итога берётся из ответа сервера, а не из того, что ожидали. */
   const act = async (
@@ -207,9 +222,20 @@ export function EmployeeCard({
   const dialogs: Record<Exclude<Confirm, null>, { title: string; text: string; confirm: string; run: () => void }> = {
     reset: {
       title: `Сбросить пароль · ${short}`,
-      text: `Старый пароль перестанет действовать, открытые сеансы закроются. Задать новый можно до ${windowEnd}.`,
+      text: byEmail
+        ? "Старый пароль перестанет действовать, открытые сеансы закроются. Появится временный пароль - передайте его человеку лично; при входе он задаст свой."
+        : `Старый пароль перестанет действовать, открытые сеансы закроются. Задать новый можно до ${windowEnd}.`,
       confirm: "Сбросить",
-      run: () => void act(() => peopleApi.employees.reset(employee.id), (row) => `пароль сброшен · ${waitingNote(row)}`),
+      run: () =>
+        void act(
+          async () => {
+            const row = await peopleApi.employees.reset(employee.id);
+            setCopied(false);
+            setTemporary(row.temporary_password ? { id: employee.id, password: row.temporary_password } : null);
+            return row;
+          },
+          (row) => (row.status === "active" && byEmail ? "пароль сброшен · выдан временный" : `пароль сброшен · ${waitingNote(row)}`),
+        ),
     },
     archive: {
       title: `Удалить · ${short}`,
@@ -285,6 +311,27 @@ export function EmployeeCard({
         <p className={`cab-card-status ${status.tone === "fail" ? "fin-fail" : status.tone === "wait" ? "fin-wait" : ""}`} data-tone={status.tone || undefined}>
           {note || status.text}
         </p>
+        {temporary && temporary.id === employee.id ? (
+          <p className="cab-card-note">
+            Временный пароль: <b className="fin-mono">{temporary.password}</b> ·{" "}
+            <button
+              type="button"
+              className="fin-link-btn"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(temporary.password);
+                  setCopied(true);
+                } catch {
+                  setError("Скопировать не получилось - браузер не дал доступ к буферу");
+                }
+              }}
+            >
+              {copied ? "Скопирован" : "Скопировать"}
+            </button>{" "}
+            - передайте человеку лично; при входе по почте {employee.account?.email} он задаст свой. Больше он
+            нигде не показывается.
+          </p>
+        ) : null}
 
         {actions.length > 0 ? (
           <div className="cab-card-actions">

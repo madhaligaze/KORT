@@ -191,6 +191,12 @@ function PendingRow({
               Решено
             </button>
           </>
+        ) : !item.subject?.phone ? (
+          // Входит по почте: сброс выдаёт временный пароль, и показать его
+          // надо там, где он не свернётся через 4 с, - в карточке человека.
+          <button type="button" className="btn-primary btn-sm" onClick={onOpen} disabled={!item.subject?.employee_id}>
+            Открыть
+          </button>
         ) : (
           <button type="button" className="btn-primary btn-sm" onClick={onReset} disabled={!item.subject?.employee_id}>
             Сбросить

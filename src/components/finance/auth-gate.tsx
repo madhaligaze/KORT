@@ -45,7 +45,17 @@ import { AuthStage, AuthWait } from "@/components/stage/auth-stage";
  * - заданный пароль сразу впускает - третий ввод того же пароля ничего не
  *   охранял.
  */
-type Step = "email" | "register" | "phone" | "password" | "set" | "forgot" | "forgot-sent" | "forgot-email";
+type Step =
+  | "email"
+  | "register"
+  | "phone"
+  | "password"
+  | "set"
+  | "expired"
+  | "forgot"
+  | "forgot-sent"
+  | "forgot-email"
+  | "forgot-email-sent";
 
 /** Заголовок двери «Вход» на каждом шаге. Короткий: он набран крупно в узкой колонке. */
 const HEADINGS: Record<Step, string> = {
@@ -54,9 +64,11 @@ const HEADINGS: Record<Step, string> = {
   phone: "Вход сотрудника",
   password: "Вход сотрудника",
   set: "Новый пароль",
+  expired: "Время вышло",
   forgot: "Сброс пароля",
   "forgot-sent": "Запрос отправлен",
   "forgot-email": "Сброс пароля",
+  "forgot-email-sent": "Запрос отправлен",
 };
 
 /** Куда ведёт «←» перед заголовком двери. У первого шага стрелки нет. */
@@ -64,9 +76,11 @@ const BACK: Partial<Record<Step, Step>> = {
   phone: "email",
   password: "phone",
   set: "phone",
+  expired: "phone",
   forgot: "phone",
   "forgot-sent": "phone",
   "forgot-email": "email",
+  "forgot-email-sent": "email",
 };
 
 /** Похоже на номер, а не на почту: цифры и знаки номера, и цифр не меньше десяти. */
@@ -141,10 +155,23 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
     }
   };
 
-  /** Первый шаг по номеру: сервер говорит, есть ли пароль. */
+  /**
+   * Первый шаг по номеру: сервер говорит, есть ли пароль. `expired` - окно
+   * задать пароль прошло (01.10.2026): сразу экран «Попросить
+   * администратора», а не два набора пароля впустую.
+   */
   const startPhone = async (tenDigits: string) => {
     const { step: next } = await financeApi.phoneStart(phoneValue(tenDigits));
-    setStep(next === "set_password" ? "set" : "password");
+    setStep(next === "set_password" ? "set" : next === "expired" ? "expired" : "password");
+  };
+
+  /** Отказ 410 - окно задать пароль прошло: к «Попросить администратора». */
+  const expiredInstead = (exc: unknown): boolean => {
+    if (exc instanceof FinanceApiError && exc.status === 410) {
+      setStep("expired");
+      return true;
+    }
+    return false;
   };
 
   useEffect(() => {
@@ -179,6 +206,7 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
         setStep("set");
         return;
       }
+      if (expiredInstead(exc)) return;
       throw exc;
     }
   };
@@ -219,8 +247,8 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
             setDigits(fromField);
             const typed = password;
             const { step: next } = await financeApi.phoneStart(phoneValue(fromField));
-            if (next === "set_password") {
-              setStep("set");
+            if (next === "set_password" || next === "expired") {
+              setStep(next === "expired" ? "expired" : "set");
               return;
             }
             if (!typed) {
@@ -252,12 +280,20 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
           return;
         }
         return run(async () => {
-          const me = await financeApi.phoneSetPassword({ phone, password });
-          rememberMode("phone");
-          onReady(me);
+          try {
+            const me = await financeApi.phoneSetPassword({ phone, password });
+            rememberMode("phone");
+            onReady(me);
+          } catch (exc) {
+            if (expiredInstead(exc)) return;
+            throw exc;
+          }
         });
+      case "expired":
       case "forgot":
         if (!phoneReady) return;
+        // Окно прошло - та же просьба, что «Забыли?»: администратор видит её
+        // в «Ждут решения» и открывает вход снова.
         return run(async () => {
           await financeApi.phoneForgot(phone);
           setStep("forgot-sent");
@@ -266,6 +302,15 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
         setStep("phone");
         return;
       case "forgot-email":
+        if (!email.trim()) {
+          setError("Впишите почту, с которой входите");
+          return;
+        }
+        return run(async () => {
+          await financeApi.emailForgot(email.trim());
+          setStep("forgot-email-sent");
+        });
+      case "forgot-email-sent":
         setStep("email");
         return;
     }
@@ -409,10 +454,40 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
               </>
             ) : null}
 
+            {inStep === "expired" ? (
+              <>
+                {numberRow}
+                <p className="auth-say">
+                  Время задать пароль прошло. Попросите администратора открыть вход снова - запрос уйдёт ему в
+                  кабинет.
+                </p>
+              </>
+            ) : null}
+
+            {/* Вход по почте: просьба администраторам (01.10.2026). Раньше здесь
+                было только «пароль сбрасывает владелец», и попросить было нечем. */}
             {inStep === "forgot-email" ? (
+              <>
+                <Row label="Почта" htmlFor="auth-forgot-email">
+                  <input
+                    id="auth-forgot-email"
+                    className="auth-input"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="buh@company.kz"
+                    autoComplete="username"
+                    required
+                  />
+                </Row>
+                <p className="auth-say">
+                  Запрос уйдёт администраторам компании. Пароль владельца восстанавливается только на сервере.
+                </p>
+              </>
+            ) : null}
+            {inStep === "forgot-email-sent" ? (
               <p className="auth-say">
-                Пароль администратора сбрасывает владелец компании в личном кабинете. Пароль владельца
-                восстанавливается только на сервере.
+                Когда пароль сбросят, вам передадут временный пароль - войдите с ним, и программа попросит задать свой.
               </p>
             ) : null}
             {inStep === "forgot-sent" ? (
@@ -424,8 +499,9 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
             <Go
               busy={busy}
               disabled={
-                ((inStep === "phone" || inStep === "forgot") && !phoneReady) ||
-                (inStep === "set" && (password.length === 0 || again.length === 0))
+                ((inStep === "phone" || inStep === "forgot" || inStep === "expired") && !phoneReady) ||
+                (inStep === "set" && (password.length === 0 || again.length === 0)) ||
+                (inStep === "forgot-email" && !email.trim())
               }
             >
               {ACTIONS[inStep]}
@@ -508,9 +584,11 @@ const ACTIONS: Record<Step, string> = {
   phone: "Далее",
   password: "Войти",
   set: "Задать пароль и войти",
+  expired: "Попросить администратора",
   forgot: "Отправить запрос",
   "forgot-sent": "Ко входу",
-  "forgot-email": "Ко входу",
+  "forgot-email": "Отправить запрос",
+  "forgot-email-sent": "Ко входу",
 };
 
 /** Сколько сворачивается дверь (`.auth-door-body` в globals.css) - с запасом. */
@@ -691,8 +769,11 @@ function PasswordInput({
  * Стоит между входом и разделом: пока пароль временный, сервер отказывает во
  * всём, кроме чтения и самой смены. Показывать вместо этого раздел, в котором
  * ничего не сохраняется, - худший из вариантов.
+ *
+ * «Выйти» - с 01.10.2026: до того уйти с экрана можно было только очисткой
+ * cookie (вошли не той учёткой, компьютер общий, временный пароль не помнят).
  */
-export function PasswordChangeGate({ onDone }: { onDone: () => void }) {
+export function PasswordChangeGate({ onDone, onLogout }: { onDone: () => void; onLogout: () => void }) {
   const [oldPassword, setOld] = useState("");
   const [newPassword, setNew] = useState("");
   const [busy, setBusy] = useState(false);
@@ -744,6 +825,10 @@ export function PasswordChangeGate({ onDone }: { onDone: () => void }) {
                   </p>
                 ) : null}
                 <Go busy={busy}>Сменить пароль</Go>
+                <button type="button" className="auth-more" onClick={onLogout} disabled={busy}>
+                  Выйти
+                  <Arrow />
+                </button>
               </form>
             </div>
           </div>
