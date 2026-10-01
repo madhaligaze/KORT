@@ -63,7 +63,8 @@ const TABS: { key: Tab; title: string; tip: string }[] = [
 ];
 
 
-export function RegistrySetup({ onBack }: { onBack: () => void }) {
+/** `backLabel` - куда ведёт «назад»: реестр, из которого настройку открыли («Разовые ЮО» или «Реестр»). */
+export function RegistrySetup({ onBack, backLabel = "Реестр" }: { onBack: () => void; backLabel?: string }) {
   const phase = useRegistry((s) => s.phase);
   const error = useRegistry((s) => s.error);
   const schema = useRegistry((s) => s.schema);
@@ -113,7 +114,7 @@ export function RegistrySetup({ onBack }: { onBack: () => void }) {
     <div className="creg-top setup-top">
       <button type="button" className="btn-ghost btn-sm setup-back" onClick={onBack}>
         <ArrowLeftIcon size={16} aria-hidden="true" />
-        Реестр
+        {backLabel}
       </button>
     </div>
   );

@@ -14,6 +14,7 @@ import {
   monthEdges,
 } from "@/components/finance/api";
 import { OperationDialog } from "@/components/finance/operation-dialog";
+import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
 
 type Props = {
   dictionaries: Dictionaries;
@@ -73,6 +74,18 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
    * «операций нет». Теперь раскрытие копится, а любой фильтр начинает с начала.
    */
   const [pages, setPages] = useState(1);
+  /**
+   * С какой операции начинается раскрытое окно. Больше 5000 строк разом экран
+   * не держит; до 01.10.2026 «Показать ещё» на этом кончалось, и операции
+   * старше пятитысячной в журнале было не найти. Теперь окно сдвигается:
+   * «Следующие» и «К началу».
+   */
+  const [start, setStart] = useState(0);
+  /** Удалить - через вопрос (до 01.10.2026 - сразу, без вопроса). */
+  const [asking, setAsking] = useState<Operation | null>(null);
+  /** Только что удалённая операция - «Вернуть» прямо здесь, без корзины кабинета. */
+  const [removed, setRemoved] = useState<{ operation: Operation; undo: string } | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   const filters = useMemo(
     () => ({
@@ -86,9 +99,13 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
   );
   useEffect(() => {
     setPages(1);
+    setStart(0);
   }, [filters]);
 
-  const params = useMemo(() => ({ ...filters, limit: Math.min(PAGE * pages, PAGE_CEILING) }), [filters, pages]);
+  const params = useMemo(
+    () => ({ ...filters, limit: Math.min(PAGE * pages, PAGE_CEILING), offset: start || undefined }),
+    [filters, pages, start],
+  );
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -108,8 +125,11 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
   }, [load, revision]);
 
   const remove = async (operation: Operation) => {
+    setAsking(null);
+    setError("");
     try {
-      await financeApi.deleteOperation(operation.id);
+      const done = await financeApi.deleteOperation(operation.id);
+      setRemoved(done.undo ? { operation, undo: done.undo } : null);
       onChanged();
       await load();
     } catch (exc) {
@@ -117,7 +137,25 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
     }
   };
 
+  /** «Вернуть» - откат того же действия журнала: операция встаёт как была. */
+  const restore = async () => {
+    if (!removed) return;
+    setRestoring(true);
+    setError("");
+    try {
+      await financeApi.undo(removed.undo);
+      setRemoved(null);
+      onChanged();
+      await load();
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Операция не вернулась");
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const items = page?.items ?? [];
+  const shownTo = start + items.length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -233,6 +271,32 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
         </p>
       ) : null}
 
+      {removed ? (
+        <p className="text-sm" role="status" style={{ color: "var(--text-secondary)" }}>
+          Операция удалена: {formatDate(removed.operation.paid_at)} · {formatMoney(removed.operation.amount)}
+          {removed.operation.comment ? ` · ${removed.operation.comment}` : ""} ·{" "}
+          <button type="button" className="fin-link-btn" disabled={restoring} onClick={() => void restore()}>
+            {restoring ? "Возвращаем…" : "Вернуть"}
+          </button>
+        </p>
+      ) : null}
+
+      {start > 0 ? (
+        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+          Показаны операции с {start + 1}-й по {shownTo}-ю из {page?.total ?? shownTo} ·{" "}
+          <button
+            type="button"
+            className="fin-link-btn"
+            onClick={() => {
+              setStart(0);
+              setPages(1);
+            }}
+          >
+            К началу
+          </button>
+        </p>
+      ) : null}
+
       <div className="fin-card overflow-x-auto">
         <table className="fin-table">
           <thead>
@@ -304,7 +368,7 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
                       <button
                         type="button"
                         className="fin-chip"
-                        onClick={() => remove(operation)}
+                        onClick={() => setAsking(operation)}
                         title="Удалить операцию - в корзину"
                       >
                         Удалить
@@ -325,11 +389,41 @@ export function Journal({ dictionaries, revision, onChanged }: Props) {
         </table>
       </div>
 
-      {page && page.total > items.length && items.length < PAGE_CEILING ? (
+      {page && page.total > shownTo && items.length < PAGE_CEILING ? (
         <button type="button" className="btn-ghost self-start" onClick={() => setPages((was) => was + 1)}>
-          Показать ещё {Math.min(PAGE, page.total - items.length)}
+          Показать ещё {Math.min(PAGE, page.total - shownTo)}
         </button>
       ) : null}
+      {page && page.total > shownTo && items.length >= PAGE_CEILING ? (
+        // Окно в 5000 строк заполнено - дальше следующее окно, а не обрыв.
+        <button
+          type="button"
+          className="btn-ghost self-start"
+          onClick={() => {
+            setStart(shownTo);
+            setPages(1);
+            window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+          }}
+        >
+          Следующие операции: с {shownTo + 1}-й из {page.total}
+        </button>
+      ) : null}
+
+      <ConfirmDialog
+        open={asking !== null}
+        title="Удалить операцию?"
+        text={
+          asking
+            ? `${formatDate(asking.paid_at)} · ${formatMoney(asking.amount)}${asking.comment ? ` · ${asking.comment}` : ""}. Она уйдёт в корзину, остатки и отчёты пересчитаются; вернуть можно сразу здесь - «Вернуть».`
+            : ""
+        }
+        confirm="Удалить"
+        danger
+        onCancel={() => setAsking(null)}
+        onConfirm={() => {
+          if (asking) void remove(asking);
+        }}
+      />
 
       {editing ? (
         <OperationDialog

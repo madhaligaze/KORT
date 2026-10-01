@@ -86,9 +86,9 @@ import { SessionScope, dropAllSessions, useSessionState, useSessionStateIn } fro
 
 /** «Настроить реестр» читает схему из хранилища реестра - поднимаем его, если
  *  экран открыли по ссылке, минуя «Реестр». */
-function SetupScreen({ me, onBack }: { me: Me; onBack: () => void }) {
+function SetupScreen({ me, onBack, backLabel }: { me: Me; onBack: () => void; backLabel: string }) {
   useRegistryBoot(me);
-  return <RegistrySetup onBack={onBack} />;
+  return <RegistrySetup onBack={onBack} backLabel={backLabel} />;
 }
 
 /** Univer роняет серверную отрисовку - лист реестра только в браузере. */
@@ -846,6 +846,27 @@ export function FinanceClient() {
     null,
   );
   /**
+   * Откуда открыли «Настроить реестр» и «Загрузить Excel» - туда «назад» и
+   * после загрузки (01.10.2026: из «Разовых ЮО» возвращало в основной
+   * «Реестр»). Переживает перезагрузку вместе с адресом экрана.
+   */
+  const [setupFrom, setSetupFrom] = useSessionStateIn<Section | null>(
+    sessionScope,
+    sessionScope ? "fin.setup-from" : null,
+    null,
+  );
+  const goFromRegistry = useCallback(
+    (next: Section | string) => {
+      if ((next === "contracts-setup" || next === "contracts-import") && section && registryOf(section)) {
+        setSetupFrom(section);
+      }
+      setSection(next);
+    },
+    [section, setSection, setSetupFrom],
+  );
+  const setupBack: Section = setupFrom && registryOf(setupFrom) ? setupFrom : "contracts";
+  const setupBackTitle = registryOf(setupBack)?.book ? oneoffTitle : "Реестр";
+  /**
    * Выход - один для кабинета и экрана временного пароля (там его не было до
    * 01.10.2026, уйти можно было только очисткой cookie).
    */
@@ -958,25 +979,25 @@ export function FinanceClient() {
     }
     switch (section) {
       case "contracts":
-        return <Registry me={me} onGo={setSection} book="" />;
+        return <Registry me={me} onGo={goFromRegistry} book="" />;
       case "contracts-sheet":
         return <SheetScreen me={me} />;
       case "contracts-oneoff":
-        return <OneoffScreen me={me} onGo={setSection} />;
+        return <OneoffScreen me={me} onGo={goFromRegistry} />;
       case "contracts-oneoff-cards":
-        return <OneoffCardsScreen me={me} onGo={setSection} />;
+        return <OneoffCardsScreen me={me} onGo={goFromRegistry} />;
       case "contracts-import":
         return (
           <RegistryImport
             onDone={() => {
               if (me.company) void boot(me.company.id, me.user?.id ?? null, true);
-              setSection("contracts");
+              setSection(setupBack);
             }}
-            onCancel={() => setSection("contracts")}
+            onCancel={() => setSection(setupBack)}
           />
         );
       case "contracts-setup":
-        return <SetupScreen me={me} onBack={() => setSection("contracts")} />;
+        return <SetupScreen me={me} onBack={() => setSection(setupBack)} backLabel={setupBackTitle} />;
       default:
         break;
     }
@@ -1025,7 +1046,21 @@ export function FinanceClient() {
       default:
         return null;
     }
-  }, [section, sectionItem, allowed, dictionaries, revision, reload, me, sheetRefresh, setSection, setDialog]);
+  }, [
+    section,
+    sectionItem,
+    allowed,
+    dictionaries,
+    revision,
+    reload,
+    me,
+    sheetRefresh,
+    setSection,
+    setDialog,
+    goFromRegistry,
+    setupBack,
+    setupBackTitle,
+  ]);
 
   if (loading) return <AuthLoading />;
   if (!me) {
@@ -1376,7 +1411,7 @@ export function FinanceClient() {
                   </button>
                 ))}
               </nav>
-              <RegistryActions book={registry.book} onGo={setSection} />
+              <RegistryActions book={registry.book} onGo={goFromRegistry} />
             </div>
           ) : operationActions ? (
             // Журнал: справа от заголовка - новая операция.

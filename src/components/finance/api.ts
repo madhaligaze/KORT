@@ -753,7 +753,8 @@ export const financeApi = {
     request<Operation>("/operations", { method: "POST", body: JSON.stringify(body) }),
   patchOperation: (id: string, body: unknown) =>
     request<Operation>(`/operations/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteOperation: (id: string) => request<{ ok: boolean }>(`/operations/${id}`, { method: "DELETE" }),
+  /** Удалить операцию; `undo` - запись истории, по ней «Вернуть» (`undo`). */
+  deleteOperation: (id: string) => request<{ ok: boolean; undo?: string }>(`/operations/${id}`, { method: "DELETE" }),
 
   grid: (params: Record<string, string | number | undefined>) =>
     request<GridPayload>(`/grid${qs(params)}`),
