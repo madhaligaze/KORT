@@ -30,9 +30,11 @@ type Props = {
   onClose: () => void;
   label: string;
   children: ReactNode;
+  /** Своя ширина и раскладка плиты (поддержка); без него - карточка записи. */
+  className?: string;
 };
 
-export function CardLayer({ open, onClose, label, children }: Props) {
+export function CardLayer({ open, onClose, label, children, className }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
   const scrim = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<Element | null>(null);
@@ -94,7 +96,19 @@ export function CardLayer({ open, onClose, label, children }: Props) {
           ...(narrow ? { yPercent: 0 } : { y: 0, autoAlpha: 1 }),
           duration: 0.52,
           ease: "expo.out",
-          clearProps: "transform,opacity,visibility",
+          // Стили снимаются здесь, а не `clearProps` твина: снятие transform
+          // обнуляет прокрутку всего, что внутри плиты (Chromium), и переписка
+          // поддержки открывалась на начале ленты, а не на последних
+          // сообщениях (16.10.2026). Прокрученное запоминается и возвращается.
+          onComplete: () => {
+            const node = sheet.current;
+            if (!node) return;
+            const scrolled = Array.from(node.querySelectorAll<HTMLElement>("*"), (el) => [el, el.scrollTop] as const).filter(
+              ([, top]) => top > 0,
+            );
+            gsap.set(node, { clearProps: "transform,opacity,visibility" });
+            for (const [el, top] of scrolled) el.scrollTop = top;
+          },
         },
       );
       if (scrim.current) {
@@ -108,7 +122,13 @@ export function CardLayer({ open, onClose, label, children }: Props) {
   return createPortal(
     <>
       <div ref={scrim} className="card-scrim" onClick={onClose} aria-hidden="true" />
-      <div ref={sheet} className="card-sheet" role="dialog" aria-modal="true" aria-label={label}>
+      <div
+        ref={sheet}
+        className={className ? `card-sheet ${className}` : "card-sheet"}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+      >
         {children}
       </div>
     </>,

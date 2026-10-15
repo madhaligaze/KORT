@@ -83,6 +83,9 @@ import { forgetLooks } from "@/components/finance/look-store";
 import { habitsOwner, pickMode, preferOf, useModeTracker } from "@/components/finance/habits";
 import type { Me, OperationKind } from "@/components/finance/api";
 import { SessionScope, dropAllSessions, useSessionState, useSessionStateIn } from "@/components/session-state";
+import { SupportButton } from "@/components/support/button";
+import { SupportLayer } from "@/components/support/layer";
+import { forgetSupport, openSupport, useSupportUnread } from "@/components/support/store";
 
 /** «Настроить реестр» читает схему из хранилища реестра - поднимаем его, если
  *  экран открыли по ссылке, минуя «Реестр». */
@@ -693,12 +696,16 @@ export function FinanceClient() {
   /**
    * Просьбы о сбросе видно и с другой вкладки браузера: число в заголовке.
    * Кнопка «N запросов» в раме видна, только пока смотришь на раздел.
+   * Туда же - непрочитанные ответы поддержки: человек, ушедший в другую
+   * вкладку, увидит ответ по заголовку.
    */
   const seesRequests = can(me, "people", "edit");
+  const supportUnread = useSupportUnread(me?.support);
   useEffect(() => {
     const base = document.title.replace(/^\(\d+\)\s/, "");
-    document.title = seesRequests && pending > 0 ? `(${pending}) ${base}` : base;
-  }, [pending, seesRequests]);
+    const waiting = (seesRequests ? pending : 0) + supportUnread;
+    document.title = waiting > 0 ? `(${waiting}) ${base}` : base;
+  }, [pending, seesRequests, supportUnread]);
 
   /**
    * Права могут поменяться, пока человек в разделе: `me` перечитывается раз в
@@ -878,6 +885,7 @@ export function FinanceClient() {
     dropAllSessions();
     forgetLooks();
     forgetRegistry();
+    forgetSupport();
     setAuthNotice("");
     // Выходят из кабинета, и раздел «кабинет» оставался выбранным:
     // следующий вход - свой или чужой - открывался кабинетом, а не
@@ -1130,7 +1138,7 @@ export function FinanceClient() {
         </button>
         {/* Компания в шапке, а не название раздела: человек ведёт несколько
             компаний, и первое, что ему надо знать, - в какой он сейчас. */}
-        <div className="flex flex-col mr-auto min-w-0">
+        <div className="fin-head-company flex flex-col mr-auto min-w-0">
           <span
             className="fin-head-title text-sm font-semibold truncate"
             style={{ letterSpacing: "-0.01em" }}
@@ -1173,6 +1181,8 @@ export function FinanceClient() {
         {/* «+ Доход / − Расход / ⇄ Перевод» здесь больше нет (28.09.2026): шапку
             видят все отделы, а записывать деньги - дело финансов. Кнопки - у
             заголовка «Журнала», см. `operationActions` выше. */}
+        {/* Поддержка - у всех, кто вошёл, и без единого открытого раздела. */}
+        <SupportButton unread={supportUnread} onOpen={openSupport} />
         {money ? (
           <button
             type="button"
@@ -1474,6 +1484,7 @@ export function FinanceClient() {
           }}
         />
       ) : null}
+      <SupportLayer me={me} onRefresh={() => void refreshMe()} />
     </div>
     </SessionScope>
   );

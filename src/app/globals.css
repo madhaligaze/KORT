@@ -175,7 +175,8 @@
 .auth-poster,
 .stage-curtain,
 .cab-portrait,
-.auth-wait {
+.auth-wait,
+.sup-notice-stage {
   --surface:       var(--bg-surface);
   --accent-blue:   var(--accent);
   --accent-border: var(--accent-line);
@@ -694,7 +695,8 @@ html, body { overflow-x: clip; }
 .auth-poster,
 .stage-curtain,
 .cab-portrait,
-.auth-wait {
+.auth-wait,
+.sup-notice-stage {
   color-scheme: dark;
 
   --bg-base:       var(--stage-bg);
@@ -726,7 +728,7 @@ html, body { overflow-x: clip; }
 /* Светлая сцена: серый камень и тушь. Поверхности - полупрозрачная тушь, а
    не свои серые: кнопки лежат прямо на дыме и должны его пропускать.
    Приглушённая подпись - 5.4:1 на #cfccc2. */
-:root[data-theme="light"] :is(.auth-poster, .stage-curtain, .cab-portrait, .auth-wait) {
+:root[data-theme="light"] :is(.auth-poster, .stage-curtain, .cab-portrait, .auth-wait, .sup-notice-stage) {
   color-scheme: light;
 
   --bg-surface:    rgba(14, 16, 15, 0.04);
@@ -2635,6 +2637,11 @@ html:has(.usheet) { overscroll-behavior-x: none; }
 /* ─── Телефон ─── */
 @media (max-width: 639.98px) {
   .fin-head { flex-wrap: wrap; }
+  /* Компания уступает место многоточием, а не уводит кабинет на вторую
+     строку: перенос считается по полной ширине названия, и с длинным
+     («Big Business Consulting») или со значком поддержки (16.10.2026) шапка
+     телефона становилась двухэтажной. */
+  .fin-head-company { flex: 1 1 0%; }
   /* Под плавающей кнопкой («+ Сотрудник», «+ Новый договор») - место, иначе
      она закрывала последнюю строку списка, и до неё было не долистать. */
   .cab-list, .creg-list { padding-bottom: 4.5rem; }
@@ -4256,3 +4263,510 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
 
 /* «Восстановление» в кабинете - те же строки, что у корзины; возвращённое тише. */
 .cab-trash-row[data-restored="true"] .cab-trash-title { color: var(--fin-text-soft); }
+
+/* ═══ Поддержка KORT (16.10.2026) ═══════════════════════════════════════════
+   `src/components/support/`. Значок в шапке, объявление дня, переписка и
+   напоминание об ответе. Цвета нового нет: ответ поддержки - плита цветом
+   текста (заливка - язык того, что ждёт действия), отказ - роза. Состояние
+   говорят слова и движение, а не точки (CLAUDE.md, «Индикаторы состояния»).
+   Сдвиг и прозрачность у значка, плиты и напоминания задаёт только GSAP:
+   здесь стоит лишь `visibility` слова в покое (CLAUDE.md, «GSAP»).        */
+
+/* ─── Значок в шапке: облачко ↔ «Поддержка», плита «Ответ поддержки» ─── */
+.fin-support {
+  flex: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  overflow: hidden;
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--fin-chrome-text);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.fin-support:hover { background: var(--fin-neutral-soft); }
+.fin-support:focus-visible { outline: 2px solid var(--fin-chrome-text); outline-offset: 2px; }
+.fin-support-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+.fin-support-word {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.625rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  visibility: hidden;
+}
+/* Ответ поддержки ждёт: плита стучит - ей нужен воздух над собой. */
+.fin-support[data-waiting="true"] { overflow: visible; padding: 0 2px; }
+.fin-support[data-waiting="true"]:hover { background: none; }
+.fin-support-plate {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 0.75rem;
+  background: var(--fin-chrome-text);
+  color: var(--fin-chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.fin-support[data-waiting="true"]:hover .fin-support-plate {
+  background: color-mix(in srgb, var(--fin-chrome-text) 86%, var(--fin-chrome));
+}
+
+/* ─── Объявление дня ─── */
+/* Размер - только с 640px: на телефоне карточка во весь экран (`.card-sheet`
+   выше), а два класса здесь перебили бы её по специфичности. */
+@media (min-width: 640px) {
+  .card-sheet.sup-notice { width: min(540px, calc(100vw - 48px)); }
+}
+/* Фон под объявлением гаснет сильнее обычной карточки (16.10.2026: «весь
+   фон затемняется»): это не запись поверх работы, а разговор с человеком. */
+.card-scrim:has(+ .card-sheet.sup-notice) { background: rgba(14, 16, 15, 0.52); }
+:root[data-theme="dark"] .card-scrim:has(+ .card-sheet.sup-notice) { background: rgba(0, 0, 0, 0.7); }
+.sup-notice-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 124px;
+  padding: 0.75rem 0.75rem 0.875rem 1.5rem;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+.sup-notice-liquid { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; }
+.sup-notice-veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--stage-bg) 88%, transparent) 0%,
+      color-mix(in srgb, var(--stage-bg) 55%, transparent) 42%,
+      color-mix(in srgb, var(--stage-bg) 0%, transparent) 78%);
+}
+.sup-notice-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.sup-notice-mark { display: block; height: 17px; width: auto; margin-top: 0.5rem; color: var(--stage-mark); }
+.sup-notice-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: color-mix(in srgb, var(--stage-bg) 82%, transparent);
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.sup-notice-close:hover { background: color-mix(in srgb, var(--stage-bg) 84%, var(--stage-fg)); }
+.sup-notice-close:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
+.sup-notice-annot { margin: 0; }
+.sup-notice-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 1.375rem 1.75rem 0.25rem; }
+.sup-notice-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.6vw, 1.875rem);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  color: var(--fin-text);
+}
+.sup-notice-text { margin: 0.875rem 0 0; font-size: 0.9375rem; line-height: 1.55; color: var(--fin-text-soft); }
+.sup-notice-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.75rem 1.5rem;
+}
+.sup-notice-go { min-width: 220px; padding: 0.75rem 2rem; font-size: 0.9375rem; }
+.sup-notice-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 32px;
+  font-size: 0.8125rem;
+  color: var(--fin-text-soft);
+  cursor: pointer;
+  user-select: none;
+}
+.sup-notice-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--fin-text); cursor: pointer; }
+.sup-notice-check:hover { color: var(--fin-text); }
+@media (max-width: 639px) {
+  .sup-notice-stage { height: 112px; padding-left: 1rem; }
+  .sup-notice-body { display: flex; flex-direction: column; justify-content: center; padding: 1.25rem 1rem 0; }
+  .sup-notice-foot { padding: 1rem 1rem calc(1.5rem + var(--safe-b)); }
+  .sup-notice-go { width: 100%; }
+}
+
+/* ─── Переписка ─── */
+@media (min-width: 640px) {
+  .card-sheet.sup-chat { width: min(680px, calc(100vw - 48px)); height: min(780px, calc(100dvh - 96px)); }
+}
+.sup-chat-top { padding: 0 0.5rem 0 1.25rem; }
+.sup-chat-head { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 0.75rem; }
+.sup-chat-title { font-size: 1.125rem; font-weight: 500; letter-spacing: -0.02em; color: var(--fin-text); }
+.sup-chat-sub { min-width: 0; font-size: 0.8125rem; color: var(--fin-text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sup-chat-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sup-chat-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem 1.25rem 1rem;
+}
+.sup-chat-flow { display: flex; flex-direction: column; gap: 0.75rem; }
+.sup-chat-wait { margin: 0; align-self: center; font-size: 0.8125rem; color: var(--fin-text-soft); }
+.sup-day { display: flex; flex-direction: column; gap: 0.75rem; }
+.sup-day-title {
+  align-self: center;
+  padding: 0.25rem 0;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.6875rem;
+  color: var(--fin-text-soft);
+}
+/* Ответ поддержки - слева, с чертой тушью; своё - справа, тоном. */
+.sup-msg {
+  align-self: flex-start;
+  max-width: min(88%, 540px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.625rem 0.875rem 0.5rem;
+  border-left: 2px solid var(--fin-text);
+  background: var(--fin-hover);
+  color: var(--fin-text);
+}
+.sup-msg[data-own="true"] {
+  align-self: flex-end;
+  border-left: 0;
+  border-radius: var(--radius-inner);
+  background: var(--fin-selected);
+}
+.sup-msg-who { display: inline-flex; align-items: baseline; gap: 0.5rem; font-size: 0.75rem; font-weight: 600; }
+.sup-msg-new { padding: 0 0.375rem; border: 1px solid currentColor; font-size: 0.6875rem; font-weight: 600; line-height: 1.35; }
+.sup-msg-text { margin: 0; font-size: 0.9375rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sup-msg-text a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.sup-msg-meta {
+  align-self: flex-end;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.6875rem;
+  color: var(--fin-text-soft);
+  text-align: right;
+}
+.sup-greet .sup-msg-text { font-size: 0.875rem; color: var(--fin-text-soft); }
+.sup-greet .sup-msg-text b { font-weight: 600; color: var(--fin-text); }
+.sup-msg-images { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.sup-msg-images[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sup-msg-images[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sup-msg-images a { display: block; }
+.sup-msg-images img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--fin-line);
+}
+.sup-msg-images[data-count="1"] img { width: auto; max-width: 100%; object-fit: contain; }
+/* Несколько картинок - ровной сеткой: снимки разной формы иначе вставали лесенкой. */
+.sup-msg-images:not([data-count="1"]) img { height: 150px; }
+.sup-file {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--fin-card-line);
+  color: var(--fin-text);
+  text-decoration: none;
+  font-size: 0.8125rem;
+}
+.sup-file:hover { border-color: var(--fin-text); }
+.sup-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sup-file-size,
+.sup-chip-size {
+  flex: none;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.6875rem;
+  color: var(--fin-text-soft);
+}
+
+/* Голосовое: квадрат «слушать», дорожка, время. Волна - только у своей
+   записи до отправки: её считают по звуку, а не рисуют для вида. */
+.sup-voice { display: flex; align-items: center; gap: 0.625rem; min-width: min(240px, 100%); }
+.sup-voice-play {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--fin-text);
+  color: var(--fin-card-bg);
+  border: none;
+  cursor: pointer;
+}
+.sup-voice-play:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 2px; }
+.sup-voice-track { flex: 1; min-width: 96px; height: 28px; display: flex; align-items: center; cursor: pointer; }
+.sup-voice-line { position: relative; width: 100%; height: 2px; background: var(--fin-card-line); }
+.sup-voice-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fin-text); }
+.sup-voice-time {
+  flex: none;
+  min-width: 2.75rem;
+  text-align: right;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.75rem;
+  color: var(--fin-text-soft);
+}
+.sup-bars { display: flex; align-items: center; gap: 2px; width: 100%; height: 28px; }
+.sup-bar { flex: 1; min-width: 2px; background: var(--fin-dotted); border-radius: 1px; }
+.sup-bar[data-on="true"],
+.sup-bars-live .sup-bar { background: var(--fin-text); }
+
+/* ─── Поле сообщения ─── */
+.sup-compose {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem 1rem;
+  border-top: 1px solid var(--fin-line);
+  background: var(--fin-card-bg);
+}
+.sup-input {
+  width: 100%;
+  min-height: 76px;
+  max-height: 30vh;
+  resize: vertical;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--fin-card-line);
+  border-radius: var(--radius-inner);
+  background: var(--input-bg);
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+.sup-input::placeholder { color: var(--fin-text-soft); }
+.sup-input:focus { outline: none; border-color: var(--fin-text); }
+.sup-tools { display: flex; align-items: center; gap: 0.25rem; }
+.sup-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 36px;
+  padding: 0 0.625rem;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--fin-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sup-tool:hover:not(:disabled) { border-color: var(--fin-card-line); background: var(--fin-hover); }
+.sup-tool:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 1px; }
+.sup-tool:disabled { opacity: 0.4; cursor: default; }
+.sup-tools-note { flex: 1; min-width: 0; padding-right: 0.5rem; text-align: right; font-size: 0.75rem; color: var(--fin-text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sup-send { flex: none; min-width: 128px; }
+.sup-attach { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.sup-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 100%;
+  height: 36px;
+  padding: 0 0.125rem 0 0.375rem;
+  border: 1px solid var(--fin-card-line);
+  font-size: 0.75rem;
+  color: var(--fin-text);
+}
+.sup-chip-thumb { width: 26px; height: 26px; object-fit: cover; border-radius: 3px; }
+.sup-chip-name { min-width: 0; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sup-chip-drop {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--fin-text-soft);
+  cursor: pointer;
+}
+.sup-chip-drop:hover:not(:disabled) { color: var(--fin-text); background: var(--fin-hover); }
+.sup-chip-drop:disabled { opacity: 0.4; cursor: default; }
+/* Идёт запись: рамка тушью и живые столбики - запись видна движением, без красной точки. */
+.sup-rec {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.375rem 0.625rem 0.375rem 0.375rem;
+  border: 1px solid var(--fin-text);
+}
+.sup-rec-stop {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--fin-text);
+  color: var(--fin-card-bg);
+  border: none;
+  cursor: pointer;
+}
+.sup-rec .sup-bars { flex: 1; min-width: 0; }
+.sup-rec-time {
+  flex: none;
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-variation-settings: "wdth" 87.5;
+  font-size: 0.8125rem;
+  color: var(--fin-text);
+  white-space: nowrap;
+}
+.sup-rec-max { color: var(--fin-text-soft); }
+.sup-take {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.125rem 0.375rem 0.375rem;
+  border: 1px solid var(--fin-card-line);
+}
+.sup-take .sup-voice { flex: 1; min-width: 0; }
+.sup-link {
+  flex: none;
+  padding: 0.25rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--fin-text);
+  text-decoration: underline;
+  text-decoration-color: var(--fin-dotted);
+  text-underline-offset: 3px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sup-link:hover:not(:disabled) { text-decoration-color: currentColor; }
+.sup-link:disabled { opacity: 0.4; cursor: default; }
+.sup-hint { margin: 0; font-size: 0.75rem; line-height: 1.4; color: var(--fin-text-soft); }
+.sup-warn { margin: 0; font-size: 0.8125rem; line-height: 1.4; color: var(--fin-fail); }
+.sup-drop {
+  position: absolute;
+  inset: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--fin-text);
+  background: color-mix(in srgb, var(--fin-card-bg) 90%, transparent);
+  font-size: 0.9375rem;
+  color: var(--fin-text);
+  pointer-events: none;
+}
+@media (max-width: 639px) {
+  .sup-chat-top { padding-left: 1rem; }
+  .sup-chat-sub { display: none; }
+  .sup-chat-list { padding: 1rem 1rem 0.75rem; }
+  .sup-msg { max-width: 92%; }
+  .sup-compose { padding: 0.625rem 1rem calc(0.75rem + var(--safe-b)); }
+  .sup-input { min-height: 64px; }
+  .sup-tool { padding: 0 0.5rem; }
+  .sup-tool > span { display: none; }
+  .sup-tools-note { display: none; }
+  .sup-send { flex: 1; min-width: 0; }
+}
+
+/* ─── Напоминание «Поддержка ответила» ───
+   Плита главного действия (крем на тёмном, тушь на светлом) внизу по центру.
+   Под карточками и их затемнением: открытая карточка договора важнее. */
+.sup-strip {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + var(--safe-b));
+  translate: -50% 0;
+  z-index: calc(var(--z-fin-card) - 5);
+  display: flex;
+  align-items: stretch;
+  width: min(580px, calc(100vw - 32px));
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--shadow-float);
+}
+.sup-strip-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 52px;
+  padding: 0.625rem 0.75rem 0.625rem 1rem;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sup-strip-label { flex: none; font-size: 0.875rem; font-weight: 600; white-space: nowrap; }
+.sup-strip-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.875rem;
+  color: color-mix(in srgb, var(--accent-fg) 76%, var(--accent));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sup-strip-open { flex: none; font-size: 0.875rem; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.sup-strip-main:focus-visible,
+.sup-strip-hide:focus-visible { outline: 2px solid var(--accent-fg); outline-offset: -4px; }
+.sup-strip-hide {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-left: 1px solid color-mix(in srgb, var(--accent-fg) 22%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+.sup-strip-hide:hover { background: color-mix(in srgb, var(--accent-fg) 8%, transparent); }
+@media (max-width: 639.98px) {
+  .sup-strip-text { display: none; }
+  .sup-strip-main { justify-content: space-between; }
+}

@@ -86,6 +86,19 @@ export type Me = {
     job_title: string;
     department: { id: string; code: string; title: string } | null;
   } | null;
+  /** Переписка с поддержкой KORT: непрочитанные ответы и объявление дня. */
+  support?: SupportState;
+};
+
+export type SupportState = {
+  /** Ответы поддержки, которые человек ещё не открыл. */
+  unread: number;
+  /** Самый свежий непрочитанный ответ - для напоминания внизу экрана. */
+  last_reply: { id: string; preview: string; at: string } | null;
+  /** «Больше не показывать» под объявлением о поддержке. */
+  notice_off: boolean;
+  /** День (по часам человека), когда объявление уже показано. */
+  notice_seen_on: string | null;
 };
 
 export type MemberRow = {
@@ -1779,6 +1792,54 @@ export const looksApi = {
   put: (key: string, look: unknown) =>
     request<{ ok: boolean }>(`/looks/${key}`, { method: "PUT", body: JSON.stringify({ look }) }),
   reset: (key: string) => request<{ ok: boolean }>(`/looks/${key}`, { method: "DELETE" }),
+};
+
+// ── Поддержка KORT ───────────────────────────────────────────────────────────
+
+export type SupportFile = {
+  id: string;
+  kind: "image" | "voice" | "file";
+  name: string;
+  mime: string;
+  size: number;
+  /** Длительность голосового, секунды. */
+  duration: number | null;
+};
+
+export type SupportItem = {
+  id: string;
+  author: "user" | "support";
+  body: string;
+  created_at: string;
+  files: SupportFile[];
+  /** Ответ поддержки уже открыт. */
+  read?: boolean;
+  /** Сообщение человека дошло до канала поддержки. */
+  delivered?: boolean;
+  /** Не дошло дольше пары минут - сказать об этом словами. */
+  late?: boolean;
+};
+
+export type SupportLimits = {
+  max_body: number;
+  max_files: number;
+  max_file_bytes: number;
+  max_total_bytes: number;
+  max_voice_seconds: number;
+};
+
+/**
+ * Переписка с поддержкой (`app/finance/support.py`). Отправка - своей
+ * функцией на XHR (`support/send.ts`): у `fetch` нет хода загрузки, а
+ * голосовое с десятком скриншотов на медленной сети грузится заметно.
+ */
+export const supportApi = {
+  thread: () => request<{ items: SupportItem[]; state: SupportState; limits: SupportLimits }>("/support"),
+  read: () => request<SupportState>("/support/read", { method: "POST" }),
+  notice: (body: { seen_on?: string; off?: boolean }) =>
+    request<SupportState>("/support/notice", { method: "POST", body: JSON.stringify(body) }),
+  fileUrl: (id: string) => `${API}/support/files/${id}`,
+  sendUrl: `${API}/support/messages`,
 };
 
 /**
