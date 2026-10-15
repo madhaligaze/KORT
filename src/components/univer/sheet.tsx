@@ -31,6 +31,7 @@ import { createPortal } from "react-dom";
 import { type Observable, distinctUntilChanged, map, of, switchMap } from "rxjs";
 
 import { useSessionScope } from "@/components/session-state";
+import { stopAtEdges } from "@/components/univer/edges";
 import { type ListArrow, type ListWatch, openList, watchLists } from "@/components/univer/lists";
 import { type PlaceKeeper, keepPlace } from "@/components/univer/place";
 import { isDarkTheme } from "@/components/univer/sheet-model";
@@ -409,7 +410,9 @@ const RENDERED = 2;
  *   а не семь-восемь, и без лишних разборов строк;
  * * **выпадающие списки** - `lists.ts`: раздел ставит правило `listRule`, а
  *   значение текстом без капсулы, стрелка у выбранной ячейки, Alt+↓ и печать
- *   без списка - здесь, у каждого листа одинаково.
+ *   без списка - здесь, у каждого листа одинаково;
+ * * **край листа** - `edges.ts`: стрелка у последней колонки (строки) рамку
+ *   не переносит на соседнюю строку, как делал Univer, а оставляет на месте.
  */
 const FULL_TEXT = "На весь экран";
 const COLLAPSE_TEXT = "Свернуть";
@@ -596,6 +599,8 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
     // После книги: плагины листа стартуют с первой книгой, до неё их служб в
     // Univer ещё нет. Кадры движок начнёт рисовать позже - подписка их застанет.
     const stopSpeed = speedUp(univerAPI);
+    // Стрелки у края листа не переносят рамку на соседнюю строку (`edges.ts`).
+    const stopEdges = stopAtEdges(univerAPI);
     // Меню плагинов листа заводятся вместе с книгой - урезать ленту можно
     // только после неё.
     mergeSortFilter(univerAPI, (command) => onSortFilterRef.current?.(command) ?? false);
@@ -691,7 +696,7 @@ export const UniverSheet = forwardRef<UniverSheetHandle, Props>(function UniverS
       //
       // Каждый шаг - в своём `try`: неудача одного (лист не дорисован,
       // повторное снятие) не должна оставлять Univer живым.
-      for (const step of [stopTrim, lifecycle?.dispose?.bind(lifecycle), detach, stopSpeed, () => univer.dispose()]) {
+      for (const step of [stopTrim, lifecycle?.dispose?.bind(lifecycle), detach, stopEdges, stopSpeed, () => univer.dispose()]) {
         try {
           step?.();
         } catch {
