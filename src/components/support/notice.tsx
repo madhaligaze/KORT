@@ -81,14 +81,13 @@ function NoticeBody({
             <CloseIcon size={18} />
           </button>
         </div>
-        <p className="annot sup-notice-annot">новое каждую неделю</p>
       </div>
       <div className="sup-notice-body">
         <SplitReveal as="h2" className="sup-notice-title" by="words" duration={1}>
           KORT в активной разработке
         </SplitReveal>
         <SplitReveal as="p" className="sup-notice-text" by="lines" delay={0.2} duration={1}>
-          Мы добавляем возможности и исправляем ошибки каждую неделю. Если что-то работает не так, как вы ждёте, или
+          Мы продолжаем добавлять возможности и исправлять ошибки. Если что-то работает не так, как вы ждёте, или
           не хватает нужной функции, напишите в поддержку: текстом, скриншотом или голосом. Каждое обращение читает
           команда разработки, а ответ придёт сюда же, в KORT.
         </SplitReveal>

@@ -4381,7 +4381,6 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
 }
 .sup-notice-close:hover { background: color-mix(in srgb, var(--stage-bg) 84%, var(--stage-fg)); }
 .sup-notice-close:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
-.sup-notice-annot { margin: 0; }
 .sup-notice-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 1.375rem 1.75rem 0.25rem; }
 .sup-notice-title {
   margin: 0;
