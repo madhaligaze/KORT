@@ -53,6 +53,7 @@ import {
 import { MONEY_RESOURCES, can, canAny, isAdmin, nameOf } from "@/components/finance/access";
 import { AuthGate, AuthLoading, PasswordChangeGate, useMe } from "@/components/finance/auth-gate";
 import { Cabinet } from "@/components/finance/cabinet/cabinet";
+import { DeviceApprovalBar } from "@/components/finance/device-approval-bar";
 import { plural, shortName } from "@/components/finance/format";
 import { FadeIn } from "@/components/motion/fade-in";
 import { SplitReveal } from "@/components/motion/split-reveal";
@@ -1125,6 +1126,7 @@ export function FinanceClient() {
   return (
     <SessionScope scope={sessionScope}>
     <div className="fin-page">
+      <DeviceApprovalBar devices={me.pending_devices ?? []} onDecided={() => void refreshMe()} />
       <header className="fin-head" ref={measureHead}>
         <button
           type="button"

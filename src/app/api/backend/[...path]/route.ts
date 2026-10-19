@@ -4,15 +4,55 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // Headers we never forward from the client request to the backend.
-// `x-client-ip` ставит только сам прокси (см. `clientIp`): присланный
-// браузером подменял бы адрес в журнале и ключ ограничителя перебора.
+// `x-client-ip` и `x-proxy-auth` ставит только сам прокси (см. `clientIp`):
+// присланные браузером подменяли бы адрес в журнале и ключ ограничителя перебора.
 const REQUEST_STRIP_HEADERS = new Set([
   "connection",
   "content-length",
   "host",
   "transfer-encoding",
   "x-client-ip",
+  "x-proxy-auth",
 ]);
+
+/**
+ * Потолок тела, которое прокси соглашается переслать. Тот же, что у API
+ * (`MAX_BODY_BYTES` в `backend/app/main.py`): прокси читает тело в память
+ * целиком, и без потолка один запрос на гигабайты валил бы фронт раньше, чем
+ * API успел бы отказать.
+ */
+const MAX_BODY_BYTES = 48 * 1024 * 1024;
+const TOO_BIG = `Запрос больше ${MAX_BODY_BYTES / (1024 * 1024)} МБ`;
+
+class BodyTooLarge extends Error {}
+
+/** Тело запроса, но не больше потолка: объявленная длина - сразу, без длины - по ходу чтения. */
+async function readBody(request: NextRequest): Promise<ArrayBuffer | undefined> {
+  if (request.method === "GET" || request.method === "HEAD") return undefined;
+  const declared = Number(request.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) throw new BodyTooLarge();
+  if (!request.body) return undefined;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      await reader.cancel();
+      throw new BodyTooLarge();
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body.buffer;
+}
 
 // Headers we never copy from the backend response back to the browser.
 // `content-encoding` / `content-length` MUST be stripped: Node's fetch (undici)
@@ -89,6 +129,10 @@ function buildForwardHeaders(request: NextRequest): Headers {
 
   const ip = clientIp(request);
   if (ip) headers.set("x-client-ip", ip);
+  // Секрет, по которому API отличает прокси от прямого запроса и верит
+  // `x-client-ip` только ему (`client_ip()` в `routes/finance.py`).
+  const secret = stripWrappingQuotes(process.env.PROXY_SHARED_SECRET ?? "");
+  if (secret) headers.set("x-proxy-auth", secret);
 
   return headers;
 }
@@ -104,10 +148,17 @@ async function proxyRequest(
   const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
   try {
+    let body: ArrayBuffer | undefined;
+    try {
+      body = await readBody(request);
+    } catch (error) {
+      if (error instanceof BodyTooLarge) return NextResponse.json({ detail: TOO_BIG }, { status: 413 });
+      throw error;
+    }
     const response = await fetch(targetUrl, {
       method: request.method,
       headers: buildForwardHeaders(request),
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
+      body,
       redirect: "manual",
       cache: "no-store",
       signal: controller.signal,
@@ -115,11 +166,17 @@ async function proxyRequest(
 
     const responseHeaders = new Headers();
     response.headers.forEach((value, key) => {
-      if (RESPONSE_STRIP_HEADERS.has(key.toLowerCase())) {
+      const name = key.toLowerCase();
+      if (RESPONSE_STRIP_HEADERS.has(name) || name === "set-cookie") {
         return;
       }
       responseHeaders.set(key, value);
     });
+    // Каждую куку - отдельной строкой. `set` оставлял бы только последнюю,
+    // а вход ставит две: сеанс и метку устройства.
+    for (const cookie of response.headers.getSetCookie()) {
+      responseHeaders.append("set-cookie", cookie);
+    }
 
     return new NextResponse(response.body, {
       status: response.status,

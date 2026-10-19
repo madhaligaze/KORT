@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { readParam, writeParams } from "@/components/finance/address";
-import { type Me, FinanceApiError, financeApi } from "@/components/finance/api";
+import { type Me, FinanceApiError, financeApi, isDevicePending } from "@/components/finance/api";
 import { PHONE_NOT_MOBILE, PhoneInput, formatPhone, phoneDigits, phoneValue } from "@/components/finance/ui/phone-input";
 import { SplitReveal } from "@/components/motion/split-reveal";
 import { AuthStage, AuthWait } from "@/components/stage/auth-stage";
@@ -55,7 +55,8 @@ type Step =
   | "forgot"
   | "forgot-sent"
   | "forgot-email"
-  | "forgot-email-sent";
+  | "forgot-email-sent"
+  | "wait-device";
 
 /** Заголовок двери «Вход» на каждом шаге. Короткий: он набран крупно в узкой колонке. */
 const HEADINGS: Record<Step, string> = {
@@ -69,6 +70,7 @@ const HEADINGS: Record<Step, string> = {
   "forgot-sent": "Запрос отправлен",
   "forgot-email": "Сброс пароля",
   "forgot-email-sent": "Запрос отправлен",
+  "wait-device": "Новое устройство",
 };
 
 /** Куда ведёт «←» перед заголовком двери. У первого шага стрелки нет. */
@@ -81,6 +83,7 @@ const BACK: Partial<Record<Step, Step>> = {
   "forgot-sent": "phone",
   "forgot-email": "email",
   "forgot-email-sent": "email",
+  "wait-device": "email",
 };
 
 /** Похоже на номер, а не на почту: цифры и знаки номера, и цифр не меньше десяти. */
@@ -191,6 +194,47 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- адрес читается один раз при входе
   }, []);
 
+  // Ждущий экран нового устройства: опрашиваем, подтвердили ли вход на том
+  // устройстве, где человек уже вошёл. Подтвердили - входим; отклонили или
+  // вышло время - назад с объяснением.
+  useEffect(() => {
+    if (step !== "wait-device") return;
+    let alive = true;
+    let timer = 0;
+    const back = readMode() === "phone" ? "password" : "email";
+    const tick = async () => {
+      try {
+        const res = await financeApi.claimDevice();
+        if (!alive) return;
+        if ("authenticated" in res) {
+          onReady(res);
+          return;
+        }
+        timer = window.setTimeout(tick, 2500);
+      } catch (exc) {
+        if (!alive) return;
+        if (exc instanceof FinanceApiError && exc.status === 403) {
+          setStepState(back);
+          setError("Вход отклонён на другом устройстве");
+          return;
+        }
+        if (exc instanceof FinanceApiError && exc.status === 404) {
+          setStepState(back);
+          setError("Время подтверждения вышло - войдите снова");
+          return;
+        }
+        // Нет связи или сбой - пробуем ещё, не роняя ожидание.
+        timer = window.setTimeout(tick, 2500);
+      }
+    };
+    timer = window.setTimeout(tick, 1500);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- запускается сменой шага
+  }, [step]);
+
   const phone = phoneValue(digits);
   const phoneReady = digits.length === 10 && digits[0] === "7";
   const mismatch = again.length > 0 && (againTouched || again.length >= password.length) && again !== password;
@@ -198,9 +242,15 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
   /** Вход по номеру с паролем. Учётка ждёт пароль (409) - к «Придумайте пароль». */
   const loginByPhone = async (tenDigits: string, secret: string) => {
     try {
-      const me = await financeApi.phoneLogin({ phone: phoneValue(tenDigits), password: secret });
+      const res = await financeApi.phoneLogin({ phone: phoneValue(tenDigits), password: secret });
       rememberMode("phone");
-      onReady(me);
+      // Слабый пароль с нового устройства: пароль подошёл, но нужен кивок с
+      // устройства, где человек уже вошёл.
+      if (isDevicePending(res)) {
+        setStep("wait-device");
+        return;
+      }
+      onReady(res);
     } catch (exc) {
       if (exc instanceof FinanceApiError && exc.status === 409) {
         setStep("set");
@@ -259,9 +309,13 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
             await loginByPhone(fromField, typed);
             return;
           }
-          const me = await financeApi.login({ email, password });
+          const res = await financeApi.login({ email, password });
           rememberMode("email");
-          onReady(me);
+          if (isDevicePending(res)) {
+            setStep("wait-device");
+            return;
+          }
+          onReady(res);
         });
       case "register":
         if (fullName.trim().length < 2) {
@@ -493,19 +547,32 @@ export function AuthGate({ onReady, notice = "" }: { onReady: (me: Me) => void; 
             {inStep === "forgot-sent" ? (
               <p className="auth-say">Когда пароль сбросят, введите номер снова - система попросит придумать новый.</p>
             ) : null}
+            {inStep === "wait-device" ? (
+              <p className="auth-say" aria-live="polite">
+                Вход с нового устройства. Подтвердите его там, где вы уже вошли в KORT: на том экране
+                появится «Вход с нового устройства - Разрешить». Как только разрешите, этот экран войдёт сам.
+              </p>
+            ) : null}
 
             {registering ? null : failLine}
 
-            <Go
-              busy={busy}
-              disabled={
-                ((inStep === "phone" || inStep === "forgot" || inStep === "expired") && !phoneReady) ||
-                (inStep === "set" && (password.length === 0 || again.length === 0)) ||
-                (inStep === "forgot-email" && !email.trim())
-              }
-            >
-              {ACTIONS[inStep]}
-            </Go>
+            {inStep === "wait-device" ? (
+              <button type="button" className="auth-more" onClick={() => goBack(back ?? "email")}>
+                Отмена
+                <Arrow back />
+              </button>
+            ) : (
+              <Go
+                busy={busy}
+                disabled={
+                  ((inStep === "phone" || inStep === "forgot" || inStep === "expired") && !phoneReady) ||
+                  (inStep === "set" && (password.length === 0 || again.length === 0)) ||
+                  (inStep === "forgot-email" && !email.trim())
+                }
+              >
+                {ACTIONS[inStep]}
+              </Go>
+            )}
 
             {inStep === "email" ? (
               <button type="button" className="auth-more" onClick={toEmployee}>
@@ -589,6 +656,7 @@ const ACTIONS: Record<Step, string> = {
   "forgot-sent": "Ко входу",
   "forgot-email": "Отправить запрос",
   "forgot-email-sent": "Ко входу",
+  "wait-device": "Ждём…",
 };
 
 /** Сколько сворачивается дверь (`.auth-door-body` в globals.css) - с запасом. */

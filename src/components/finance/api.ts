@@ -80,6 +80,8 @@ export type Me = {
   people_scope?: { rows: "all" | "department"; department_id: string | null };
   /** Открытые просьбы к администраторам - «N запросов» в раме. */
   pending_requests?: number;
+  /** Входы с новых устройств, ждущие решения этого человека (слабый пароль). */
+  pending_devices?: PendingDevice[];
   employee?: {
     id: string;
     full_name: string;
@@ -89,6 +91,22 @@ export type Me = {
   /** Переписка с поддержкой KORT: непрочитанные ответы и объявление дня. */
   support?: SupportState;
 };
+
+/** Вход с нового устройства, ждущий подтверждения (слабый, но уже заданный пароль). */
+export type PendingDevice = {
+  id: string;
+  user_agent: string;
+  ip: string;
+  created_at: string | null;
+};
+
+/** Ответ входа, когда пароль подошёл, но устройство новое: нужно подтверждение. */
+export type DevicePending = { step: "approve_device" };
+
+/** Вход вернул ожидание устройства, а не `me`. */
+export function isDevicePending(value: Me | DevicePending): value is DevicePending {
+  return (value as DevicePending).step === "approve_device";
+}
 
 export type SupportState = {
   /** Ответы поддержки, которые человек ещё не открыл. */
@@ -465,8 +483,9 @@ export const FORBIDDEN_EVENT = "finance:forbidden";
  * ответственный».
  */
 export const SCHEMA_EVENT = "finance:schema";
-/** Двери входа отвечают 401 на неверный пароль - это не потеря сеанса. */
-const LOGIN_PATHS = /^\/auth\/(login|register|phone\/)/;
+/** Двери входа отвечают 401 на неверный пароль, а подтверждение устройства -
+ *  202/403/404: это не потеря сеанса и не отбор прав, их разбирает сам экран. */
+const LOGIN_PATHS = /^\/auth\/(login|register|phone\/|device\/)/;
 
 function signal(status: number, path: string): void {
   if (typeof window === "undefined") return;
@@ -702,7 +721,7 @@ export const financeApi = {
   // ── Учётки ───────────────────────────────────────────────────────────────
   me: () => request<Me>("/auth/me"),
   login: (body: { email: string; password: string }) =>
-    request<Me>("/auth/login", { method: "POST", body: JSON.stringify(body) }),
+    request<Me | DevicePending>("/auth/login", { method: "POST", body: JSON.stringify(body) }),
   register: (body: { email: string; password: string; company: string; full_name?: string }) =>
     request<Me>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
   logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
@@ -717,7 +736,15 @@ export const financeApi = {
   emailForgot: (email: string) =>
     request<{ ok: boolean }>("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
   phoneLogin: (body: { phone: string; password: string }) =>
-    request<Me>("/auth/phone/login", { method: "POST", body: JSON.stringify(body) }),
+    request<Me | DevicePending>("/auth/phone/login", { method: "POST", body: JSON.stringify(body) }),
+  /**
+   * Ждущий экран нового устройства опрашивает, подтвердили ли вход. 200 - `me`
+   * (вошли), 202 `{step:"pending"}` - ещё ждём, 403 - отклонили, 404 - устарело.
+   */
+  claimDevice: () => request<Me | { step: "pending" }>("/auth/device/claim", { method: "POST" }),
+  /** Подтвердить или отклонить вход с нового устройства - с того, где уже вошли. */
+  approveDevice: (id: string) => request<{ ok: boolean }>(`/auth/device/${id}/approve`, { method: "POST" }),
+  denyDevice: (id: string) => request<{ ok: boolean }>(`/auth/device/${id}/deny`, { method: "POST" }),
   /** Задать пароль и сразу войти - ответ как у `me`. */
   phoneSetPassword: (body: { phone: string; password: string }) =>
     request<Me>("/auth/phone/set-password", { method: "POST", body: JSON.stringify(body) }),
