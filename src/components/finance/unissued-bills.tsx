@@ -147,7 +147,9 @@ export function UnissuedBills({
               ) : (
                 board.channel.title
               )}
-              {` - будни, ${String(board.channel.hour).padStart(2, "0")}:00`}
+              {board.channel.hour !== null
+                ? ` - сводка в ${String(board.channel.hour).padStart(2, "0")}:00, новое сразу`
+                : " - новое сразу"}
             </>
           ) : null}
         </p>
