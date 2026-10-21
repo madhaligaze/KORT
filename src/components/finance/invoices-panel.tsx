@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChoiceSelect } from "@/components/choice-select";
 import { useSessionDrop, useSessionState } from "@/components/session-state";
 import {
+  type BillsBoard,
   type Dictionaries,
   type Invoice,
   type InvoiceSide,
@@ -13,6 +14,10 @@ import {
   formatMoney,
   todayIso,
 } from "@/components/finance/api";
+import { UnissuedBills } from "@/components/finance/unissued-bills";
+
+/** Как часто перечитывать «Не выставлены», пока раздел на экране: галочку ставят в книге. */
+const BILLS_POLL_MS = 60000;
 
 type Line = { title: string; quantity: string; price: string };
 
@@ -49,7 +54,14 @@ export function InvoicesPanel({
   const [summary, setSummary] = useState<{ receivable: InvoiceSide; payable: InvoiceSide } | null>(null);
   // Вкладка, открытая форма и набранный счёт переживают перезагрузку
   // (`session-state.tsx`); выставленный счёт черновик стирает.
-  const [side, setSide] = useSessionState<"out" | "in">("inv.side", "out");
+  // «Не выставлены» - первой: счета компании ведутся в книге-сводке, и то,
+  // что там забыли выставить, важнее того, что уже выставлено.
+  const [chosen, setSide] = useSessionState<"todo" | "out" | "in">("inv.side", "todo");
+  const [board, setBoard] = useState<BillsBoard | null>(null);
+  const [reading, setReading] = useState(false);
+  const hasBook = Boolean(board?.source);
+  // Без книги-сводки вкладки «Не выставлены» нет - и открывается «Мы выставили».
+  const side = chosen === "todo" && board && !hasBook ? "out" : chosen;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useSessionState("inv.form", false);
@@ -78,6 +90,27 @@ export function InvoicesPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadBills = useCallback(async (refresh = false) => {
+    if (refresh) setReading(true);
+    try {
+      setBoard(await financeApi.bills(refresh));
+    } catch (exc) {
+      // Отказ книги приходит в `source.error`; сюда - только отказ самого KORT.
+      setBoard((was) => was ?? { source: null, items: [], counts: null, channel: null });
+      if (refresh) setError(exc instanceof Error ? exc.message : "Книга не прочиталась");
+    } finally {
+      if (refresh) setReading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBills();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void loadBills();
+    }, BILLS_POLL_MS);
+    return () => clearInterval(timer);
+  }, [loadBills]);
 
   const totals = useMemo(() => {
     const net = lines.reduce((sum, line) => sum + amountOf(line.quantity) * amountOf(line.price), 0);
@@ -130,11 +163,18 @@ export function InvoicesPanel({
   };
 
   const shown = items.filter((item) => item.kind === side);
-  const money = side === "out" ? summary?.receivable : summary?.payable;
+  const money = side === "out" ? summary?.receivable : side === "in" ? summary?.payable : undefined;
+  const todo = side === "todo";
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
+        {hasBook || !board ? (
+          <button type="button" className="fin-chip" data-on={todo ? "" : undefined} onClick={() => setSide("todo")}>
+            Не выставлены
+            {board?.counts?.overdue ? <span className="fin-out">{board.counts.overdue}</span> : null}
+          </button>
+        ) : null}
         <button type="button" className="fin-chip" data-on={side === "out" ? "" : undefined} onClick={() => setSide("out")}>
           Мы выставили
         </button>
@@ -142,29 +182,12 @@ export function InvoicesPanel({
           Нам выставили
         </button>
         <span style={{ flex: 1 }} />
-        <button type="button" className="btn-primary" onClick={() => setForm((was) => !was)}>
-          {form ? "Свернуть" : "Новый счёт"}
-        </button>
+        {todo ? null : (
+          <button type="button" className="btn-primary" onClick={() => setForm((was) => !was)}>
+            {form ? "Свернуть" : "Новый счёт"}
+          </button>
+        )}
       </div>
-
-      {money ? (
-        <div className="fin-kpis">
-          <div className="fin-kpi">
-            <span className="fin-kpi-label">Выставлено</span>
-            <span className="fin-kpi-value">{formatMoney(money.total)}</span>
-          </div>
-          <div className="fin-kpi">
-            <span className="fin-kpi-label">Не оплачено</span>
-            <span className="fin-kpi-value">{formatMoney(money.open)}</span>
-          </div>
-          <div className="fin-kpi">
-            <span className="fin-kpi-label">Просрочено</span>
-            <span className={`fin-kpi-value ${Number(money.overdue) ? "fin-out" : ""}`}>
-              {formatMoney(money.overdue)}
-            </span>
-          </div>
-        </div>
-      ) : null}
 
       {error ? (
         <p className="text-xs" style={{ color: "var(--accent-rose)" }}>
@@ -172,199 +195,228 @@ export function InvoicesPanel({
         </p>
       ) : null}
 
-      {form ? (
-        <div className="fin-card p-3 flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            <label className="flex flex-col gap-1">
-              <span className="fin-label">Дата счёта</span>
-              <input className="input-field" type="date" value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="fin-label">Срок оплаты</span>
-              <input className="input-field" type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="fin-label">НДС, %</span>
-              <input
-                className="input-field fin-num"
-                style={{ width: "5rem" }}
-                value={vatRate}
-                onChange={(e) => setVatRate(e.target.value)}
-              />
-            </label>
-            <label className="flex flex-col gap-1 min-w-[12rem]">
-              <span className="fin-label">Контрагент</span>
-              <ChoiceSelect className="input-field" value={counterpartyId} onChange={setCounterpartyId} placeholder="не указан" clearable>
-                {dictionaries.counterparties.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </ChoiceSelect>
-            </label>
-            <label className="flex flex-col gap-1 min-w-[12rem]">
-              <span className="fin-label">Статья</span>
-              <ChoiceSelect className="input-field" value={categoryId} onChange={setCategoryId} placeholder="не указана" clearable>
-                {dictionaries.categories
-                  .filter((item) => item.side === (side === "out" ? "income" : "expense"))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-              </ChoiceSelect>
-            </label>
-            <label className="flex flex-col gap-1 min-w-[10rem]">
-              <span className="fin-label">Проект</span>
-              <ChoiceSelect className="input-field" value={projectId} onChange={setProjectId} placeholder="без проекта" clearable>
-                {dictionaries.projects.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </ChoiceSelect>
-            </label>
-          </div>
+      {todo ? (
+        board ? (
+          <UnissuedBills board={board} busy={reading} onRefresh={() => void loadBills(true)} />
+        ) : (
+          <p className="text-xs fin-muted">Читаем книгу…</p>
+        )
+      ) : (
+        <>
+          {money ? (
+            <div className="fin-kpis">
+              <div className="fin-kpi">
+                <span className="fin-kpi-label">Выставлено</span>
+                <span className="fin-kpi-value">{formatMoney(money.total)}</span>
+              </div>
+              <div className="fin-kpi">
+                <span className="fin-kpi-label">Не оплачено</span>
+                <span className="fin-kpi-value">{formatMoney(money.open)}</span>
+              </div>
+              <div className="fin-kpi">
+                <span className="fin-kpi-label">Просрочено</span>
+                <span className={`fin-kpi-value ${Number(money.overdue) ? "fin-out" : ""}`}>
+                  {formatMoney(money.overdue)}
+                </span>
+              </div>
+            </div>
+          ) : null}
 
-          <div className="flex flex-col gap-2">
-            {lines.map((line, index) => (
-              <div key={index} className="flex flex-wrap items-end gap-2">
-                <label className="flex flex-col gap-1 flex-1 min-w-[12rem]">
-                  <span className="fin-label">Позиция</span>
-                  <input
-                    className="input-field"
-                    value={line.title}
-                    placeholder="что продаём"
-                    onChange={(e) =>
-                      setLines((was) => was.map((item, i) => (i === index ? { ...item, title: e.target.value } : item)))
-                    }
-                  />
+          {form ? (
+            <div className="fin-card p-3 flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2">
+                <label className="flex flex-col gap-1">
+                  <span className="fin-label">Дата счёта</span>
+                  <input className="input-field" type="date" value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="fin-label">Кол-во</span>
+                  <span className="fin-label">Срок оплаты</span>
+                  <input className="input-field" type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="fin-label">НДС, %</span>
                   <input
                     className="input-field fin-num"
                     style={{ width: "5rem" }}
-                    value={line.quantity}
-                    onChange={(e) =>
-                      setLines((was) => was.map((item, i) => (i === index ? { ...item, quantity: e.target.value } : item)))
-                    }
+                    value={vatRate}
+                    onChange={(e) => setVatRate(e.target.value)}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="fin-label">Цена</span>
-                  <input
-                    className="input-field fin-num"
-                    style={{ width: "8rem" }}
-                    value={line.price}
-                    onChange={(e) =>
-                      setLines((was) => was.map((item, i) => (i === index ? { ...item, price: e.target.value } : item)))
-                    }
-                  />
+                <label className="flex flex-col gap-1 min-w-[12rem]">
+                  <span className="fin-label">Контрагент</span>
+                  <ChoiceSelect className="input-field" value={counterpartyId} onChange={setCounterpartyId} placeholder="не указан" clearable>
+                    {dictionaries.counterparties.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </ChoiceSelect>
                 </label>
-                <span className="fin-num" style={{ minWidth: "7rem", color: "var(--text-primary)" }}>
-                  {formatMoney(amountOf(line.quantity) * amountOf(line.price))}
-                </span>
-                {lines.length > 1 ? (
-                  <button
-                    type="button"
-                    className="fin-chip"
-                    onClick={() => setLines((was) => was.filter((_, i) => i !== index))}
-                  >
-                    удалить
-                  </button>
-                ) : null}
+                <label className="flex flex-col gap-1 min-w-[12rem]">
+                  <span className="fin-label">Статья</span>
+                  <ChoiceSelect className="input-field" value={categoryId} onChange={setCategoryId} placeholder="не указана" clearable>
+                    {dictionaries.categories
+                      .filter((item) => item.side === (side === "out" ? "income" : "expense"))
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                  </ChoiceSelect>
+                </label>
+                <label className="flex flex-col gap-1 min-w-[10rem]">
+                  <span className="fin-label">Проект</span>
+                  <ChoiceSelect className="input-field" value={projectId} onChange={setProjectId} placeholder="без проекта" clearable>
+                    {dictionaries.projects.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </ChoiceSelect>
+                </label>
               </div>
-            ))}
-            <button
-              type="button"
-              className="fin-chip self-start"
-              onClick={() => setLines((was) => [...was, { title: "", quantity: "1", price: "" }])}
-            >
-              + позиция
-            </button>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-              Без НДС <b className="fin-num">{formatMoney(totals.net)}</b>
-            </span>
-            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-              НДС <b className="fin-num">{formatMoney(totals.vat)}</b>
-            </span>
-            <span className="text-sm" style={{ color: "var(--text-primary)" }}>
-              К оплате <b className="fin-num">{formatMoney(totals.gross)}</b>
-            </span>
-            <input
-              className="input-field flex-1 min-w-[10rem]"
-              placeholder="комментарий"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
-            <button type="button" className="btn-primary" disabled={busy || totals.gross <= 0} onClick={() => void submit()}>
-              {busy ? "Выставляем…" : "Выставить счёт"}
-            </button>
-          </div>
-        </div>
-      ) : null}
+              <div className="flex flex-col gap-2">
+                {lines.map((line, index) => (
+                  <div key={index} className="flex flex-wrap items-end gap-2">
+                    <label className="flex flex-col gap-1 flex-1 min-w-[12rem]">
+                      <span className="fin-label">Позиция</span>
+                      <input
+                        className="input-field"
+                        value={line.title}
+                        placeholder="что продаём"
+                        onChange={(e) =>
+                          setLines((was) => was.map((item, i) => (i === index ? { ...item, title: e.target.value } : item)))
+                        }
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="fin-label">Кол-во</span>
+                      <input
+                        className="input-field fin-num"
+                        style={{ width: "5rem" }}
+                        value={line.quantity}
+                        onChange={(e) =>
+                          setLines((was) => was.map((item, i) => (i === index ? { ...item, quantity: e.target.value } : item)))
+                        }
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="fin-label">Цена</span>
+                      <input
+                        className="input-field fin-num"
+                        style={{ width: "8rem" }}
+                        value={line.price}
+                        onChange={(e) =>
+                          setLines((was) => was.map((item, i) => (i === index ? { ...item, price: e.target.value } : item)))
+                        }
+                      />
+                    </label>
+                    <span className="fin-num" style={{ minWidth: "7rem", color: "var(--text-primary)" }}>
+                      {formatMoney(amountOf(line.quantity) * amountOf(line.price))}
+                    </span>
+                    {lines.length > 1 ? (
+                      <button
+                        type="button"
+                        className="fin-chip"
+                        onClick={() => setLines((was) => was.filter((_, i) => i !== index))}
+                      >
+                        удалить
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="fin-chip self-start"
+                  onClick={() => setLines((was) => [...was, { title: "", quantity: "1", price: "" }])}
+                >
+                  + позиция
+                </button>
+              </div>
 
-      <div className="fin-card overflow-x-auto">
-        <table className="fin-table">
-          <thead>
-            <tr>
-              <th>Номер</th>
-              <th>Дата</th>
-              <th>Срок</th>
-              <th>Контрагент</th>
-              <th style={{ textAlign: "right" }}>Без НДС</th>
-              <th style={{ textAlign: "right" }}>НДС</th>
-              <th style={{ textAlign: "right" }}>К оплате</th>
-              <th>Состояние</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((item) => (
-              <tr key={item.id}>
-                <td className="fin-strong">{item.number}</td>
-                <td>{formatDate(item.issued_at)}</td>
-                <td>{formatDate(item.due_at)}</td>
-                <td>{item.counterparty || "-"}</td>
-                <td className="fin-num">{formatMoney(item.amount_net)}</td>
-                <td className="fin-num">{formatMoney(item.vat_amount)}</td>
-                <td className={`fin-num ${item.kind === "out" ? "fin-in" : "fin-out"}`}>
-                  {formatMoney(item.amount_gross)}
-                </td>
-                <td>
-                  {item.paid ? (
-                    "оплачен"
-                  ) : item.status === "void" ? (
-                    "отменён"
-                  ) : item.overdue_days ? (
-                    <span className="fin-out">просрочен {item.overdue_days} дн.</span>
-                  ) : (
-                    "ждём оплату"
-                  )}
-                </td>
-                <td>
-                  {!item.paid && item.status !== "void" ? (
-                    <button type="button" className="fin-chip" disabled={busy} onClick={() => void drop(item.id)}>
-                      отменить
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-            {!shown.length ? (
-              <tr>
-                <td colSpan={9} style={{ textAlign: "center", color: "var(--text-muted)" }}>
-                  Счетов пока нет
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                  Без НДС <b className="fin-num">{formatMoney(totals.net)}</b>
+                </span>
+                <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                  НДС <b className="fin-num">{formatMoney(totals.vat)}</b>
+                </span>
+                <span className="text-sm" style={{ color: "var(--text-primary)" }}>
+                  К оплате <b className="fin-num">{formatMoney(totals.gross)}</b>
+                </span>
+                <input
+                  className="input-field flex-1 min-w-[10rem]"
+                  placeholder="комментарий"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+                <button type="button" className="btn-primary" disabled={busy || totals.gross <= 0} onClick={() => void submit()}>
+                  {busy ? "Выставляем…" : "Выставить счёт"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="fin-card overflow-x-auto">
+            <table className="fin-table">
+              <thead>
+                <tr>
+                  <th>Номер</th>
+                  <th>Дата</th>
+                  <th>Срок</th>
+                  <th>Контрагент</th>
+                  <th style={{ textAlign: "right" }}>Без НДС</th>
+                  <th style={{ textAlign: "right" }}>НДС</th>
+                  <th style={{ textAlign: "right" }}>К оплате</th>
+                  <th>Состояние</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((item) => (
+                  <tr key={item.id}>
+                    <td className="fin-strong">{item.number}</td>
+                    <td>{formatDate(item.issued_at)}</td>
+                    <td>{formatDate(item.due_at)}</td>
+                    <td>{item.counterparty || "-"}</td>
+                    <td className="fin-num">{formatMoney(item.amount_net)}</td>
+                    <td className="fin-num">{formatMoney(item.vat_amount)}</td>
+                    <td className={`fin-num ${item.kind === "out" ? "fin-in" : "fin-out"}`}>
+                      {formatMoney(item.amount_gross)}
+                    </td>
+                    <td>
+                      {item.paid ? (
+                        "оплачен"
+                      ) : item.status === "void" ? (
+                        "отменён"
+                      ) : item.overdue_days ? (
+                        <span className="fin-out">просрочен {item.overdue_days} дн.</span>
+                      ) : (
+                        "ждём оплату"
+                      )}
+                    </td>
+                    <td>
+                      {!item.paid && item.status !== "void" ? (
+                        <button type="button" className="fin-chip" disabled={busy} onClick={() => void drop(item.id)}>
+                          отменить
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+                {!shown.length ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                      Счетов пока нет
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

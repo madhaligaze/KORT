@@ -90,6 +90,8 @@ export type Me = {
   } | null;
   /** Переписка с поддержкой KORT: непрочитанные ответы и объявление дня. */
   support?: SupportState;
+  /** Невыставленные счета книги-сводки - число у пункта «Счета». `null` - не подключено или не открыто. */
+  bills?: { overdue: number; soon: number } | null;
 };
 
 /** Вход с нового устройства, ждущий подтверждения (слабый, но уже заданный пароль). */
@@ -565,6 +567,45 @@ export type Invoice = {
 
 export type InvoiceSide = { total: string; open: string; overdue: string };
 
+/** Группа невыставленного счёта - по словам книги в колонке «Счет». */
+export type BillGroup = "overdue" | "soon" | "early" | "undated";
+
+/** Строка книги-сводки без галочки «Счет»: договор за месяц (`contracts/bills.py`). */
+export type Bill = {
+  line: number;
+  group: BillGroup;
+  /** Что написано в «Счет» - как есть: «Просрочка более 5 дней». */
+  text: string;
+  own: string;
+  customer: string;
+  number: string;
+  month: string;
+  kind: string;
+  staff: string;
+  department: string;
+  amount: string | null;
+  period_from: string | null;
+  /** «Факт Оплата»: деньги уже пришли - целиком или частью. */
+  paid: "" | "paid" | "part";
+  status: string;
+  note: string;
+};
+
+export type BillsBoard = {
+  source: {
+    title: string;
+    worksheet: string;
+    url: string;
+    read_at: string | null;
+    drift: string;
+    error: string;
+  } | null;
+  items: Bill[];
+  counts: (Record<BillGroup, number> & { overdue_total: string; soon_total: string }) | null;
+  /** Канал бота счетов, если он читает книгу этой компании. */
+  channel: { title: string; url: string; hour: number } | null;
+};
+
 export type Recurrence = {
   id: string;
   title: string;
@@ -755,6 +796,8 @@ export const financeApi = {
   createInvoice: (body: unknown) =>
     request<{ id: string; number: string }>("/invoices", { method: "POST", body: JSON.stringify(body) }),
   voidInvoice: (id: string) => request<{ ok: boolean }>(`/invoices/${id}/void`, { method: "POST" }),
+  /** «Не выставлены» - из книги-сводки; `refresh` - «Обновить». */
+  bills: (refresh = false) => request<BillsBoard>(`/bills${refresh ? "?refresh=true" : ""}`),
 
   // ── Повторяющиеся операции ──
   recurrences: () => request<{ items: Recurrence[]; horizon_days: number }>("/recurrences"),

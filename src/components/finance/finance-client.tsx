@@ -1298,7 +1298,16 @@ export function FinanceClient() {
                     <span className="fin-nav-ico">
                       <item.icon size={17} />
                     </span>
-                    <span className="fin-nav-text">{item.title}</span>
+                    <span className="fin-nav-text">
+                      {item.title}
+                      {/* Просроченные по книге-сводке счета - числом, пока они
+                          есть: видно из любого раздела, не только из «Счетов». */}
+                      {item.key === "invoices" && me.bills?.overdue ? (
+                        <span className="fin-nav-count" title="Счета, которые по книге пора было выставить">
+                          {me.bills.overdue}
+                        </span>
+                      ) : null}
+                    </span>
                   </button>
                 ))}
               </div>

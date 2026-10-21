@@ -2018,6 +2018,16 @@ label.auth-row-label { cursor: pointer; }
   .fin-rail-toggle { display: none; }
 }
 .fin-nav-text { overflow: hidden; }
+/* Число у пункта «Счета»: счета, которые по книге-сводке пора было выставить.
+   Цвет - отказа, и он не горит постоянно: число уходит, как только счета
+   выставлены. Внутри подписи - свёрнутая колонка прячет его вместе с ней. */
+.fin-nav-count {
+  margin-left: 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fin-expense);
+}
 .fin-rail-foot {
   display: none;
   flex-direction: column;
@@ -2523,6 +2533,34 @@ label.auth-row-label { cursor: pointer; }
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   color: var(--fin-text);
+}
+/* Плитка-переключатель («Счета → Не выставлены»): число и есть кнопка группы.
+   Выбранная - рамкой тушью, не заливкой; кнопка - прямоугольник (CLAUDE.md). */
+.fin-kpi-pick {
+  border-radius: 0;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.fin-kpi-pick:hover { border-color: var(--fin-text-soft); }
+.fin-kpi-pick[data-on] { border-color: var(--fin-text); }
+.fin-kpi-pick[data-on] .fin-kpi-label:first-child { color: var(--fin-text); font-weight: 600; }
+
+/* «Не выставлены»: откуда список и примечание книги под заказчиком. */
+.fin-bills-source { color: var(--fin-text-soft); }
+/* Восемь колонок должны встать на эталонном экране (1280): поля ячеек уже. */
+.fin-bills-table th,
+.fin-bills-table td { padding-left: 0.5rem; padding-right: 0.5rem; }
+.fin-bills-customer { min-width: 12rem; }
+.fin-bills-staff { max-width: 8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fin-bills-date { white-space: nowrap; }
+.fin-bills-note {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--fin-text-soft);
 }
 
 /* Карточка внутри плиты: у Finmap это не «карточка в карточке», а участок с
