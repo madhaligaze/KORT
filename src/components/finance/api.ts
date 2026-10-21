@@ -622,6 +622,85 @@ export type BankOption = {
   parser: string;
 };
 
+/** Вид документа 1С: счёт на оплату, реализация (АВР), счёт-фактура, ЭСФ, поступление. */
+export type OnecKind = "invoice" | "sale" | "sf" | "esf" | "payment";
+
+/** База 1С компании - чтение через автоматический REST-сервис (OData). */
+export type OnecBase = {
+  id: string;
+  title: string;
+  url: string;
+  login: string;
+  state: "active" | "off";
+  group_entity_id: string | null;
+  group_entity: string;
+  organization_ref: string;
+  organization_name: string;
+  organization_bin: string;
+  organizations: Array<{ ref: string; name: string; bin: string }>;
+  sync_from: string | null;
+  last_sync_at: string | null;
+  last_ok_at: string | null;
+  last_error: string;
+  warnings: string[];
+  counts: Partial<Record<OnecKind, number>>;
+};
+
+export type OnecDoc = {
+  id: string;
+  kind: OnecKind;
+  number: string;
+  date: string;
+  amount: string | null;
+  posted: boolean;
+  party: string;
+  party_bin: string;
+  contract_number: string;
+  signed_at: string | null;
+  status: string;
+  reg_number: string;
+  period_from: string | null;
+  period_to: string | null;
+  content: string;
+  base_id: string;
+  how: string;
+  manual: string;
+};
+
+export type OnecContractBrief = {
+  contract_id: string;
+  number: string;
+  customer: string;
+  executor: string;
+  amount: string | null;
+  billing: string;
+};
+
+/** Договор за месяц: что о нём знает 1С - как колонки книг BBC. */
+export type OnecRow = OnecContractBrief & {
+  invoices: OnecDoc[];
+  payments: OnecDoc[];
+  paid: string | null;
+  sales: OnecDoc[];
+  signed_at: string | null;
+  esf: OnecDoc[];
+  esf_kind: "" | "esf" | "sf";
+};
+
+export type OnecLoose = OnecDoc & {
+  state: "other_client" | "other_entity" | "ambiguous" | "missing" | "no_entity";
+  candidates: string[];
+};
+
+export type OnecMonth = {
+  month: string;
+  rows: OnecRow[];
+  unmatched: OnecLoose[];
+  candidates: Record<string, OnecContractBrief>;
+  totals: { contracts: number; invoices: number; paid: number; sales: number; signed: number; esf: number; unmatched: number };
+  months: string[];
+};
+
 export type BalanceData = {
   as_of: string;
   assets: { total: string; rows: Array<{ name: string; amount: string; details?: Array<{ name: string; amount: string }> }> };
@@ -710,6 +789,41 @@ export const financeApi = {
   setIntegrationState: (id: string, state: "active" | "off") =>
     request<Integration>(`/integrations/${id}?state=${state}`, { method: "PATCH" }),
   deleteIntegration: (id: string) => request<{ ok: boolean }>(`/integrations/${id}`, { method: "DELETE" }),
+
+  // ── Базы 1С ──
+  onec: () =>
+    request<{
+      bases: OnecBase[];
+      entities: Array<{ id: string; name: string; bin: string }>;
+      secrets_ready: boolean;
+      sync_minutes: number;
+    }>("/onec"),
+  connectOnec: (body: { url: string; login: string; password: string; title?: string; group_entity_id?: string | null }) =>
+    request<OnecBase>("/onec/bases", { method: "POST", body: JSON.stringify(body) }),
+  updateOnec: (
+    id: string,
+    body: Partial<{
+      title: string;
+      group_entity_id: string | null;
+      clear_group_entity: boolean;
+      organization_ref: string;
+      state: "active" | "off";
+      sync_from: string;
+      login: string;
+      password: string;
+    }>,
+  ) => request<OnecBase>(`/onec/bases/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteOnec: (id: string) => request<{ ok: boolean }>(`/onec/bases/${id}`, { method: "DELETE" }),
+  syncOnec: (id: string) =>
+    request<{ ok: boolean; error: string; base: OnecBase }>(`/onec/bases/${id}/sync`, { method: "POST" }),
+  onecMonth: (month: string, base?: string | null) => request<OnecMonth>(`/onec/month${qs({ month, base })}`),
+  onecChoices: (base: string, q: string) =>
+    request<{ items: Array<{ contract_id: string; number: string; customer: string; amount: string | null }> }>(
+      `/onec/choices${qs({ base, q })}`,
+    ),
+  onecDecide: (id: string, body: { action: "link" | "none" | "auto"; contract_id?: string | null }) =>
+    request<OnecDoc>(`/onec/documents/${id}/decide`, { method: "POST", body: JSON.stringify(body) }),
+  onecContract: (id: string) => request<{ items: Array<OnecDoc & { month: string }> }>(`/onec/contracts/${id}`),
 
   // ── Баланс, показатели, выписка ──
   balance: (asOf?: string) => request<BalanceData>(`/reports/balance${asOf ? `?as_of=${asOf}` : ""}`),

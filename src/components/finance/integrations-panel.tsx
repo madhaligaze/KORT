@@ -11,6 +11,7 @@ import {
   financeApi,
   formatDate,
 } from "@/components/finance/api";
+import { OnecPanel } from "@/components/finance/onec-panel";
 
 const WAY_TITLES: Record<string, string> = {
   statement: "Выписка файлом",
@@ -29,8 +30,44 @@ const WAY_TITLES: Record<string, string> = {
  * Что есть на самом деле: выписка файлом (у всех банков), книга Google и наш
  * адрес приёма - туда операции присылает скрипт клиента, шина или выгрузка из
  * 1С, с токеном этого подключения.
+ *
+ * Базы 1С - своим видом раздела: их KORT читает сам (`onec-panel.tsx`).
  */
 export function IntegrationsPanel({
+  accounts,
+  onGo,
+  onChanged,
+  canEdit,
+}: {
+  accounts: Account[];
+  onGo: (section: "import" | "sheets") => void;
+  onChanged: () => void;
+  canEdit: boolean;
+}) {
+  const [tab, setTab] = useSessionState<"1c" | "banks">("intg.tab", "1c");
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="onec-switch" role="tablist" aria-label="Вид раздела">
+        <button type="button" role="tab" className="fin-tab" data-on={tab === "1c"} aria-selected={tab === "1c"} onClick={() => setTab("1c")}>
+          1С
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className="fin-tab"
+          data-on={tab === "banks"}
+          aria-selected={tab === "banks"}
+          onClick={() => setTab("banks")}
+        >
+          Банки и книги
+        </button>
+      </div>
+      {tab === "1c" ? <OnecPanel canEdit={canEdit} /> : <BanksPanel accounts={accounts} onGo={onGo} onChanged={onChanged} />}
+    </div>
+  );
+}
+
+function BanksPanel({
   accounts,
   onGo,
   onChanged,

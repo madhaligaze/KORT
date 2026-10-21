@@ -14,10 +14,14 @@ import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   type Amendment,
   type ContractPayments,
+  FinanceApiError,
+  type OnecDoc,
   type ParsedPiece,
   type PaymentItem,
   type RegistryField,
   contractsApi,
+  financeApi,
+  formatMonth,
 } from "@/components/finance/api";
 import { ArrowDownIcon, ArrowUpIcon, CloseIcon } from "@/components/icons";
 import { type CardScope, CardScopeContext, InlineField } from "@/components/finance/contracts/field-editor";
@@ -249,6 +253,7 @@ export function ContractCard({
             <SourceText contractId={contract.id} seq={contract.seq} />
             <Snapshot contractId={contract.id} />
             <Payments contractId={contract.id} seq={contract.seq} />
+            <OnecDocs contractId={contract.id} seq={contract.seq} />
           </>
         ) : null}
       </div>
@@ -888,6 +893,76 @@ function Payments({ contractId, seq }: { contractId: string; seq: number }) {
         );
       })}
       {error ? <p className="ifield-error">{error}</p> : null}
+    </Section>
+  );
+}
+
+const ONEC_KIND: Record<OnecDoc["kind"], string> = {
+  invoice: "счёт",
+  payment: "оплата",
+  sale: "АВР",
+  sf: "счёт-фактура",
+  esf: "ЭСФ",
+};
+const ONEC_ORDER: OnecDoc["kind"][] = ["invoice", "payment", "sale", "sf", "esf"];
+
+/** Отказ в праве «Подключения» - на всю сессию страницы: не спрашивать на каждой карточке. */
+let onecClosed = false;
+
+/**
+ * Документы 1С договора: счета, поступления, АВР с подписанием, счета-фактуры
+ * и ЭСФ из подключённых баз - по месяцам услуги, как колонки книг BBC
+ * (`onec/match.py`). Только чтение: правится 1С, решения - в «Интеграциях».
+ * Раздела нет без документов и у того, кому «Подключения» не открыты: там
+ * суммы счетов и оплат.
+ */
+function OnecDocs({ contractId, seq }: { contractId: string; seq: number }) {
+  const [data, setData] = useState<{ id: string; items: Array<OnecDoc & { month: string }> } | null>(null);
+  useEffect(() => {
+    if (onecClosed) return;
+    let alive = true;
+    financeApi
+      .onecContract(contractId)
+      .then((value) => alive && setData({ id: contractId, items: value.items }))
+      .catch((exc) => {
+        if (exc instanceof FinanceApiError && exc.status === 403) onecClosed = true;
+        if (alive) setData({ id: contractId, items: [] });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [contractId, seq]);
+  const items = data?.id === contractId ? data.items : [];
+  if (!items.length) return null;
+  const months = new Map<string, Array<OnecDoc & { month: string }>>();
+  for (const item of items) {
+    const list = months.get(item.month) ?? [];
+    list.push(item);
+    months.set(item.month, list);
+  }
+  const ordered = [...months.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  return (
+    <Section title="Документы 1С" count={items.length}>
+      {ordered.map(([month, docs]) => (
+        <div key={month} className="amend-row">
+          <span className="amend-when fin-mono">{month ? formatMonth(month, true) : "-"}</span>
+          <span>
+            {[...docs]
+              .sort((a, b) => ONEC_ORDER.indexOf(a.kind) - ONEC_ORDER.indexOf(b.kind) || (a.date < b.date ? -1 : 1))
+              .map((doc) => (
+                <span key={doc.id} style={{ display: "block" }}>
+                  {ONEC_KIND[doc.kind]} {doc.number} от {formatDay(doc.date)}
+                  {doc.amount ? <span className="fin-soft"> · {contractMoney(doc.amount)}</span> : null}
+                  {doc.kind === "sale" ? (
+                    <span className="fin-soft">{doc.signed_at ? ` · подписан ${formatDay(doc.signed_at)}` : " · не подписан"}</span>
+                  ) : null}
+                  {doc.posted ? null : <span className="fin-soft"> · не проведён</span>}
+                </span>
+              ))}
+          </span>
+          <span />
+        </div>
+      ))}
     </Section>
   );
 }

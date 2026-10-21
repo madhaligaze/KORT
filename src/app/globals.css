@@ -1871,6 +1871,57 @@ label.auth-row-label { cursor: pointer; }
 .fin-bank-name { font-size: 0.875rem; font-weight: 600; line-height: 1.2; }
 .fin-bank-ways { font-size: 0.6875rem; color: var(--fin-text-soft); line-height: 1.25; }
 
+/* ─── Базы 1С (`onec-panel.tsx`) ───
+   Месяц по договорам повторяет колонки книг BBC: в ячейке номер и дата
+   документа, под ними сумма приглушённо. Пустая ячейка - «-», не цвет:
+   красным здесь было бы почти всё, и красный перестал бы что-либо значить. */
+.onec { display: flex; flex-direction: column; gap: 1rem; }
+.onec-switch { display: flex; gap: 1.25rem; border-bottom: 1px solid var(--fin-line); }
+.onec-error { margin: 0.35rem 0 0; font-size: 0.8125rem; color: var(--accent-rose); }
+.onec-note { margin: 0.25rem 0 0; font-size: 0.75rem; color: var(--fin-text-soft); }
+.onec-none { color: var(--fin-text-soft); }
+.onec-doc { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.3; }
+.onec-doc + .onec-doc { margin-top: 0.4rem; }
+.onec-doc small { font-size: 0.75rem; color: var(--fin-text-soft); font-variant-numeric: tabular-nums; }
+.onec-draft { color: var(--fin-text-soft); }
+.onec-select { min-width: 12rem; }
+.onec-add { align-self: flex-start; }
+.onec-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.85rem;
+}
+.onec-field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.onec-form-go { display: flex; gap: 0.5rem; }
+.onec-form-note { grid-column: 1 / -1; }
+@media (max-width: 899.98px) {
+  .onec-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .onec-field-wide, .onec-form-go { grid-column: 1 / -1; }
+}
+@media (max-width: 479.98px) {
+  .onec-form { grid-template-columns: minmax(0, 1fr); }
+}
+.onec-month { display: flex; flex-direction: column; gap: 0.75rem; }
+.onec-month-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.onec-month-nav { display: flex; align-items: center; gap: 0.5rem; }
+.onec-month-title {
+  margin: 0;
+  min-width: 9.5rem;
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--fin-text);
+}
+.onec-totals { margin: 0; font-size: 0.8125rem; color: var(--fin-text-soft); font-variant-numeric: tabular-nums; }
+.onec-sub { margin: 0.75rem 0 0; font-size: 1rem; font-weight: 500; color: var(--fin-text); }
+.onec-table td { white-space: nowrap; }
+.onec-table td.fin-strong { white-space: normal; min-width: 11rem; }
+.onec-picker { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; min-width: 16rem; white-space: normal; }
+.onec-picker-list { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
 /* ─── Токен и пример запроса ─── */
 .fin-code {
   display: block;

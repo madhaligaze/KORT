@@ -1045,7 +1045,14 @@ export function FinanceClient() {
       case "recurrences":
         return <RecurrencesPanel dictionaries={dictionaries} onChanged={reload} />;
       case "integrations":
-        return <IntegrationsPanel accounts={dictionaries.accounts} onGo={setSection} onChanged={reload} />;
+        return (
+          <IntegrationsPanel
+            accounts={dictionaries.accounts}
+            onGo={setSection}
+            onChanged={reload}
+            canEdit={can(me, "integrations", "edit")}
+          />
+        );
       case "balance":
         return <BalanceReport revision={revision} />;
       case "indicators":
