@@ -72,6 +72,8 @@ const RESPONSE_STRIP_HEADERS = new Set([
 // Upstream request timeout (ms). Generous to allow slow OCR / Azure parsing.
 const UPSTREAM_TIMEOUT_MS = 180_000;
 
+const NOT_ANSWERING = "Сервер не отвечает. Попробуйте ещё раз через минуту.";
+
 function stripWrappingQuotes(value: string): string {
   const trimmed = value.trim();
   if (
@@ -164,6 +166,18 @@ async function proxyRequest(
       signal: controller.signal,
     });
 
+    // Ответил не API, а край хостинга: сервис упал, ещё выкладывается или
+    // адрес не тот. Railway отвечает 404 «Application not found» с
+    // `x-railway-fallback`, Render - 404 «Not Found» с `x-render-routing:
+    // no-server`. Экраны читали это как ответ API: «Сервер ответил 404» на
+    // входе, «время подтверждения вышло» у ждущего устройства. Свои ответы
+    // API, даже 404, этих заголовков не несут (проверено на обоих 22.10.2026).
+    if (response.headers.get("x-railway-fallback") || response.headers.get("x-render-routing")) {
+      console.error(`Proxy: hosting edge answered ${response.status} instead of ${targetUrl}`);
+      await response.body?.cancel();
+      return NextResponse.json({ detail: NOT_ANSWERING }, { status: 502 });
+    }
+
     const responseHeaders = new Headers();
     response.headers.forEach((value, key) => {
       const name = key.toLowerCase();
@@ -197,9 +211,7 @@ async function proxyRequest(
     // Разбираться будет тот, у кого есть лог сервера, - там оба и лежат.
     return NextResponse.json(
       {
-        detail: aborted
-          ? "Сервер не ответил вовремя. Попробуйте ещё раз."
-          : "Сервер не отвечает. Попробуйте ещё раз через минуту.",
+        detail: aborted ? "Сервер не ответил вовремя. Попробуйте ещё раз." : NOT_ANSWERING,
       },
       { status: 502 },
     );

@@ -1535,6 +1535,8 @@ label.auth-row-label { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-inline: 1rem;
+  text-align: center;
   background: var(--stage-bg);
   color: var(--text-muted);
   font-size: 0.875rem;

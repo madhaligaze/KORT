@@ -498,6 +498,17 @@ function signal(status: number, path: string): void {
 /** Что человек видит, когда до сервера не дошло ни одного байта. */
 export const OFFLINE_TEXT = "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.";
 
+/**
+ * Текст отказа без `detail`: ответил не API, а то, что стоит перед ним, или
+ * API упал, не успев объяснить. «Сервер ответил 502» человеку не говорит,
+ * его ли это ошибка и что делать.
+ */
+export function statusText(status: number): string {
+  if (status === 502 || status === 503 || status === 504) return "Сервер не отвечает. Попробуйте ещё раз через минуту.";
+  if (status >= 500) return `Сбой на сервере (${status}). Попробуйте ещё раз через минуту.`;
+  return `Сервер ответил ${status}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -516,7 +527,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!response.ok) {
     signal(response.status, path);
-    let message = `Сервер ответил ${response.status}`;
+    let message = statusText(response.status);
     let payload: unknown;
     try {
       const body = await response.json();

@@ -912,31 +912,58 @@ export function PasswordChangeGate({ onDone, onLogout }: { onDone: () => void; o
  * Не афишей: следом почти всегда идёт форма входа, и афиша, собранная дважды
  * за полсекунды (сначала здесь, потом в форме), читалась бы как рывок.
  * Подпись проявляется с задержкой - при обычной проверке её не видно вовсе.
+ *
+ * Сервер не ответил - «нет связи», а не форма входа (22.10.2026): форма на
+ * упавшем сервере говорила вошедшему человеку, что сеанс пропал, и он
+ * набирал пароль, который ни при чём.
  */
-export function AuthLoading() {
-  return <AuthWait>Проверяем доступ…</AuthWait>;
+export function AuthLoading({ offline = false }: { offline?: boolean }) {
+  return (
+    <AuthWait>{offline ? "Нет связи с сервером. Экран откроется сам, когда связь вернётся." : "Проверяем доступ…"}</AuthWait>
+  );
+}
+
+/** Через сколько снова спросить «кто вошёл», если сервер не ответил. */
+const ME_RETRY_MS = 3000;
+
+/** Нет связи, а не отказ: до сервера не дошло (0) или за прокси никто не ответил. */
+function unreachable(exc: unknown): boolean {
+  return exc instanceof FinanceApiError && [0, 502, 503, 504].includes(exc.status);
 }
 
 export function useMe() {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    let timer = 0;
+    const check = async () => {
       try {
         const next = await financeApi.me();
-        if (alive) setMe(next.authenticated ? next : null);
-      } catch {
-        if (alive) setMe(null);
-      } finally {
-        if (alive) setLoading(false);
+        if (!alive) return;
+        setMe(next.authenticated ? next : null);
+      } catch (exc) {
+        if (!alive) return;
+        // Ответ «не вошёл» и молчание сервера - разное: на молчание ждём и
+        // спрашиваем снова, вход откроется, только когда сервер ответит.
+        if (unreachable(exc)) {
+          setOffline(true);
+          timer = window.setTimeout(check, ME_RETRY_MS);
+          return;
+        }
+        setMe(null);
       }
-    })();
+      setOffline(false);
+      setLoading(false);
+    };
+    void check();
     return () => {
       alive = false;
+      window.clearTimeout(timer);
     };
   }, []);
 
-  return { me, setMe, loading };
+  return { me, setMe, loading, offline };
 }

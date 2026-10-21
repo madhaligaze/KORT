@@ -13,6 +13,7 @@ import {
   FORBIDDEN_EVENT,
   FinanceApiError,
   OFFLINE_TEXT,
+  statusText,
   supportApi,
   type SupportItem,
 } from "@/components/finance/api";
@@ -63,7 +64,7 @@ export function sendToSupport(message: Outgoing, onProgress?: (part: number) => 
           ? detail
           : xhr.status === 413
             ? "Вложения слишком большие - отправьте их в нескольких сообщениях"
-            : `Сервер ответил ${xhr.status}`;
+            : statusText(xhr.status);
       reject(new FinanceApiError(text, xhr.status, payload));
     };
     xhr.onerror = () => reject(new FinanceApiError(OFFLINE_TEXT, 0));

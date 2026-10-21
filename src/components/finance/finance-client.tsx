@@ -534,7 +534,7 @@ function subscribeRail(listener: () => void): () => void {
 
 export function FinanceClient() {
   // Раздел сам решает, кто вошёл: своя учётка, свой вход, своя компания.
-  const { me, setMe, loading } = useMe();
+  const { me, setMe, loading, offline } = useMe();
   const [picked, setSectionState] = useState<Section | null>(null);
   /**
    * Раздел живёт в адресе: ссылку на реестр или договор можно переслать.
@@ -1078,7 +1078,7 @@ export function FinanceClient() {
     setupBackTitle,
   ]);
 
-  if (loading) return <AuthLoading />;
+  if (loading) return <AuthLoading offline={offline} />;
   if (!me) {
     return (
       <AuthGate
