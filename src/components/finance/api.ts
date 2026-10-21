@@ -602,8 +602,8 @@ export type BillsBoard = {
   } | null;
   items: Bill[];
   counts: (Record<BillGroup, number> & { overdue_total: string; soon_total: string }) | null;
-  /** Канал бота счетов, если он читает книгу этой компании. */
-  channel: { title: string; url: string; hour: number | null } | null;
+  /** Канал бота счетов, если он читает книгу этой компании; `hours` - часы напоминаний по Астане. */
+  channel: { title: string; url: string; hours: number[] } | null;
 };
 
 export type Recurrence = {
