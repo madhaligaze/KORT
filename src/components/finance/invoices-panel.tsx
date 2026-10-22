@@ -226,6 +226,7 @@ export function InvoicesPanel({
             busy={reading}
             onRefresh={() => void loadBills(true)}
             onOpen={(id) => openBill(id)}
+            onWritten={() => void loadBills()}
           />
         ) : (
           <p className="text-xs fin-muted">Читаем книгу…</p>

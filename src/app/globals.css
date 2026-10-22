@@ -2586,11 +2586,20 @@ label.auth-row-label { cursor: pointer; }
 .fin-bill-field { display: flex; flex-direction: column; gap: 0.25rem; }
 /* Отказ - единственное, что в карточке подсвечено цветом (CLAUDE.md). */
 .fin-bill-fail { color: var(--accent-rose); }
-/* Кнопка шаблона: «Скачать» → «Загрузить» → «Принят» сменяются подъёмом
-   (RiseSwap). Ширина - по самой длинной подписи, чтобы ряд кнопок не
-   прыгал; «Принят» - весом подписи и рамкой тушью, не цветом. */
+/* Кнопка шаблона Excel над «Не выставлены» (`bills-template.tsx`): «Скачать»
+   → «Загрузить» → «Принят» сменяются подъёмом (RiseSwap). Ширина - по самой
+   длинной подписи, чтобы ряд кнопок не прыгал; «Принят» - весом подписи и
+   рамкой тушью, не цветом. Отказ - своей строкой под рядом. */
 .fin-bill-template { min-width: 11.5rem; }
 .fin-bill-template[data-step="accepted"] { font-weight: 600; border-color: var(--text-primary); }
+.fin-bills-template-fail { flex-basis: 100%; text-align: right; }
+/* Окно строк шаблона: таблица в семь колонок - шире карточки счёта. */
+@media (min-width: 640px) {
+  .fin-dialog.fin-bills-template { max-width: 60rem; }
+}
+.fin-bills-template-state { min-width: 9rem; max-width: 22rem; }
+/* На телефоне «записано» стоит под заказчиком - тем же весом, что в колонке. */
+.fin-bills-note.fin-strong { color: var(--fin-text); font-weight: 600; }
 
 /* Карточка внутри плиты: у Finmap это не «карточка в карточке», а участок с
    тонкой рамкой - иначе на плите получается матрёшка из теней. */

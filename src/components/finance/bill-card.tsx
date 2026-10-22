@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { CloseIcon } from "@/components/icons";
-import { RiseSwap } from "@/components/motion/rise-swap";
-import { useSessionState } from "@/components/session-state";
 import { useScrollLock } from "@/components/use-scroll-lock";
 import {
   type Bill,
@@ -75,29 +73,6 @@ function changes(form: Form, start: Form, book: BillBook): Partial<Form> {
 
 const PAID: Record<Bill["paid"], string> = { paid: "пришла", part: "пришла частью", "": "-" };
 
-/**
- * Шаг шаблона Excel: одна кнопка на весь путь - скачать, загрузить, принят.
- * Шаг помнится на время сессии: скачали, закрыли карточку, заполнили файл -
- * открытая заново карточка уже ждёт загрузку.
- */
-type TemplateStep = "download" | "upload" | "accepted";
-const STEP_LABELS: Record<TemplateStep, string> = {
-  download: "Скачать шаблон",
-  upload: "Загрузить шаблон",
-  accepted: "Принят",
-};
-
-/** Скачать файл из памяти браузера: ссылка на миг, имя - от сервера. */
-function saveFile(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-}
 const LABELS: Record<BillField, string> = {
   bill_no: "№ счёта",
   bill_date: "Дата выставления",
@@ -113,7 +88,8 @@ const LABELS: Record<BillField, string> = {
  * (`contracts/bill_book.py`). В книгу уходит только изменённое и только если
  * в книге оно всё ещё такое, каким его показала карточка: иначе отказ, а не
  * затёртая чужая правка. Открывается из списка и по ссылке из канала
- * (`?s=invoices&bill=<id>`).
+ * (`?s=invoices&bill=<id>`). Много счетов разом - шаблоном Excel раздела
+ * (`bills-template.tsx`): его строки пишет та же запись.
  */
 export function BillCardDialog({
   id,
@@ -132,9 +108,6 @@ export function BillCardDialog({
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
-  const [step, setStep] = useSessionState<TemplateStep>(`bill.${id}.template`, "download");
-  const [templateBusy, setTemplateBusy] = useState(false);
-  const picker = useRef<HTMLInputElement | null>(null);
 
   useScrollLock(true);
 
@@ -194,10 +167,7 @@ export function BillCardDialog({
             ? `Записано в книгу: счёт № ${after.bill_no}${after.bill_date ? ` от ${after.bill_date}` : ""}.`
             : "Записано в книгу.";
       setDone(saved.warning ? `${line} ${saved.warning}` : line);
-      if (saved.changed.length) {
-        setStep("download"); // шаблон своё отслужил: следующий - заново
-        onSaved();
-      }
+      if (saved.changed.length) onSaved();
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "В книгу не записалось");
     } finally {
@@ -218,48 +188,7 @@ export function BillCardDialog({
     void write(pending, "save");
   };
 
-  const download = async () => {
-    setTemplateBusy(true);
-    setError("");
-    try {
-      const file = await financeApi.billTemplate(id);
-      saveFile(file.blob, file.name);
-      setStep("upload");
-    } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Шаблон не скачался");
-    } finally {
-      setTemplateBusy(false);
-    }
-  };
-
-  /**
-   * Заполненный шаблон - в поля карточки. В книгу он не пишет: что вышло из
-   * файла, человек видит в полях и записывает той же «Записать в книгу».
-   */
-  const upload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = ""; // тот же файл ещё раз - снова событие
-    if (!file) return;
-    setTemplateBusy(true);
-    setError("");
-    setDone("");
-    try {
-      const read = await financeApi.readBillTemplate(id, file);
-      setForm((was) => (was ? { ...was, ...read.values } : was));
-      setStep("accepted");
-      const number = read.values.bill_no ?? "";
-      const date = shownOf(read.values.bill_date ?? null);
-      setDone(`Из шаблона, строка ${read.row}: № ${number}${date ? ` от ${date}` : ""}. Проверьте и нажмите «Записать в книгу».`);
-    } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Шаблон не прочитался");
-    } finally {
-      setTemplateBusy(false);
-    }
-  };
-
-  const templateLabel = templateBusy ? (step === "download" ? "Скачиваем…" : "Читаем шаблон…") : STEP_LABELS[step];
-
-  const set = (field: BillField) => (event: React.ChangeEvent<HTMLInputElement>) => {
+  const set =(field: BillField) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setForm((was) => (was ? { ...was, [field]: value } : was));
     setDone("");
@@ -367,28 +296,6 @@ export function BillCardDialog({
                     >
                       {busy ? "Записываем…" : "Записать в книгу"}
                     </button>
-                    {/* Одна кнопка на весь путь шаблона: скачать → загрузить → принят. */}
-                    <button
-                      type="button"
-                      className="btn-ghost fin-bill-template"
-                      data-step={step}
-                      disabled={busy || templateBusy}
-                      onClick={() => (step === "download" ? void download() : picker.current?.click())}
-                    >
-                      <RiseSwap value={templateLabel} />
-                    </button>
-                    <input
-                      ref={picker}
-                      type="file"
-                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                      style={{ display: "none" }}
-                      onChange={(event) => void upload(event)}
-                    />
-                    {step !== "download" && !templateBusy ? (
-                      <button type="button" className="fin-link-btn text-xs" disabled={busy} onClick={() => void download()}>
-                        скачать заново
-                      </button>
-                    ) : null}
                     {issued ? (
                       <button
                         type="button"

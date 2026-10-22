@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import { ChoiceSelect } from "@/components/choice-select";
+import { BillsTemplate } from "@/components/finance/bills-template";
 import { useSessionState } from "@/components/session-state";
 import {
   type Bill,
@@ -45,8 +46,9 @@ function timeOf(iso: string | null): string {
  * выставленные за прошлый и этот месяц.
  *
  * Строка открывает карточку счёта (`bill-card.tsx`): там счёт отмечают
- * выставленным, и KORT пишет «№ Счета» и дату в книгу юрлица. Здесь кнопок у
- * строк нет: «Новый счёт» по книге завёл бы второй долг клиента - в книге и в
+ * выставленным, и KORT пишет «№ Счета» и дату в книгу юрлица. Много счетов
+ * разом - шаблоном Excel над списком (`bills-template.tsx`). Кнопок у строк
+ * нет: «Новый счёт» по книге завёл бы второй долг клиента - в книге и в
  * «Долгах».
  *
  * Состояние - словами книги («Просрочка более 5 дней»), а не своим счётом
@@ -58,11 +60,14 @@ export function UnissuedBills({
   busy,
   onRefresh,
   onOpen,
+  onWritten,
 }: {
   board: BillsBoard;
   busy: boolean;
   onRefresh: () => void;
   onOpen: (id: string) => void;
+  /** Из шаблона записали в книги - перечитать список. */
+  onWritten: () => void;
 }) {
   const [view, setView] = useSessionState<View>("inv.bills.group", "overdue");
   const [own, setOwn] = useSessionState("inv.bills.own", "");
@@ -131,6 +136,7 @@ export function UnissuedBills({
           ))}
         </ChoiceSelect>
         <span style={{ flex: 1 }} />
+        {source ? <BillsTemplate canEdit={Boolean(board.can_edit)} onWritten={onWritten} /> : null}
         <button type="button" className="btn-ghost" disabled={busy} onClick={onRefresh}>
           {busy ? "Читаем книгу…" : "Обновить"}
         </button>

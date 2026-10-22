@@ -649,11 +649,36 @@ export type Bill = {
   signed_at: string;
 };
 
-/** Что вышло из загруженного шаблона Excel: поля карточки (дата - ISO) и где они нашлись. */
-export type BillTemplateRead = {
-  values: Partial<Record<BillField, string>>;
+/** Что со строкой загруженного шаблона: записать, уже в книге, не заполнена, отказ. */
+export type BillsTemplateStatus = "ready" | "same" | "empty" | "error";
+
+/** Строка загруженного шаблона Excel (`contracts/bill_template.py`): какой это счёт и что с ним делать. */
+export type BillsTemplateRow = {
   sheet: string;
   row: number;
+  /** Адрес счёта - для записи `saveBill`; `null` - счёт не узнан. */
+  id: string | null;
+  own: string;
+  customer: string;
+  number: string;
+  month: string;
+  period_from: string | null;
+  period_to: string | null;
+  amount: string | null;
+  status: BillsTemplateStatus;
+  /** Почему строку не записать (`error`). */
+  problem: string;
+  /** Что уже стоит в книге (`same`). */
+  note: string;
+  /** Что записать: № и дата (ISO), если вписаны - «Счет за Период» и комментарий. */
+  values: Partial<Record<BillField, string>>;
+  /** Что дописать, только если в книге пусто: «Счет за Период», как подставляет карточка. */
+  defaults: Partial<Record<BillField, string>>;
+};
+
+export type BillsTemplateRead = {
+  rows: BillsTemplateRow[];
+  counts: Record<BillsTemplateStatus, number>;
 };
 
 /** Поля карточки, которые KORT пишет в книгу юрлица. */
@@ -699,6 +724,8 @@ export type BillsBoard = {
   counts: (Record<BillGroup, number> & { overdue_total: string; soon_total: string }) | null;
   /** Канал бота счетов, если он читает книгу этой компании; `hours` - часы напоминаний по Астане. */
   channel: { title: string; url: string; hours: number[] } | null;
+  /** Право «Счета: правка» - загрузить шаблон и записать из него в книги. */
+  can_edit?: boolean;
 };
 
 export type Recurrence = {
@@ -894,15 +921,26 @@ export const financeApi = {
   /** «Не выставлены» - из книги-сводки; `refresh` - «Обновить». */
   bills: (refresh = false) => request<BillsBoard>(`/bills${refresh ? "?refresh=true" : ""}`),
   bill: (id: string) => request<BillCard>(`/bills/${encodeURIComponent(id)}`),
-  saveBill: (id: string, body: { values: Partial<Record<BillField, string>>; expect: Record<BillField, string> }) =>
-    request<BillSaved>(`/bills/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) }),
-  /** Шаблон счёта Excel - файлом: известное вписано, «№ Счета» и дату заполнить. */
-  billTemplate: (id: string) => requestFile(`/bills/${encodeURIComponent(id)}/template`),
-  /** Заполненный шаблон - в поля карточки. В книгу не пишет. */
-  readBillTemplate: (id: string, file: File) => {
+  /**
+   * Записать поля счёта в книгу юрлица. `expect` - какими поля показала
+   * карточка (иначе отказ, а не затёртая чужая правка); `defaults` - что
+   * дописать, только если в книге пусто.
+   */
+  saveBill: (
+    id: string,
+    body: {
+      values: Partial<Record<BillField, string>>;
+      expect: Partial<Record<BillField, string>>;
+      defaults?: Partial<Record<BillField, string>>;
+    },
+  ) => request<BillSaved>(`/bills/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) }),
+  /** Шаблон счетов Excel - файлом: счета постов бота, «№ Счета» и дату заполнить. */
+  billsTemplate: () => requestFile("/bills/template"),
+  /** Заполненный шаблон - в строки: что с каждой делать. В книги не пишет. */
+  readBillsTemplate: (file: File) => {
     const body = new FormData();
     body.append("file", file);
-    return request<BillTemplateRead>(`/bills/${encodeURIComponent(id)}/template`, { method: "POST", body });
+    return request<BillsTemplateRead>("/bills/template", { method: "POST", body });
   },
 
   // ── Повторяющиеся операции ──
