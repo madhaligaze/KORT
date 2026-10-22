@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "backend/.venv/**",
+    // Десктоп - свой пакет со своим tsconfig (`desktop/`).
+    "desktop/**",
   ]),
 ]);
 

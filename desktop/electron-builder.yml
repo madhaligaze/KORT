@@ -1,0 +1,39 @@
+# Установщик KORT для Windows и его обновления.
+#
+# Версию ставит сборка (`.github/workflows/desktop.yml`): «уровень.0.номер»,
+# уровень - из `release.json`. Обновление с большим уровнем приложение
+# считает обязательным (`src/updates.ts`).
+appId: cards.kort.desktop
+productName: KORT
+copyright: KORT
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - assets/icon.png
+  - package.json
+extraResources:
+  # Интерфейс - тот же фронт, что у kort.cards, собранный из того же коммита.
+  # Пакеты фронта - в `web/modules`: `node_modules` сборщик из ресурсов
+  # выбрасывает молча (`scripts/prepare-web.mjs`).
+  - from: web
+    to: web
+win:
+  target: nsis
+  # Буква K знака KORT на плите сцены - тот же значок, что у вкладки сайта
+  # (`src/app/icon.svg`), 512×512: из него собираются ярлык, панель задач и установщик.
+  icon: assets/icon.png
+  artifactName: KORT-Setup-${version}.${ext}
+nsis:
+  # Ставится в профиль человека без прав администратора и без вопросов -
+  # так же тихо ставится и каждое обновление.
+  oneClick: true
+  perMachine: false
+  shortcutName: KORT
+  deleteAppDataOnUninstall: false
+publish:
+  provider: github
+  owner: madhaligaze
+  repo: KORT
+  releaseType: release

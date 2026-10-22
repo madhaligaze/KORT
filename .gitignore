@@ -32,4 +32,9 @@ package-lock.json
 coverage/
 *.tsbuildinfo
 next-env.d.ts
+
+# ── Десктоп (desktop/) ────────────────────────
+desktop/dist/
+desktop/web/
+desktop/release*/
 /docs/

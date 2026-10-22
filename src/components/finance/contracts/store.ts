@@ -14,9 +14,14 @@
  * * сторона и сумма существующего договора спрашивают «опечатка или с даты»:
  *   клиент предсказывает вопрос, сервер держит правило (422 `mode_required`);
  * * нет связи - правка ждёт в очереди и уходит при первом успешном опросе.
+ *
+ * В десктопе (`components/desktop/bridge.ts`) очередь ещё и переживает
+ * закрытие окна: правки и договоры, заведённые без связи, лежат на диске
+ * компьютера и уходят, когда сервер снова ответит (см. «Без связи» ниже).
  */
 import { useSyncExternalStore } from "react";
 
+import { desktop } from "@/components/desktop/bridge";
 import { type PollOutcome, type Poller, pollWhileVisible } from "@/components/univer/live";
 
 import {
@@ -47,6 +52,19 @@ export type Edit = {
   by?: string;
   error?: string;
   startedAt: number;
+  /**
+   * Значение сервера, поверх которого человек печатал. Пока правка ждёт
+   * связи, поле могли поменять другие - это конфликт, и правка не должна
+   * молча лечь поверх (см. `overtaken`).
+   */
+  seen?: unknown;
+};
+
+/** Договор, заведённый без связи: ждёт отправки (`flushCreates`). */
+export type LocalCreate = {
+  ctx: { view?: string; block?: number; source?: string; before?: string | null };
+  /** Отказ сервера словами - договор не заведён, строка ждёт правки. */
+  failed?: string;
 };
 
 export type RemoteNote = { id: string; field: string; by: string; number: string; at: number };
@@ -85,6 +103,8 @@ export type RegistryState = {
   /** По какой сводке сервер посчитал листы («Остатки») в последнем полном чтении. */
   listSummaryRev: string;
   edits: ReadonlyMap<string, ReadonlyMap<string, Edit>>;
+  /** Договоры, заведённые без связи и ещё не отправленные (только десктоп). */
+  creates: ReadonlyMap<string, LocalCreate>;
   live: { online: boolean; lastOkAt: number | null; failures: number };
   remote: readonly RemoteNote[];
   /** Договор → «ушёл в „Прочие / Аренда“» / «убран · Дана Ж.». Убирается сменой отбора. */
@@ -119,6 +139,7 @@ const EMPTY: RegistryState = {
   shares: null,
   listSummaryRev: "",
   edits: new Map(),
+  creates: new Map(),
   live: { online: true, lastOkAt: null, failures: 0 },
   remote: [],
   departed: new Map(),
@@ -197,11 +218,15 @@ let epoch = 0;
 let bootedScope: string | undefined;
 
 function claim(company: string | null, me: string | null, phase: RegistryState["phase"]): void {
+  // Очередь прежнего хозяина - на диск до сброса, а не через таймер, который
+  // сработает уже на новом.
+  persistNow();
   epoch += 1;
   booting = null;
   bootedScope = undefined;
   schemaLoading = null;
   inflight.clear();
+  creating = false;
   paymentsAt = 0;
   paymentsLoading = null;
   paymentsClosedFor = null;
@@ -215,6 +240,7 @@ function claim(company: string | null, me: string | null, phase: RegistryState["
   sharesSoon = 0;
   state = { ...EMPTY, company, me, phase };
   listeners.forEach((listener) => listener());
+  loadSaved();
 }
 
 /** Выход из учётки: реестр вышедшего не остаётся в памяти вкладки. */
@@ -261,6 +287,11 @@ export function boot(company: string, me: string | null, force = false, scope?: 
 function loadAll(schema: RegistrySchema, all: ContractsAll): void {
   const byId = new Map<string, Contract>();
   for (const item of all.contracts) byId.set(item.id, item);
+  // Заведённые без связи сервер ещё не знает - они остаются строками.
+  for (const id of state.creates.keys()) {
+    const local = state.byId.get(id);
+    if (local && !byId.has(id)) byId.set(id, local);
+  }
   emit({
     phase: "ready",
     error: "",
@@ -275,6 +306,7 @@ function loadAll(schema: RegistrySchema, all: ContractsAll): void {
     // тех, кто стоит в договорах.
     people: { ...Object.fromEntries((state.staff ?? []).map((person) => [person.id, person])), ...all.people },
   });
+  restoreSaved();
 }
 
 /**
@@ -407,6 +439,29 @@ function fieldWord(key: string): string {
   return (field?.title ?? key).toLowerCase();
 }
 
+/**
+ * Правки, которые обогнал кто-то другой: поле ещё ждёт отправки, а на сервере
+ * оно уже не то, поверх чего человек печатал. Такая правка становится
+ * конфликтом - со словами, чьё значение теперь на сервере.
+ *
+ * Без этого правка, пролежавшая в очереди (нет связи, десктоп закрыт на
+ * ночь), уходила с номером свежего опроса и сервер принимал её поверх
+ * чужой без единого вопроса: номер, по которому он ищет конфликт, клиент к
+ * тому времени уже видел. `null` - ничего не обогнано.
+ */
+function overtaken(edits: ReadonlyMap<string, Edit>, contract: Contract): Map<string, Edit> | null {
+  let out: Map<string, Edit> | null = null;
+  for (const [key, item] of edits) {
+    if (item.state !== "queued" && item.state !== "asking") continue;
+    if (!("seen" in item)) continue;
+    const now = contract.values[key] ?? null;
+    if (JSON.stringify(now) === JSON.stringify(item.seen ?? null)) continue;
+    out ??= new Map(edits);
+    out.set(key, { ...item, state: "conflict", theirs: now, by: contract.updated_by?.short_name ?? "" });
+  }
+  return out;
+}
+
 function applyChanges(batch: ChangesBatch): void {
   if (!batch.contracts.length && !batch.removed.length) {
     if (batch.seq > state.seq) emit({ seq: batch.seq });
@@ -417,9 +472,16 @@ function applyChanges(batch: ChangesBatch): void {
   const wasIn = new Map(state.wasIn);
   const fresh = new Set<string>();
   const notes: RemoteNote[] = [];
+  let edits: Map<string, ReadonlyMap<string, Edit>> | null = null;
   for (const incoming of batch.contracts) {
     const before = byId.get(incoming.id);
-    const mine = state.edits.get(incoming.id);
+    let mine = state.edits.get(incoming.id);
+    const overtook = mine ? overtaken(mine, incoming) : null;
+    if (overtook) {
+      edits ??= new Map(state.edits);
+      edits.set(incoming.id, overtook);
+      mine = overtook;
+    }
     if (!before) fresh.add(incoming.id);
     leftViews(wasIn, before, incoming);
     // Поля с правкой в полёте не перетираются: побеждает то, что человек
@@ -466,7 +528,9 @@ function applyChanges(batch: ChangesBatch): void {
     departed,
     fresh,
     wasIn,
+    ...(edits ? { edits } : {}),
   });
+  if (edits) persistSoon();
 }
 
 export function forgetDeparted(): void {
@@ -496,12 +560,21 @@ function setEdit(id: string, key: string, edit: Edit | null): void {
   if (forContract.size) edits.set(id, forContract);
   else edits.delete(id);
   emit({ edits });
+  persistSoon();
 }
 
 function putOne(one: OneContract, keepEdits = true): void {
   const byId = new Map(state.byId);
   const incoming = one.contract;
-  const mine = keepEdits ? state.edits.get(incoming.id) : undefined;
+  let mine = keepEdits ? state.edits.get(incoming.id) : undefined;
+  const overtook = mine ? overtaken(mine, incoming) : null;
+  if (overtook) {
+    const edits = new Map(state.edits);
+    edits.set(incoming.id, overtook);
+    emit({ edits });
+    persistSoon();
+    mine = overtook;
+  }
   let merged = incoming;
   if (mine && mine.size) {
     const values = { ...incoming.values };
@@ -573,12 +646,22 @@ export function edit(id: string, key: string, value: unknown, mode?: ChangeMode)
   const contract = state.byId.get(id);
   if (!contract) return;
   const current = contract.values[key];
-  if (JSON.stringify(current ?? null) === JSON.stringify(value ?? null) && !state.edits.get(id)?.has(key)) return;
-  if (!mode && needsMode(contract, key)) {
-    setEdit(id, key, { value, state: "asking", startedAt: Date.now() });
+  const prior = state.edits.get(id)?.get(key);
+  if (JSON.stringify(current ?? null) === JSON.stringify(value ?? null) && !prior) return;
+  if (state.creates.has(id)) {
+    // Договор ещё не на сервере: поле уйдёт вместе с ним.
+    setEdit(id, key, { value, state: "queued", startedAt: Date.now() });
+    retryCreate(id);
     return;
   }
-  setEdit(id, key, { value, state: "queued", mode, startedAt: Date.now() });
+  // Поверх чего печатают: прежняя правка уже это знает, а после конфликта
+  // человек только что видел чужое значение - его и перебивает.
+  const seen = prior && prior.state !== "conflict" && "seen" in prior ? prior.seen : (current ?? null);
+  if (!mode && needsMode(contract, key)) {
+    setEdit(id, key, { value, state: "asking", startedAt: Date.now(), seen });
+    return;
+  }
+  setEdit(id, key, { value, state: "queued", mode, startedAt: Date.now(), seen });
   send(id);
 }
 
@@ -598,12 +681,13 @@ export function cancel(id: string, key: string): void {
 export function insist(id: string, key: string): void {
   const pending = state.edits.get(id)?.get(key);
   if (!pending) return;
-  setEdit(id, key, { ...pending, state: "queued", theirs: undefined, by: undefined, error: undefined });
+  const seen = state.byId.get(id)?.values[key] ?? null;
+  setEdit(id, key, { ...pending, state: "queued", theirs: undefined, by: undefined, error: undefined, seen });
   send(id);
 }
 
 function send(id: string): void {
-  if (inflight.has(id)) return;
+  if (inflight.has(id) || state.creates.has(id)) return;
   const edits = state.edits.get(id);
   if (!edits) return;
   const ready = [...edits].filter(([, item]) => item.state === "queued");
@@ -628,6 +712,10 @@ function send(id: string): void {
         const now = state.edits.get(id)?.get(key);
         // Во время запроса человек успел напечатать другое - оно уйдёт следующим.
         if (now && now.state === "sending") setEdit(id, key, null);
+        // ...и печатал он уже поверх своего, только что легшего значения.
+        else if (now && (now.state === "queued" || now.state === "asking")) {
+          setEdit(id, key, { ...now, seen: one.contract.values[key] ?? null });
+        }
       }
       putOne(one);
       send(id);
@@ -676,7 +764,10 @@ function send(id: string): void {
 }
 
 function flushQueued(): void {
+  // Сначала договоры, заведённые без связи: правки их полей ждут их самих.
+  flushCreates();
   for (const [id, edits] of state.edits) {
+    if (state.creates.has(id)) continue;
     if ([...edits.values()].some((item) => item.state === "queued")) send(id);
   }
 }
@@ -686,23 +777,210 @@ export function pendingCount(): number {
   for (const edits of state.edits.values()) {
     for (const item of edits.values()) if (item.state === "queued" || item.state === "sending") count += 1;
   }
+  for (const [id, item] of state.creates) if (!item.failed && !state.edits.has(id)) count += 1;
   return count;
 }
 
 // ── Заведение и удаление ─────────────────────────────────────────────────────
 
+/** Не дошло до сервера или за ним никто не ответил - а не отказ. */
+function unreached(exc: unknown): boolean {
+  return exc instanceof FinanceApiError && [0, 502, 503, 504].includes(exc.status);
+}
+
+/** Код нового договора выдаёт клиент - см. `service.create` на сервере. */
+function newId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
+ * Завести договор. Код выдаётся здесь, а не сервером: в десктопе без связи
+ * договор встаёт строкой сразу (`createLocally`) и уходит на сервер позже с
+ * тем же кодом - строка, правки её полей и ссылка на неё не меняются, а
+ * повторная отправка не заводит двойника.
+ */
 export async function create(
   values: Record<string, unknown>,
   ctx?: { view?: string; block?: number; source?: string; before?: string | null },
 ): Promise<string> {
   const mine = epoch;
-  const one = await contractsApi.create(values, ctx);
+  const id = newId();
+  let one: OneContract;
+  try {
+    one = await contractsApi.create(values, { ...ctx, id });
+  } catch (exc) {
+    if (epoch !== mine || !desktop() || !unreached(exc)) throw exc;
+    createLocally(id, values, ctx ?? {});
+    return id;
+  }
   if (epoch !== mine) return one.contract.id;
   putOne(one, false);
   const fresh = new Set(state.fresh);
   fresh.add(one.contract.id);
   emit({ fresh });
   return one.contract.id;
+}
+
+/**
+ * Договор без связи: строка там, где её завели, напечатанное - правками в
+ * очереди. Подстановки блока и место в других листах поставит сервер, когда
+ * договор до него дойдёт.
+ */
+function createLocally(id: string, values: Record<string, unknown>, ctx: LocalCreate["ctx"]): void {
+  const byId = new Map(state.byId);
+  let last = 0;
+  for (const item of byId.values()) last = Math.max(last, item.position);
+  const neighbour = ctx.before ? byId.get(ctx.before) : undefined;
+  // Свой лист и главный («Сводная» видит все договоры) - остальные листы
+  // договор займёт по их правилам, когда его разложит сервер.
+  const views: Contract["views"] = ctx.view ? [{ view: ctx.view, block: ctx.block ?? 0 }] : [];
+  for (const view of state.schema?.views ?? []) {
+    if (view.main && !views.some((place) => place.view === view.key)) views.push({ view: view.key, block: 0 });
+  }
+  const contract: Contract = {
+    id,
+    seq: 0,
+    values: {},
+    provenance: {},
+    issues: [],
+    views,
+    file_snapshot: {},
+    position: neighbour ? neighbour.position - 0.5 : last + 1,
+    source: ctx.source === "grid" ? "grid" : "app",
+    created_by: state.me,
+    created_at: new Date().toISOString(),
+    updated_by: null,
+    updated_at: null,
+    deleted: false,
+  };
+  byId.set(id, contract);
+  const creates = new Map(state.creates);
+  creates.set(id, { ctx });
+  const edits = new Map(state.edits);
+  const typed = new Map<string, Edit>();
+  for (const [key, value] of Object.entries(values)) typed.set(key, { value, state: "queued", startedAt: Date.now() });
+  if (typed.size) edits.set(id, typed);
+  const fresh = new Set(state.fresh);
+  fresh.add(id);
+  emit({ byId, order: sortOrder(byId), creates, edits, fresh, live: { ...state.live, online: false } });
+  persistSoon();
+}
+
+/** Человек поправил строку договора, которому сервер отказал, - пробуем снова. */
+function retryCreate(id: string): void {
+  const item = state.creates.get(id);
+  if (item?.failed) {
+    const creates = new Map(state.creates);
+    creates.set(id, { ctx: item.ctx });
+    emit({ creates });
+    persistSoon();
+  }
+  flushCreates();
+}
+
+/** Строка договора, не дошедшего до сервера, уходит без запроса. */
+function dropLocal(id: string): void {
+  const byId = new Map(state.byId);
+  byId.delete(id);
+  const creates = new Map(state.creates);
+  creates.delete(id);
+  const edits = new Map(state.edits);
+  edits.delete(id);
+  emit({ byId, order: sortOrder(byId), creates, edits });
+  persistSoon();
+}
+
+let creating = false;
+
+/**
+ * Договоры, заведённые без связи, - на сервер по одному и по порядку. Поля
+ * уходят те, что в строке сейчас: напечатанное после заведения едет вместе с
+ * договором, а не следом отдельными правками.
+ */
+function flushCreates(): void {
+  if (creating) return;
+  const next = [...state.creates].find(([, item]) => !item.failed);
+  if (!next) return;
+  const [id, item] = next;
+  const typed = state.edits.get(id);
+  const values: Record<string, unknown> = {};
+  const sent: string[] = [];
+  for (const [key, edit] of typed ?? []) {
+    if (edit.state === "queued" || edit.state === "failed") {
+      values[key] = edit.value;
+      sent.push(key);
+    }
+  }
+  creating = true;
+  for (const key of sent) {
+    const edit = typed?.get(key);
+    if (edit) setEdit(id, key, { ...edit, state: "sending", error: undefined });
+  }
+  const mine = epoch;
+  const back = (patch: Partial<Edit>) => {
+    for (const key of sent) {
+      const now = state.edits.get(id)?.get(key);
+      if (now?.state === "sending") setEdit(id, key, { ...now, ...patch });
+    }
+  };
+  contractsApi
+    .create(values, { ...item.ctx, id })
+    .then((one) => {
+      if (epoch !== mine) return;
+      creating = false;
+      const creates = new Map(state.creates);
+      creates.delete(id);
+      emit({ creates });
+      for (const key of sent) {
+        if (state.edits.get(id)?.get(key)?.state === "sending") setEdit(id, key, null);
+      }
+      const real = one.contract.id;
+      if (real !== id) {
+        // Сервер без кодов клиента (старый API) завёл договор со своим кодом:
+        // строка без связи уходит, напечатанное после отправки - к настоящему.
+        const left = state.edits.get(id);
+        dropLocal(id);
+        if (left?.size) {
+          const edits = new Map(state.edits);
+          edits.set(real, left);
+          emit({ edits });
+        }
+      }
+      putOne(one);
+      const fresh = new Set(state.fresh);
+      fresh.add(real);
+      emit({ fresh });
+      persistSoon();
+      flushQueued();
+    })
+    .catch((exc: unknown) => {
+      if (epoch !== mine) return;
+      creating = false;
+      if (unreached(exc) || !(exc instanceof FinanceApiError) || exc.status === 401) {
+        back({ state: "queued" });
+        if (exc instanceof FinanceApiError && exc.status === 401) onAuthLost?.();
+        else emit({ live: { ...state.live, online: false } });
+        return;
+      }
+      if (exc.status === 404) {
+        // «Договор уже заведён и удалён»: первая отправка дошла, а потом его
+        // удалили - строке без связи воскресать незачем.
+        dropLocal(id);
+        flushCreates();
+        return;
+      }
+      back({ state: "failed", error: exc.message });
+      const creates = new Map(state.creates);
+      creates.set(id, { ...item, failed: exc.message });
+      emit({ creates });
+      persistSoon();
+      flushCreates();
+    });
 }
 
 /**
@@ -717,7 +995,24 @@ export function dropMany(ids: readonly string[]): void {
   emit({ byId, order: sortOrder(byId) });
 }
 
+/**
+ * Удаление: договоры, заведённые без связи и не дошедшие до сервера, уходят
+ * сразу и без запроса - сервер их не знает. Возвращает остальные.
+ */
+export function dropUnsent(ids: readonly string[]): string[] {
+  const rest: string[] = [];
+  for (const id of ids) {
+    if (state.creates.has(id)) dropLocal(id);
+    else rest.push(id);
+  }
+  return rest;
+}
+
 export async function remove(id: string): Promise<void> {
+  if (state.creates.has(id)) {
+    dropLocal(id);
+    return;
+  }
   const mine = epoch;
   await contractsApi.remove(id);
   if (epoch !== mine) return;
@@ -962,8 +1257,171 @@ if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
   (window as unknown as Record<string, unknown>).__finRegistry = { getRegistry, needsMode };
 }
 
+// ── Без связи: очередь на диске (десктоп) ───────────────────────────────────
+//
+// Правки и договоры, не дошедшие до сервера, десктоп кладёт на диск под
+// ключом учётки и компании и возвращает в хранилище при следующем входе той
+// же учётки - даже если окно закрыли без связи или выключили компьютер.
+// Вернувшиеся правки сверяются с тем, что за это время стало на сервере
+// (`overtaken`), и уходят первым успешным опросом.
+
+type SavedEdit = Edit & { id: string; key: string };
+type SavedCreate = { id: string; contract: Contract; item: LocalCreate };
+type SavedQueue = { v: 1; edits: SavedEdit[]; creates: SavedCreate[] };
+
+function queueKey(company: string, me: string | null): string {
+  return `contracts-queue:${company}:${me ?? ""}`;
+}
+
+function isSavedQueue(value: unknown): value is SavedQueue {
+  const item = value as SavedQueue | null;
+  return Boolean(item && item.v === 1 && Array.isArray(item.edits) && Array.isArray(item.creates));
+}
+
+/** Чья очередь читается с диска и что прочиталось (`undefined` - ещё читается). */
+let savedKey: string | null = null;
+let saved: SavedQueue | null | undefined = null;
+/**
+ * Чья очередь уже вернулась в хранилище. Только её и можно писать на диск:
+ * запись до возврата затёрла бы сохранённое пустым.
+ */
+let restoredKey: string | null = null;
+
+function loadSaved(): void {
+  const bridge = desktop();
+  savedKey = null;
+  saved = null;
+  if (!bridge || !state.company) return;
+  const key = queueKey(state.company, state.me);
+  savedKey = key;
+  saved = undefined;
+  bridge.load(key).then(
+    (value) => {
+      if (savedKey !== key) return;
+      saved = isSavedQueue(value) ? value : null;
+      restoreSaved();
+      // Рама держит опрос, пока очередь не пуста (`holdQueue`), - пусть узнает.
+      listeners.forEach((listener) => listener());
+    },
+    () => {
+      // Не прочиталось - и не пишется: сохранённое остаётся до следующего раза.
+      if (savedKey === key) saved = null;
+    },
+  );
+}
+
+function restoreSaved(): void {
+  if (saved === undefined || !savedKey || restoredKey === savedKey) return;
+  if (state.phase !== "ready" || !state.company || queueKey(state.company, state.me) !== savedKey) return;
+  const data = saved;
+  saved = null;
+  restoredKey = savedKey;
+  if (!data || (!data.edits.length && !data.creates.length)) return;
+  const byId = new Map(state.byId);
+  const creates = new Map(state.creates);
+  const edits = new Map(state.edits);
+  for (const local of data.creates) {
+    // Уже на сервере: первая отправка дошла, а ответ на неё - нет.
+    if (byId.has(local.id)) continue;
+    byId.set(local.id, local.contract);
+    creates.set(local.id, local.item);
+  }
+  const notes: RemoteNote[] = [];
+  for (const { id, key, ...item } of data.edits) {
+    const contract = byId.get(id);
+    if (!contract || contract.deleted) {
+      notes.push({ id, field: "договор удалён, правка без связи не легла", by: "", number: "", at: Date.now() });
+      continue;
+    }
+    const forContract = new Map(edits.get(id) ?? []);
+    forContract.set(key, { ...item, state: item.state === "sending" ? "queued" : item.state });
+    edits.set(id, forContract);
+  }
+  // Пока окно было закрыто, поля могли поменять другие.
+  for (const [id, forContract] of edits) {
+    const contract = byId.get(id);
+    if (!contract || creates.has(id)) continue;
+    const overtook = overtaken(forContract, contract);
+    if (overtook) edits.set(id, overtook);
+  }
+  emit({ byId, order: sortOrder(byId), creates, edits, remote: [...notes, ...state.remote].slice(0, 20) });
+  persistSoon();
+  flushQueued();
+}
+
+let persistTimer = 0;
+
+function persistSoon(): void {
+  if (persistTimer || !desktop()) return;
+  persistTimer = window.setTimeout(persistNow, 0);
+}
+
+function persistNow(): void {
+  if (persistTimer) window.clearTimeout(persistTimer);
+  persistTimer = 0;
+  const bridge = desktop();
+  if (!bridge || !state.company) return;
+  const key = queueKey(state.company, state.me);
+  if (restoredKey !== key) return;
+  const edits: SavedEdit[] = [];
+  for (const [id, forContract] of state.edits) {
+    for (const [field, item] of forContract) {
+      edits.push({ ...item, id, key: field, state: item.state === "sending" ? "queued" : item.state });
+    }
+  }
+  const creates: SavedCreate[] = [];
+  for (const [id, item] of state.creates) {
+    const contract = state.byId.get(id);
+    if (contract) creates.push({ id, contract, item });
+  }
+  bridge.save(key, { v: 1, edits, creates } satisfies SavedQueue).catch(() => {
+    /* диск не принял - очередь остаётся в памяти окна */
+  });
+}
+
+/**
+ * Десктоп: очередь с прошлого раза уходит, даже если реестр сейчас не открыт.
+ * Рама держит опрос (и читает реестр), пока в очереди есть что отправить.
+ */
+export function holdQueue(company: string, me: string | null): () => void {
+  if (!desktop()) return () => {};
+  let release: (() => void) | null = null;
+  const check = () => {
+    const ours = state.company === company && state.me === me;
+    const unrestored =
+      ours &&
+      savedKey === queueKey(company, me) &&
+      restoredKey !== savedKey &&
+      Boolean(saved && (saved.edits.length || saved.creates.length));
+    const waiting = ours && (unrestored || pendingCount() > 0);
+    if (waiting && !release) {
+      release = holdLive();
+      void boot(company, me);
+    } else if (!waiting && release) {
+      release();
+      release = null;
+    }
+  };
+  listeners.add(check);
+  check();
+  return () => {
+    listeners.delete(check);
+    release?.();
+  };
+}
+
 if (typeof window !== "undefined") {
+  // Десктоп узнаёт о возврате связи раньше опроса, который без связи
+  // отступил до 30 с: очередь уходит сразу, а не через полминуты.
+  desktop()?.onStatus((status) => {
+    if (status.online) poller?.now();
+  });
   window.addEventListener("beforeunload", (event) => {
+    // В десктопе очередь уже на диске и уйдёт при следующем запуске.
+    if (desktop()) {
+      persistNow();
+      return;
+    }
     if (pendingCount() > 0) {
       event.preventDefault();
       event.returnValue = "";

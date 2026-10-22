@@ -11,6 +11,9 @@ out/
 # Backend - not needed for the frontend image
 backend/
 
+# Десктоп собирается отдельно (GitHub Actions), в образ сайта не нужен
+desktop/
+
 # Editor / OS
 .DS_Store
 Thumbs.db

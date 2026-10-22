@@ -1744,7 +1744,10 @@ export const contractsApi = {
   all: () => request<ContractsAll>(C),
   changes: (since: number) => request<ChangesBatch>(`${C}/changes${qs({ since })}`),
   one: (id: string) => request<OneContract>(`${C}/${id}`),
-  create: (values: Record<string, unknown>, ctx?: { view?: string; block?: number; source?: string; before?: string | null }) =>
+  create: (
+    values: Record<string, unknown>,
+    ctx?: { view?: string; block?: number; source?: string; before?: string | null; id?: string },
+  ) =>
     request<OneContract>(C, {
       method: "POST",
       body: JSON.stringify({
@@ -1753,6 +1756,7 @@ export const contractsApi = {
         block: ctx?.block,
         source: ctx?.source ?? "app",
         before: ctx?.before ?? null,
+        id: ctx?.id ?? null,
       }),
     }),
   patch: (id: string, values: Record<string, unknown>, knownSeq: number | null, mode?: ChangeMode | null) =>

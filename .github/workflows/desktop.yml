@@ -1,0 +1,74 @@
+# Десктоп KORT: установщик для Windows и его обновление у всех.
+#
+# Каждый пуш в main, который трогает интерфейс или десктоп, собирает новый
+# установщик и выкладывает его релизом этого репозитория. Установленный KORT
+# видит релиз сам (`desktop/src/updates.ts`): скачивает в фоне и показывает
+# «Обновите приложение»; нажали - закрылся и открылся новым.
+#
+# Версия - «уровень.0.номер сборки», уровень - из `desktop/release.json`.
+# Подняли уровень - у всех старых версий окно «Эта версия KORT устарела».
+name: Десктоп
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "desktop/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "next.config.ts"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Релизы - по очереди: два одновременных выложили бы версии не по порядку.
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            desktop/pnpm-lock.yaml
+
+      - name: Зависимости сайта
+        run: pnpm install --frozen-lockfile
+
+      - name: Зависимости десктопа
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Версия
+        id: version
+        working-directory: desktop
+        shell: bash
+        run: |
+          level=$(node -p "require('./release.json').level")
+          echo "value=${level}.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Сборка
+        working-directory: desktop
+        run: |
+          pnpm build
+          node scripts/prepare-web.mjs
+
+      - name: Установщик и релиз
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm exec electron-builder --win --publish always -c.extraMetadata.version=${{ steps.version.outputs.value }}

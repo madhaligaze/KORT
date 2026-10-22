@@ -44,6 +44,7 @@ import {
   ensurePayments,
   ensureStaff,
   dropMany,
+  dropUnsent,
   put,
   refreshOne,
   useRegistry,
@@ -274,11 +275,14 @@ export function ContractCard({
           try {
             // Через точку восстановления, как удаление из листа: вернуть договор
             // может тот, кто удалил, а не только администратор из корзины.
-            const result = await contractsApi.sheetChange({ action: "delete_contracts", ids: [contract.id], book: book ?? "" });
-            if (!(result.done ?? []).includes(contract.id)) {
-              throw new Error(result.failed?.[0]?.error ?? "Договор не удалился");
+            // Заведённый без связи и не отправленный сервер не знает - уходит сразу.
+            if (dropUnsent([contract.id]).length) {
+              const result = await contractsApi.sheetChange({ action: "delete_contracts", ids: [contract.id], book: book ?? "" });
+              if (!(result.done ?? []).includes(contract.id)) {
+                throw new Error(result.failed?.[0]?.error ?? "Договор не удалился");
+              }
+              dropMany([contract.id]);
             }
-            dropMany([contract.id]);
             setConfirmRemove(false);
             onClose();
           } catch (exc) {

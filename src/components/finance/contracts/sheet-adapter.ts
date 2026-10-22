@@ -65,6 +65,7 @@ import {
   type RegistrySchema,
   type RegistryView,
   type ShareMap,
+  type SheetChangeResult,
   type ViewBlock,
   contractsApi,
 } from "@/components/finance/api";
@@ -74,6 +75,7 @@ import { STAFF_SHEET, type StaffMatrix, staffMatrix, staffSnapshot } from "@/com
 import {
   create,
   dropMany,
+  dropUnsent,
   edit,
   forBook,
   forgetDeparted,
@@ -2062,17 +2064,17 @@ export class RegistryBinding {
       lines,
       confirm: "Удалить",
       onConfirm: async () => {
-        const result = await contractsApi.sheetChange({
-          action: "delete_contracts",
-          ids: items.map((item) => item.id),
-          view,
-          book: this.book,
-        });
+        const ids = dropUnsent(items.map((item) => item.id));
+        const unsent = items.length - ids.length;
+        const result: SheetChangeResult = ids.length
+          ? await contractsApi.sheetChange({ action: "delete_contracts", ids, view, book: this.book })
+          : {};
         const done = result.done ?? [];
         dropMany(done);
         const failed = result.failed ?? [];
+        const gone = done.length + unsent;
         const text = [
-          done.length ? (done.length === 1 ? "Договор удалён" : `Удалено ${contractsWord(done.length)}`) : "",
+          gone ? (gone === 1 ? "Договор удалён" : `Удалено ${contractsWord(gone)}`) : "",
           failed.length ? `не удалено ${failed.length}: ${failed[0].error}` : "",
         ]
           .filter(Boolean)

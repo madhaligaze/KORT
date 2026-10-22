@@ -75,7 +75,15 @@ import { DictionariesPanel } from "@/components/finance/dictionaries-panel";
 import { Registry, RegistryActions, useRegistryBoot } from "@/components/finance/contracts/registry-cards";
 import { ContractCard } from "@/components/finance/contracts/contract-card";
 import { bookTitle } from "@/components/finance/contracts/schema";
-import { boot, ensureSchema, ensureSummary, forgetRegistry, useRegistry } from "@/components/finance/contracts/store";
+import {
+  boot,
+  ensureSchema,
+  ensureSummary,
+  forgetRegistry,
+  holdQueue,
+  useRegistry,
+} from "@/components/finance/contracts/store";
+import { DesktopBars } from "@/components/desktop/desktop-bars";
 import { OneoffStaff, SummaryLine } from "@/components/finance/contracts/oneoff";
 import { RegistryImport } from "@/components/finance/contracts/import/registry-import";
 import { RegistrySetup } from "@/components/finance/contracts/setup/registry-setup";
@@ -563,6 +571,11 @@ export function FinanceClient() {
   const userKey = me?.user?.id ?? null;
   useEffect(() => {
     if (companyKey && seesContracts) void ensureSchema(companyKey, userKey);
+  }, [companyKey, userKey, seesContracts]);
+  // Десктоп: правки, оставшиеся без связи с прошлого раза, уходят, даже если
+  // реестр сейчас не открыт.
+  useEffect(() => {
+    if (companyKey && seesContracts) return holdQueue(companyKey, userKey);
   }, [companyKey, userKey, seesContracts]);
   // Привычки учётки - до выбора раздела входа: вид реестра берётся из них.
   const habitOwner = habitsOwner(userKey, companyKey);
@@ -1133,6 +1146,7 @@ export function FinanceClient() {
   return (
     <SessionScope scope={sessionScope}>
     <div className="fin-page">
+      <DesktopBars />
       <DeviceApprovalBar devices={me.pending_devices ?? []} onDecided={() => void refreshMe()} />
       <header className="fin-head" ref={measureHead}>
         <button
