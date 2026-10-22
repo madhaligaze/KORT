@@ -67,11 +67,26 @@ jobs:
           pnpm build
           node scripts/prepare-web.mjs
 
-      - name: Установщик и релиз
+      - name: Установщик
         working-directory: desktop
         # bash, а не PowerShell раннера: тот режет `-c.extraMetadata.version=…`
         # на `-c` и `.extraMetadata…`, и сборщик ищет такой файл.
         shell: bash
+        run: pnpm exec electron-builder --win --publish never -c.extraMetadata.version=${{ steps.version.outputs.value }}
+
+      # Релиз выкладывает gh, а не electron-builder: тот грузил файлы разом, и
+      # каждая загрузка сама заводила релиз - вторая получала 422 «Published
+      # releases must have a valid tag», и оставался релиз без установщика.
+      # Черновик со всеми файлами, потом публикация: установленный KORT не
+      # увидит релиз без latest.yml.
+      - name: Релиз
+        working-directory: desktop
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm exec electron-builder --win --publish always -c.extraMetadata.version=${{ steps.version.outputs.value }}
+        run: |
+          v=${{ steps.version.outputs.value }}
+          gh release create "v$v" "release/KORT-Setup-$v.exe" "release/KORT-Setup-$v.exe.blockmap" release/latest.yml \
+            --draft --target "$GITHUB_SHA" --title "KORT $v" \
+            --notes "KORT для Windows. Установленный KORT обновится сам - кнопкой «Обновите приложение»."
+          gh release edit "v$v" --draft=false --latest
