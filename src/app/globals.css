@@ -2598,6 +2598,9 @@ label.auth-row-label { cursor: pointer; }
   .fin-dialog.fin-bills-template { max-width: 60rem; }
 }
 .fin-bills-template-state { min-width: 9rem; max-width: 22rem; }
+/* Отказ в ячейке: `.fin-table td` красит текст сам и перебивал одиночный класс -
+   отказ строки шаблона на компьютере был серым (23.10.2026). */
+.fin-table td.fin-bill-fail { color: var(--accent-rose); }
 /* На телефоне «записано» стоит под заказчиком - тем же весом, что в колонке. */
 .fin-bills-note.fin-strong { color: var(--fin-text); font-weight: 600; }
 
