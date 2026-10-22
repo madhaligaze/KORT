@@ -2564,6 +2564,28 @@ label.auth-row-label { cursor: pointer; }
   font-weight: 400;
   color: var(--fin-text-soft);
 }
+/* Строка открывает карточку счёта: курсор и фокус с клавиатуры. */
+.fin-bills-row { cursor: pointer; }
+.fin-bills-row:focus-visible { outline: 1px solid var(--fin-text); outline-offset: -1px; }
+
+/* Карточка счёта книги (`bill-card.tsx`): шире окна операции - в ней сведения
+   договора и четыре поля книги. */
+@media (min-width: 640px) {
+  .fin-dialog.fin-bill-card { max-width: 36rem; }
+}
+.fin-bill-sub { color: var(--fin-text-soft); }
+.fin-bill-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 0.875rem;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.fin-bill-facts dt { color: var(--fin-text-soft); }
+.fin-bill-facts dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+.fin-bill-field { display: flex; flex-direction: column; gap: 0.25rem; }
+/* Отказ - единственное, что в карточке подсвечено цветом (CLAUDE.md). */
+.fin-bill-fail { color: var(--accent-rose); }
 
 /* Карточка внутри плиты: у Finmap это не «карточка в карточке», а участок с
    тонкой рамкой - иначе на плите получается матрёшка из теней. */

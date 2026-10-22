@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChoiceSelect } from "@/components/choice-select";
 import { useSessionDrop, useSessionState } from "@/components/session-state";
+import { readParam, writeParams } from "@/components/finance/address";
+import { BillCardDialog } from "@/components/finance/bill-card";
 import {
   type BillsBoard,
   type Dictionaries,
@@ -58,6 +60,24 @@ export function InvoicesPanel({
   // что там забыли выставить, важнее того, что уже выставлено.
   const [chosen, setSide] = useSessionState<"todo" | "out" | "in">("inv.side", "todo");
   const [board, setBoard] = useState<BillsBoard | null>(null);
+  /**
+   * Открытая карточка счёта книги - в адресе (`?bill=`): ссылка из канала
+   * ведёт прямо в неё, «Назад» на телефоне её закрывает.
+   */
+  const [billId, setBillId] = useState<string | null>(() => readParam("bill"));
+  const openBill = useCallback((id: string | null) => {
+    setBillId(id);
+    writeParams({ bill: id }, id !== null);
+  }, []);
+  useEffect(() => {
+    // Ссылка из канала открывает «Не выставлены», какая бы вкладка ни была выбрана.
+    if (readParam("bill")) setSide("todo");
+    const onPop = () => setBillId(readParam("bill"));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // Вкладку переключает только ссылка, с которой открыли раздел.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [reading, setReading] = useState(false);
   const hasBook = Boolean(board?.source);
   // Без книги-сводки вкладки «Не выставлены» нет - и открывается «Мы выставили».
@@ -97,7 +117,7 @@ export function InvoicesPanel({
       setBoard(await financeApi.bills(refresh));
     } catch (exc) {
       // Отказ книги приходит в `source.error`; сюда - только отказ самого KORT.
-      setBoard((was) => was ?? { source: null, items: [], counts: null, channel: null });
+      setBoard((was) => was ?? { source: null, items: [], issued: [], counts: null, channel: null });
       if (refresh) setError(exc instanceof Error ? exc.message : "Книга не прочиталась");
     } finally {
       if (refresh) setReading(false);
@@ -195,9 +215,18 @@ export function InvoicesPanel({
         </p>
       ) : null}
 
+      {billId ? (
+        <BillCardDialog id={billId} onClose={() => openBill(null)} onSaved={() => void loadBills()} />
+      ) : null}
+
       {todo ? (
         board ? (
-          <UnissuedBills board={board} busy={reading} onRefresh={() => void loadBills(true)} />
+          <UnissuedBills
+            board={board}
+            busy={reading}
+            onRefresh={() => void loadBills(true)}
+            onOpen={(id) => openBill(id)}
+          />
         ) : (
           <p className="text-xs fin-muted">Читаем книгу…</p>
         )

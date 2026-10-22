@@ -12,18 +12,22 @@ import {
   formatMoney,
 } from "@/components/finance/api";
 
-const GROUP_TITLES: Record<BillGroup, string> = {
+type View = BillGroup | "issued";
+
+const VIEW_TITLES: Record<View, string> = {
   overdue: "Просрочено",
   soon: "В ближайшие дни",
   early: "Ещё рано",
   undated: "Без срока в книге",
+  issued: "Выставлены",
 };
 
-const EMPTY: Record<BillGroup, string> = {
+const EMPTY: Record<View, string> = {
   overdue: "Просроченных счетов нет",
   soon: "В ближайшие дни выставлять нечего",
   early: "Таких нет",
   undated: "Таких нет",
+  issued: "За прошлый и этот месяц выставленных нет",
 };
 
 const PAID: Record<Bill["paid"], string> = { paid: "оплата пришла", part: "оплата пришла частью", "": "" };
@@ -37,12 +41,13 @@ function timeOf(iso: string | null): string {
 }
 
 /**
- * «Счета → Не выставлены»: строки книги-сводки без галочки «Счет».
+ * «Счета → Не выставлены»: строки книги-сводки без галочки «Счет» - и
+ * выставленные за прошлый и этот месяц.
  *
- * Только чтение, и это намеренно. Счёт выставляют в 1С и отмечают в книге
- * своего юрлица; отметка в KORT разошлась бы с книгой, а «Новый счёт» отсюда
- * завёл бы второй долг клиента - в книге и в «Долгах». Поэтому здесь нет
- * кнопок у строк: строка уходит сама, когда в книге ставят галочку.
+ * Строка открывает карточку счёта (`bill-card.tsx`): там счёт отмечают
+ * выставленным, и KORT пишет «№ Счета» и дату в книгу юрлица. Здесь кнопок у
+ * строк нет: «Новый счёт» по книге завёл бы второй долг клиента - в книге и в
+ * «Долгах».
  *
  * Состояние - словами книги («Просрочка более 5 дней»), а не своим счётом
  * дней. Бот (`bills_bot.py`) берёт из того же чтения только абонентскую плату
@@ -52,45 +57,49 @@ export function UnissuedBills({
   board,
   busy,
   onRefresh,
+  onOpen,
 }: {
   board: BillsBoard;
   busy: boolean;
   onRefresh: () => void;
+  onOpen: (id: string) => void;
 }) {
-  const [group, setGroup] = useSessionState<BillGroup>("inv.bills.group", "overdue");
+  const [view, setView] = useSessionState<View>("inv.bills.group", "overdue");
   const [own, setOwn] = useSessionState("inv.bills.own", "");
   const [department, setDepartment] = useSessionState("inv.bills.department", "");
 
-  const owns = useMemo(() => [...new Set(board.items.map((item) => item.own).filter(Boolean))].sort(), [board.items]);
+  const everything = useMemo(() => [...board.items, ...(board.issued ?? [])], [board.items, board.issued]);
+  const owns = useMemo(() => [...new Set(everything.map((item) => item.own).filter(Boolean))].sort(), [everything]);
   const departments = useMemo(
-    () => [...new Set(board.items.map((item) => item.department).filter(Boolean))].sort(),
-    [board.items],
+    () => [...new Set(everything.map((item) => item.department).filter(Boolean))].sort(),
+    [everything],
   );
-  const filtered = board.items.filter(
-    (item) => (!own || item.own === own) && (!department || item.department === department),
-  );
-  const shown = filtered.filter((item) => item.group === group);
-  const count = (key: BillGroup) => filtered.filter((item) => item.group === key).length;
+  const pick = (item: Bill) => (!own || item.own === own) && (!department || item.department === department);
+  const filtered = board.items.filter(pick);
+  const issued = (board.issued ?? []).filter(pick);
+  const shown = view === "issued" ? issued : filtered.filter((item) => item.group === view);
+  const count = (key: View) => (key === "issued" ? issued.length : filtered.filter((item) => item.group === key).length);
   const overdueSum = filtered
     .filter((item) => item.group === "overdue")
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const source = board.source;
   const reading = !source?.read_at && !source?.error;
+  const done = view === "issued";
 
   return (
     <div className="flex flex-col gap-3">
       <div className="fin-kpis">
-        {(Object.keys(GROUP_TITLES) as BillGroup[]).map((key) => {
+        {(Object.keys(VIEW_TITLES) as View[]).map((key) => {
           const value = count(key);
           return (
             <button
               key={key}
               type="button"
               className="fin-kpi fin-kpi-pick"
-              data-on={group === key ? "" : undefined}
-              onClick={() => setGroup(key)}
+              data-on={view === key ? "" : undefined}
+              onClick={() => setView(key)}
             >
-              <span className="fin-kpi-label">{GROUP_TITLES[key]}</span>
+              <span className="fin-kpi-label">{VIEW_TITLES[key]}</span>
               <span className={`fin-kpi-value ${key === "overdue" && value ? "fin-out" : ""}`}>{value}</span>
               {key === "overdue" && overdueSum ? (
                 <span className="fin-kpi-label">{formatMoney(overdueSum, { whole: true })}</span>
@@ -149,7 +158,7 @@ export function UnissuedBills({
                 board.channel.title
               )}
               {board.channel.hours.length
-                ? ` - напоминания в ${board.channel.hours.map((hour) => `${String(hour).padStart(2, "0")}:00`).join(", ")}, новое сразу`
+                ? ` - посты в ${board.channel.hours.map((hour) => `${String(hour).padStart(2, "0")}:00`).join(", ")}, новое сразу`
                 : " - новое сразу"}
             </>
           ) : null}
@@ -170,15 +179,30 @@ export function UnissuedBills({
               <th>Юрлицо</th>
               <th>Заказчик</th>
               <th>№ договора</th>
-              <th>Сотрудник</th>
+              {done ? (
+                <>
+                  <th>№ счёта</th>
+                  <th>Дата счёта</th>
+                </>
+              ) : (
+                <th>Сотрудник</th>
+              )}
               <th style={{ textAlign: "right" }}>Сумма</th>
               <th>Период с</th>
-              <th>Счёт по книге</th>
+              {done ? null : <th>Счёт по книге</th>}
             </tr>
           </thead>
           <tbody>
             {shown.map((item) => (
-              <tr key={`${item.line}-${item.number}`}>
+              <tr
+                key={item.id}
+                className="fin-bills-row"
+                tabIndex={0}
+                onClick={() => onOpen(item.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") onOpen(item.id);
+                }}
+              >
                 <td>{item.month || "-"}</td>
                 <td>
                   {item.own || "-"}
@@ -191,25 +215,34 @@ export function UnissuedBills({
                   ) : null}
                 </td>
                 <td>{item.number || "-"}</td>
-                {/* У аренды книга пишет здесь юрлицо целиком - в одну строку, полностью в подсказке. */}
-                <td className="fin-bills-staff" title={item.staff}>
-                  {item.staff || "-"}
-                </td>
+                {done ? (
+                  <>
+                    <td className="fin-strong">{item.bill_no || "-"}</td>
+                    <td className="fin-bills-date">{item.bill_date || "-"}</td>
+                  </>
+                ) : (
+                  /* У аренды книга пишет здесь юрлицо целиком - в одну строку, полностью в подсказке. */
+                  <td className="fin-bills-staff" title={item.staff}>
+                    {item.staff || "-"}
+                  </td>
+                )}
                 <td className="fin-num">{item.amount && Number(item.amount) ? formatMoney(item.amount) : "-"}</td>
                 <td className="fin-bills-date">{item.period_from ? formatDate(item.period_from) : "-"}</td>
-                <td
-                  className={item.group === "overdue" ? "fin-out" : item.group === "soon" ? "fin-strong" : "fin-muted"}
-                >
-                  {item.text || "пусто"}
-                  {/* Деньги пришли, а счёта нет - то, что выставить надо первым. */}
-                  {item.paid ? <span className="fin-bills-note">{PAID[item.paid]}</span> : null}
-                </td>
+                {done ? null : (
+                  <td
+                    className={item.group === "overdue" ? "fin-out" : item.group === "soon" ? "fin-strong" : "fin-muted"}
+                  >
+                    {item.text || "пусто"}
+                    {/* Деньги пришли, а счёта нет - то, что выставить надо первым. */}
+                    {item.paid ? <span className="fin-bills-note">{PAID[item.paid]}</span> : null}
+                  </td>
+                )}
               </tr>
             ))}
             {!shown.length ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)" }}>
-                  {reading ? "Читаем книгу…" : EMPTY[group]}
+                  {reading ? "Читаем книгу…" : EMPTY[view]}
                 </td>
               </tr>
             ) : null}

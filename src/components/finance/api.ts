@@ -581,10 +581,12 @@ export type InvoiceSide = { total: string; open: string; overdue: string };
 /** Группа невыставленного счёта - по словам книги в колонке «Счет». */
 export type BillGroup = "overdue" | "soon" | "early" | "undated";
 
-/** Строка книги-сводки без галочки «Счет»: договор за месяц (`contracts/bills.py`). */
+/** Строка книги-сводки: договор за месяц (`contracts/bills.py`); `issued` - «Счет» = TRUE. */
 export type Bill = {
+  /** Постоянный адрес карточки: ссылка из канала - `?s=invoices&bill=<id>`. */
+  id: string;
   line: number;
-  group: BillGroup;
+  group: BillGroup | "issued";
   /** Что написано в «Счет» - как есть: «Просрочка более 5 дней». */
   text: string;
   own: string;
@@ -596,10 +598,43 @@ export type Bill = {
   department: string;
   amount: string | null;
   period_from: string | null;
+  period_to: string | null;
   /** «Факт Оплата»: деньги уже пришли - целиком или частью. */
   paid: "" | "paid" | "part";
   status: string;
   note: string;
+  /** Поля счёта - как их показывает книга: «312», «22.10.2026». */
+  bill_no: string;
+  bill_date: string;
+  bill_period: string;
+};
+
+/** Поля карточки, которые KORT пишет в книгу юрлица. */
+export type BillField = "bill_no" | "bill_date" | "bill_period" | "note";
+
+/** Строка книги юрлица, где счёт отмечают (`contracts/bill_book.py`). */
+export type BillBook = {
+  place: { book: string; tab: string; row: number; url: string };
+  /** Как поля показывает книга сейчас - их же карточка шлёт назад в `expect`. */
+  fields: Record<BillField, string>;
+  /** «Счет» в книге: TRUE или слова формулы. */
+  state: string;
+  /** Поля, куда писать нельзя, - с причиной. */
+  blocked: Partial<Record<BillField, string>>;
+};
+
+export type BillCard = {
+  bill: Bill;
+  book: BillBook | null;
+  /** Почему книги юрлица нет - карточка открыта, записать нельзя. */
+  problem: string;
+  can_edit: boolean;
+};
+
+export type BillSaved = {
+  book: BillBook;
+  changed: BillField[];
+  warning: string;
 };
 
 export type BillsBoard = {
@@ -612,6 +647,8 @@ export type BillsBoard = {
     error: string;
   } | null;
   items: Bill[];
+  /** Выставленные за прошлый и текущий месяц - свежие первыми. */
+  issued: Bill[];
   counts: (Record<BillGroup, number> & { overdue_total: string; soon_total: string }) | null;
   /** Канал бота счетов, если он читает книгу этой компании; `hours` - часы напоминаний по Астане. */
   channel: { title: string; url: string; hours: number[] } | null;
@@ -809,6 +846,9 @@ export const financeApi = {
   voidInvoice: (id: string) => request<{ ok: boolean }>(`/invoices/${id}/void`, { method: "POST" }),
   /** «Не выставлены» - из книги-сводки; `refresh` - «Обновить». */
   bills: (refresh = false) => request<BillsBoard>(`/bills${refresh ? "?refresh=true" : ""}`),
+  bill: (id: string) => request<BillCard>(`/bills/${encodeURIComponent(id)}`),
+  saveBill: (id: string, body: { values: Partial<Record<BillField, string>>; expect: Record<BillField, string> }) =>
+    request<BillSaved>(`/bills/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) }),
 
   // ── Повторяющиеся операции ──
   recurrences: () => request<{ items: Recurrence[]; horizon_days: number }>("/recurrences"),

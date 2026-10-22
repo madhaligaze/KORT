@@ -631,7 +631,7 @@ export function FinanceClient() {
     writeMode(key);
     // Запись открытого договора, лист и вкладки кабинета принадлежат своему
     // экрану - при смене раздела они уходят из адреса.
-    writeParams({ s: key, id: null, v: null, t: null, d: null }, true);
+    writeParams({ s: key, id: null, v: null, t: null, d: null, bill: null }, true);
   }, []);
   /**
    * «Карточки · Таблица»: явный выбор - голос в привычку учётки и выбор этой
@@ -673,7 +673,7 @@ export function FinanceClient() {
     if (back) setSection(back);
     else {
       setSectionState(null);
-      writeParams({ s: null, id: null, v: null, t: null, d: null }, true);
+      writeParams({ s: null, id: null, v: null, t: null, d: null, bill: null }, true);
     }
   }, [cameFrom, visible, home, setSection]);
   /**
@@ -687,7 +687,7 @@ export function FinanceClient() {
   }, [section, home, leaveCabinet, setSection]);
   const openContract = useCallback((id: string) => {
     setSectionState("contracts");
-    writeParams({ s: "contracts", id, v: null, t: null, d: null }, true);
+    writeParams({ s: "contracts", id, v: null, t: null, d: null, bill: null }, true);
   }, []);
   const [pending, setPending] = useState(0);
   useEffect(() => {
@@ -893,7 +893,7 @@ export function FinanceClient() {
     // главным экраном (28.09.2026). Раздел и адрес - с чистого листа.
     setSectionState(null);
     setCameFrom(null);
-    writeParams({ s: null, id: null, v: null, t: null, d: null }, false);
+    writeParams({ s: null, id: null, v: null, t: null, d: null, bill: null }, false);
     setMe(null);
     window.setTimeout(dropAllSessions, 300);
   }, [setMe]);
