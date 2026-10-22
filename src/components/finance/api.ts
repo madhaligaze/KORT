@@ -546,6 +546,42 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+/**
+ * Файл с сервера - с именем из `Content-Disposition` и отказом словами
+ * сервера, как у `request`. Ссылка `<a download>` отказ сохранила бы файлом.
+ */
+async function requestFile(path: string): Promise<{ blob: Blob; name: string }> {
+  let response: Response;
+  try {
+    response = await fetch(`${API}${path}`, { credentials: "include" });
+  } catch (exc) {
+    if (exc instanceof DOMException && exc.name === "AbortError") throw exc;
+    throw new FinanceApiError(OFFLINE_TEXT, 0);
+  }
+  if (!response.ok) {
+    signal(response.status, path);
+    let message = statusText(response.status);
+    try {
+      const body = await response.json();
+      if (typeof body?.detail === "string") message = body.detail;
+    } catch {
+      /* тело не JSON - оставляем код состояния */
+    }
+    throw new FinanceApiError(message, response.status);
+  }
+  const header = response.headers.get("content-disposition") ?? "";
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(header)?.[1];
+  let name = "file";
+  if (encoded) {
+    try {
+      name = decodeURIComponent(encoded);
+    } catch {
+      /* битое имя - остаётся «file» */
+    }
+  }
+  return { blob: await response.blob(), name };
+}
+
 const qs = (params: Record<string, string | number | undefined | null>) => {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -607,6 +643,17 @@ export type Bill = {
   bill_no: string;
   bill_date: string;
   bill_period: string;
+  /** Как клиент назван в 1С - по этому названию выставляют счёт. */
+  onec_name: string;
+  /** «Дата заключения Договора» - как в книге. */
+  signed_at: string;
+};
+
+/** Что вышло из загруженного шаблона Excel: поля карточки (дата - ISO) и где они нашлись. */
+export type BillTemplateRead = {
+  values: Partial<Record<BillField, string>>;
+  sheet: string;
+  row: number;
 };
 
 /** Поля карточки, которые KORT пишет в книгу юрлица. */
@@ -849,6 +896,14 @@ export const financeApi = {
   bill: (id: string) => request<BillCard>(`/bills/${encodeURIComponent(id)}`),
   saveBill: (id: string, body: { values: Partial<Record<BillField, string>>; expect: Record<BillField, string> }) =>
     request<BillSaved>(`/bills/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify(body) }),
+  /** Шаблон счёта Excel - файлом: известное вписано, «№ Счета» и дату заполнить. */
+  billTemplate: (id: string) => requestFile(`/bills/${encodeURIComponent(id)}/template`),
+  /** Заполненный шаблон - в поля карточки. В книгу не пишет. */
+  readBillTemplate: (id: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request<BillTemplateRead>(`/bills/${encodeURIComponent(id)}/template`, { method: "POST", body });
+  },
 
   // ── Повторяющиеся операции ──
   recurrences: () => request<{ items: Recurrence[]; horizon_days: number }>("/recurrences"),

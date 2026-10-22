@@ -2586,6 +2586,11 @@ label.auth-row-label { cursor: pointer; }
 .fin-bill-field { display: flex; flex-direction: column; gap: 0.25rem; }
 /* Отказ - единственное, что в карточке подсвечено цветом (CLAUDE.md). */
 .fin-bill-fail { color: var(--accent-rose); }
+/* Кнопка шаблона: «Скачать» → «Загрузить» → «Принят» сменяются подъёмом
+   (RiseSwap). Ширина - по самой длинной подписи, чтобы ряд кнопок не
+   прыгал; «Принят» - весом подписи и рамкой тушью, не цветом. */
+.fin-bill-template { min-width: 11.5rem; }
+.fin-bill-template[data-step="accepted"] { font-weight: 600; border-color: var(--text-primary); }
 
 /* Карточка внутри плиты: у Finmap это не «карточка в карточке», а участок с
    тонкой рамкой - иначе на плите получается матрёшка из теней. */
