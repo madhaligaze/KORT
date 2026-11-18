@@ -16,7 +16,7 @@ import { OnecPanel } from "@/components/finance/onec-panel";
 const WAY_TITLES: Record<string, string> = {
   statement: "Выписка файлом",
   api: "Приём по адресу",
-  sheets: "Книга Google",
+  sheets: "Google Таблица",
 };
 
 /**
@@ -59,7 +59,7 @@ export function IntegrationsPanel({
           aria-selected={tab === "banks"}
           onClick={() => setTab("banks")}
         >
-          Банки и книги
+          Банки и таблицы
         </button>
       </div>
       {tab === "1c" ? <OnecPanel canEdit={canEdit} /> : <BanksPanel accounts={accounts} onGo={onGo} onChanged={onChanged} />}
@@ -246,7 +246,7 @@ function BanksPanel({
           ) : null}
           {way === "sheets" ? (
             <button type="button" className="btn-ghost" onClick={() => onGo("sheets")}>
-              Открыть книги
+              Открыть таблицы
             </button>
           ) : null}
         </div>

@@ -1,440 +1,525 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ChoiceSelect } from "@/components/choice-select";
 import { useSessionState } from "@/components/session-state";
 import {
-  type Dictionaries,
-  type Operation,
-  type OperationPage,
+  type JournalAccepted,
+  type JournalDictionaries,
+  type JournalPage,
+  type JournalPreview,
+  type JournalRecord,
   financeApi,
-  formatDate,
   formatMoney,
-  monthEdges,
 } from "@/components/finance/api";
-import { OperationDialog } from "@/components/finance/operation-dialog";
-import { ConfirmDialog } from "@/components/finance/ui/confirm-dialog";
+import { JournalCard } from "@/components/finance/journal-card";
+import { ATTENTION_TITLES, monthOf } from "@/components/finance/journal-format";
+import { JournalPreviewDialog } from "@/components/finance/journal-preview";
+import { JournalRecords } from "@/components/finance/journal-records";
+
+/**
+ * Лист Univer - только по требованию: он тянет канвас и при импорте
+ * обращается к `window`, серверная отрисовка его роняет.
+ */
+const TableView = dynamic(() => import("./table-view").then((m) => m.TableView), {
+  ssr: false,
+  loading: () => <div className="p-6 text-sm" style={{ color: "var(--text-muted)" }}>Готовим лист…</div>,
+});
 
 type Props = {
-  dictionaries: Dictionaries;
   revision: number;
   onChanged: () => void;
+  canEdit: boolean;
+  /** Табличный вид - своё право «Таблица», как и раньше. */
+  canTable: boolean;
+  canTableEdit: boolean;
 };
 
-const PERIODS = [
-  { key: "this", title: "Этот месяц" },
-  { key: "prev", title: "Прошлый месяц" },
-  { key: "quarter", title: "Три месяца" },
-  { key: "all", title: "Всё время" },
-] as const;
+type View = "records" | "table";
+type Attention = "" | "uncategorized" | "no_contract" | "question" | "half" | "split";
 
-type PeriodKey = (typeof PERIODS)[number]["key"];
+const PAGE = 400;
+const ALL = "all";
+const UPLOADS = ".pdf,.xlsx,.xls,.xlsm,.csv,.txt,.xml,.html,.htm";
 
-/** Строк на одну страницу журнала и сколько раскрывается на экране всего. */
-const PAGE = 250;
-const PAGE_CEILING = 5000;
-
-function periodRange(key: PeriodKey): { from?: string; to?: string } {
-  if (key === "all") return {};
-  if (key === "this") return { date_from: monthEdges(0).from, date_to: monthEdges(0).to } as never;
-  if (key === "prev") return { date_from: monthEdges(-1).from, date_to: monthEdges(-1).to } as never;
-  return { date_from: monthEdges(-2).from, date_to: monthEdges(0).to } as never;
+/** Скачать файл из памяти браузера: ссылка на миг, имя - от сервера. */
+function saveFile(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
 /**
- * Журнал операций.
+ * Журнал - главный лист финансистов: строка выписки банка - строка журнала.
  *
- * Порядок строк - от новых к старым, и это не вкусовщина: работают в конце
- * книги. Урок «Книг», где список открывался на операциях трёхлетней давности.
+ * Два вида на одни и те же записи. «Записи» - лента по дням для разбора:
+ * статья, договор юристов, месяц ОПиУ, вопрос - и карточка с «Сохранить и
+ * дальше». «Таблица» - тот же журнал колонками журнала BBC в листе Univer,
+ * для тех, кто привык к таблице. Правка в одном виде сразу видна в другом:
+ * это один сервер и один журнал (`app/finance/journal.py`).
  *
- * Ожидания (план) не выносятся в отдельный список, а стоят в общем потоке
- * приглушённой строкой. Отдельный список означал бы, что о запланированном
- * платеже узнают, только если в него зайти; в потоке он попадается на глаза
- * тому, кто просто смотрит журнал.
+ * Выписка любого банка или заполненный шаблон грузятся одной кнопкой; до
+ * «Принять» ничего не пишется - окно показывает, каким станет журнал.
  */
-export function Journal({ dictionaries, revision, onChanged }: Props) {
-  // Отбор и открытая правка переживают перезагрузку (`session-state.tsx`).
-  const [period, setPeriod] = useSessionState<PeriodKey>("journal.period", "this");
-  const [kinds, setKinds] = useSessionState<string>("journal.kinds", "");
-  const [accountId, setAccountId] = useSessionState("journal.account", "");
-  const [categoryId, setCategoryId] = useSessionState("journal.category", "");
+export function Journal({ revision, onChanged, canEdit, canTable, canTableEdit }: Props) {
+  const [view, setView] = useSessionState<View>("journal.view", "records");
+  const [month, setMonth] = useSessionState<string>("journal.month", "");
+  const [firm, setFirm] = useSessionState("journal.firm", "");
+  const [account, setAccount] = useSessionState("journal.account", "");
+  const [category, setCategory] = useSessionState("journal.category", "");
   const [search, setSearch] = useSessionState("journal.search", "");
-  const [page, setPage] = useState<OperationPage | null>(null);
-  const [busy, setBusy] = useState(true);
-  const [error, setError] = useState("");
-  const [editing, setEditing] = useSessionState<Operation | null>("journal.editing", null);
-  /**
-   * Сколько страниц по 250 уже раскрыто.
-   *
-   * Раньше «Показать ещё» сдвигало смещение, и вместо добавления строк
-   * страница подменялась следующей: первые 250 исчезали, вернуться к ним было
-   * нечем. А смена фильтра смещение не сбрасывала - фильтр, под который
-   * попадает десять операций, открывался на «второй странице» и показывал
-   * «операций нет». Теперь раскрытие копится, а любой фильтр начинает с начала.
-   */
+  const [attention, setAttention] = useSessionState<Attention>("journal.attention", "");
+  const [showBalances, setShowBalances] = useSessionState("journal.balances", false);
+  const [templateStep, setTemplateStep] = useSessionState<"download" | "upload">("journal.template", "download");
+  const [page, setPage] = useState<JournalPage | null>(null);
   const [pages, setPages] = useState(1);
-  /**
-   * С какой операции начинается раскрытое окно. Больше 5000 строк разом экран
-   * не держит; до 01.10.2026 «Показать ещё» на этом кончалось, и операции
-   * старше пятитысячной в журнале было не найти. Теперь окно сдвигается:
-   * «Следующие» и «К началу».
-   */
-  const [start, setStart] = useState(0);
-  /** Удалить - через вопрос (до 01.10.2026 - сразу, без вопроса). */
-  const [asking, setAsking] = useState<Operation | null>(null);
-  /** Только что удалённая операция - «Вернуть» прямо здесь, без корзины кабинета. */
-  const [removed, setRemoved] = useState<{ operation: Operation; undo: string } | null>(null);
-  const [restoring, setRestoring] = useState(false);
+  const [dicts, setDicts] = useState<JournalDictionaries | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(true);
+  const [uploading, setUploading] = useState("");
+  const [preview, setPreview] = useState<JournalPreview | null>(null);
+  const pending = useRef<File | null>(null);
+  const [card, setCard] = useState<{ record: JournalRecord | null; kind: JournalRecord["kind"] } | null>(null);
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
+  const [notice, setNotice] = useState("");
+  const [removed, setRemoved] = useState<{ record: JournalRecord; undo: string } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [sheetRefresh, setSheetRefresh] = useState(0);
 
+  const shownMonth = month === ALL ? "" : month;
   const filters = useMemo(
     () => ({
-      ...periodRange(period),
-      kinds: kinds || undefined,
-      account_id: accountId || undefined,
-      category_id: categoryId || undefined,
-      search: search || undefined,
+      month: shownMonth || undefined,
+      firm: firm || undefined,
+      accounts: account || undefined,
+      categories: category || undefined,
+      search: search.trim() || undefined,
+      attention: attention || undefined,
     }),
-    [period, kinds, accountId, categoryId, search],
+    [shownMonth, firm, account, category, search, attention],
   );
-  useEffect(() => {
-    setPages(1);
-    setStart(0);
-  }, [filters]);
+  useEffect(() => setPages(1), [filters]);
 
-  const params = useMemo(
-    () => ({ ...filters, limit: Math.min(PAGE * pages, PAGE_CEILING), offset: start || undefined }),
-    [filters, pages, start],
-  );
+  const loadDicts = useCallback(async () => {
+    try {
+      setDicts(await financeApi.journalDictionaries());
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Не прочитались справочники журнала");
+    }
+  }, []);
+  useEffect(() => {
+    void loadDicts();
+  }, [loadDicts, revision]);
 
   const load = useCallback(async () => {
     setBusy(true);
     try {
-      const next = await financeApi.operations(params as Record<string, string | number | undefined>);
+      const next = await financeApi.journal({ ...filters, limit: PAGE * pages });
       setPage(next);
       setError("");
+      // Первый вход: последний месяц, в котором есть записи, - работают в конце журнала.
+      if (!month && next.months.length) setMonth(next.months[next.months.length - 1].month);
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Не удалось прочитать журнал");
+      setError(exc instanceof Error ? exc.message : "Журнал не прочитался");
     } finally {
       setBusy(false);
     }
-  }, [params]);
-
+  }, [filters, pages, month, setMonth]);
   useEffect(() => {
-    void load();
-  }, [load, revision]);
+    if (view === "records") void load();
+  }, [load, revision, view]);
 
-  const remove = async (operation: Operation) => {
-    setAsking(null);
+  // Вспышка новых записей гаснет сама; черту у строки держит CSS, пока она в наборе.
+  useEffect(() => {
+    if (!fresh.size) return;
+    const id = window.setTimeout(() => setFresh(new Set()), 6000);
+    return () => window.clearTimeout(id);
+  }, [fresh]);
+  useEffect(() => {
+    if (!notice) return;
+    const id = window.setTimeout(() => setNotice(""), 9000);
+    return () => window.clearTimeout(id);
+  }, [notice]);
+
+  const changed = () => {
+    onChanged();
+    setSheetRefresh((value) => value + 1);
+  };
+
+  const upload = async (file: File, params: { date_order?: string; default_account?: string } = {}) => {
+    setUploading(file.name);
     setError("");
     try {
-      const done = await financeApi.deleteOperation(operation.id);
-      setRemoved(done.undo ? { operation, undo: done.undo } : null);
-      onChanged();
-      await load();
+      pending.current = file;
+      setPreview(await financeApi.journalPreview(file, params));
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Не удалось удалить операцию");
+      setError(exc instanceof Error ? exc.message : "Файл не разобрался");
+    } finally {
+      setUploading("");
     }
   };
 
-  /** «Вернуть» - откат того же действия журнала: операция встаёт как была. */
-  const restore = async () => {
-    if (!removed) return;
-    setRestoring(true);
-    setError("");
+  const answer = async (params: { date_order?: string; default_account?: string; create?: { name: string; number: string } }) => {
+    const file = pending.current;
+    if (!file) return;
+    let chosen = params.default_account;
+    if (params.create) {
+      try {
+        await financeApi.createAccount({ name: params.create.name, kind: "bank", number: params.create.number });
+        chosen = params.create.name;
+        void loadDicts();
+      } catch (exc) {
+        setError(exc instanceof Error ? exc.message : "Счёт не завёлся");
+        return;
+      }
+    }
+    await upload(file, { date_order: params.date_order, default_account: chosen });
+  };
+
+  const accepted = (done: JournalAccepted) => {
+    setPreview(null);
+    pending.current = null;
+    if (templateStep === "upload") setTemplateStep("download");
+    setFresh(new Set(done.operation_ids));
+    const parts = [`Принято записей: ${done.imported}`];
+    if (done.completed) parts.push(`дописано вторых сторон переводов: ${done.completed}`);
+    if (done.accounts_created.length) parts.push(`заведено счетов: ${done.accounts_created.length}`);
+    if (done.failed) parts.push(`отложено: ${done.failed}`);
+    setNotice(parts.join(" · "));
+    void loadDicts();
+    changed();
+  };
+
+  const downloadTemplate = async () => {
     try {
-      await financeApi.undo(removed.undo);
-      setRemoved(null);
-      onChanged();
-      await load();
+      const file = await financeApi.journalTemplate();
+      saveFile(file.blob, file.name);
+      setTemplateStep("upload");
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Операция не вернулась");
-    } finally {
-      setRestoring(false);
+      setError(exc instanceof Error ? exc.message : "Шаблон не скачался");
+    }
+  };
+  const exportExcel = async () => {
+    try {
+      const file = await financeApi.journalExport(filters);
+      saveFile(file.blob, file.name);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Журнал не выгрузился");
     }
   };
 
   const items = page?.items ?? [];
-  const shownTo = start + items.length;
+  const openNext = (after: JournalRecord | null) => {
+    if (!after) return setCard(null);
+    const index = items.findIndex((item) => item.id === after.id);
+    const next = items[index + 1];
+    setCard(next ? { record: next, kind: next.kind } : null);
+  };
+
+  const remove = async (record: JournalRecord) => {
+    setCard(null);
+    try {
+      const done = await financeApi.deleteOperation(record.id);
+      setRemoved(done.undo ? { record, undo: done.undo } : null);
+      changed();
+      void load();
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Запись не удалилась");
+    }
+  };
+  const restore = async () => {
+    if (!removed) return;
+    try {
+      await financeApi.undo(removed.undo);
+      setFresh(new Set([removed.record.id]));
+      setRemoved(null);
+      changed();
+      void load();
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Запись не вернулась");
+    }
+  };
+
+  const months = page?.months ?? [];
+  const accounts = dicts?.accounts ?? [];
+  const shownAccounts = firm ? accounts.filter((item) => item.firm_id === firm) : accounts;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="fin-filters flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1">
-          <span className="fin-label">Период</span>
-          <select
-            className="input-field"
-            style={{ width: "auto" }}
-            value={period}
-            onChange={(event) => setPeriod(event.target.value as PeriodKey)}
-          >
-            {PERIODS.map((item) => (
-              <option key={item.key} value={item.key}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="fin-label">Вид</span>
-          <ChoiceSelect
-            className="input-field"
-            style={{ width: "auto" }}
-            value={kinds}
-            onChange={setKinds}
-            placeholder="Все"
-            clearable
-          >
-            <option value="income">Поступления</option>
-            <option value="expense">Списания</option>
-            <option value="transfer">Переводы</option>
-          </ChoiceSelect>
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="fin-label">Счёт</span>
-          <ChoiceSelect
-            className="input-field"
-            style={{ width: "auto" }}
-            value={accountId}
-            onChange={setAccountId}
-            placeholder="Все счета"
-            clearable
-          >
-            {dictionaries.accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}
-              </option>
-            ))}
-          </ChoiceSelect>
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="fin-label">Категория</span>
-          <ChoiceSelect
-            className="input-field"
-            style={{ width: "auto" }}
-            value={categoryId}
-            onChange={setCategoryId}
-            placeholder="Все категории"
-            clearable
-          >
-            {dictionaries.categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </ChoiceSelect>
-        </label>
-
-        <label className="flex flex-col gap-1 flex-1 min-w-[10rem]">
-          <span className="fin-label">Поиск по комментарию</span>
-          <input
-            className="input-field"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="номер договора, назначение"
-          />
-        </label>
-        <a className="btn-ghost text-xs" href={financeApi.exportJournalUrl(filters)} download>
-          Скачать в Excel
-        </a>
-      </div>
-
-      {page ? (
-        <div className="fin-kpis">
-          <div className="fin-kpi">
-            <span className="fin-kpi-label">Операций</span>
-            <span className="fin-kpi-value">{page.total}</span>
-          </div>
-          <div className="fin-kpi">
-            <span className="fin-kpi-label">Поступило</span>
-            <span className="fin-kpi-value fin-in">{formatMoney(page.sums.income)}</span>
-          </div>
-          <div className="fin-kpi">
-            <span className="fin-kpi-label">Списано</span>
-            <span className="fin-kpi-value fin-out">{formatMoney(page.sums.expense)}</span>
-          </div>
-          <div className="fin-kpi">
-            <span className="fin-kpi-label">Разница</span>
-            <span className="fin-kpi-value">
-              {formatMoney(Number(page.sums.income) - Number(page.sums.expense), { sign: true })}
-            </span>
-          </div>
+    <div className="jr">
+      <div className="jr-head">
+        <nav className="fin-views" aria-label="Вид журнала">
+          <button type="button" className="fin-view" aria-current={view === "records" ? "page" : undefined} onClick={() => setView("records")}>
+            Записи
+          </button>
+          {canTable ? (
+            <button type="button" className="fin-view" aria-current={view === "table" ? "page" : undefined} onClick={() => setView("table")}>
+              Таблица
+            </button>
+          ) : null}
+        </nav>
+        <div className="jr-actions">
+          {canEdit ? (
+            <div className="fin-ops" role="group" aria-label="Новая запись">
+              <button type="button" className="fin-op" data-kind="income" onClick={() => setCard({ record: null, kind: "income" })}>
+                <span className="fin-op-sign">+</span> Приход
+              </button>
+              <button type="button" className="fin-op" data-kind="expense" onClick={() => setCard({ record: null, kind: "expense" })}>
+                <span className="fin-op-sign">−</span> Расход
+              </button>
+              <button type="button" className="fin-op" onClick={() => setCard({ record: null, kind: "transfer" })}>
+                <span className="fin-op-sign">⇄</span> Перевод
+              </button>
+            </div>
+          ) : null}
+          <button type="button" className="btn-ghost" onClick={() => void exportExcel()} title="Журнал по отбору - в колонках шаблона">
+            Скачать Excel
+          </button>
+          {canEdit ? (
+            <>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => (templateStep === "download" ? void downloadTemplate() : fileInput.current?.click())}
+                title={templateStep === "download" ? "Шаблон журнала со справочником компании" : "Загрузить заполненный шаблон"}
+              >
+                {templateStep === "download" ? "Скачать шаблон" : "Загрузить шаблон"}
+              </button>
+              <button type="button" className="btn-primary" disabled={Boolean(uploading)} onClick={() => fileInput.current?.click()}>
+                {uploading ? "Разбираем…" : "Загрузить выписку"}
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept={UPLOADS}
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void upload(file);
+                }}
+              />
+            </>
+          ) : null}
         </div>
-      ) : null}
-
-      {error ? (
-        <p className="text-xs" style={{ color: "var(--accent-rose)" }}>
-          {error}
-        </p>
-      ) : null}
-
-      {removed ? (
-        <p className="text-sm" role="status" style={{ color: "var(--text-secondary)" }}>
-          Операция удалена: {formatDate(removed.operation.paid_at)} · {formatMoney(removed.operation.amount)}
-          {removed.operation.comment ? ` · ${removed.operation.comment}` : ""} ·{" "}
-          <button type="button" className="fin-link-btn" disabled={restoring} onClick={() => void restore()}>
-            {restoring ? "Возвращаем…" : "Вернуть"}
-          </button>
-        </p>
-      ) : null}
-
-      {start > 0 ? (
-        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-          Показаны операции с {start + 1}-й по {shownTo}-ю из {page?.total ?? shownTo} ·{" "}
-          <button
-            type="button"
-            className="fin-link-btn"
-            onClick={() => {
-              setStart(0);
-              setPages(1);
-            }}
-          >
-            К началу
-          </button>
-        </p>
-      ) : null}
-
-      <div className="fin-card overflow-x-auto">
-        <table className="fin-table">
-          <thead>
-            <tr>
-              <th>Дата</th>
-              <th style={{ textAlign: "right" }}>Сумма</th>
-              <th>Счёт</th>
-              <th>Контрагент</th>
-              <th>Категория</th>
-              <th>Проект</th>
-              <th>Комментарий</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((operation) => {
-              const plan = operation.status === "plan";
-              const sign = operation.kind === "income" ? "+" : operation.kind === "expense" ? "−" : "⇄";
-              const account =
-                operation.kind === "transfer"
-                  ? `${operation.account_from} → ${operation.account_to}`
-                  : operation.account_to || operation.account_from;
-              return (
-                <tr key={operation.id} data-plan={plan}>
-                  <td className="fin-strong">
-                    {formatDate(operation.paid_at)}
-                    {plan ? (
-                      <span className="block text-xs" style={{ color: "var(--text-muted)" }}>
-                        ожидание
-                      </span>
-                    ) : null}
-                    {operation.accrued_at && operation.accrued_at !== operation.paid_at ? (
-                      <span className="block text-xs" style={{ color: "var(--text-muted)" }}>
-                        сделка {formatDate(operation.accrued_at)}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td
-                    className={`fin-num ${
-                      operation.kind === "income" ? "fin-in" : operation.kind === "expense" ? "fin-out" : ""
-                    }`}
-                  >
-                    {sign} {formatMoney(operation.amount)}
-                  </td>
-                  <td>{account}</td>
-                  <td>{operation.counterparty || "-"}</td>
-                  <td>{operation.category || (operation.kind === "transfer" ? "перевод" : "-")}</td>
-                  <td>
-                    {operation.projects.length ? (
-                      operation.projects.map((project) => project.name).join(", ")
-                    ) : (
-                      <span style={{ color: "var(--text-muted)" }}>-</span>
-                    )}
-                    {operation.split_state === "mismatch" ? (
-                      <span className="block text-xs fin-out">разнесено больше суммы</span>
-                    ) : null}
-                  </td>
-                  <td style={{ whiteSpace: "normal", maxWidth: "18rem" }}>{operation.comment}</td>
-                  <td>
-                    <div className="flex gap-1 justify-end">
-                      <button
-                        type="button"
-                        className="fin-chip"
-                        onClick={() => setEditing(operation)}
-                        title="Открыть карточку"
-                      >
-                        Править
-                      </button>
-                      <button
-                        type="button"
-                        className="fin-chip"
-                        onClick={() => setAsking(operation)}
-                        title="Удалить операцию - в корзину"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {!items.length && !busy ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: "center", padding: "2rem" }}>
-                  За этот период операций нет
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
       </div>
 
-      {page && page.total > shownTo && items.length < PAGE_CEILING ? (
-        <button type="button" className="btn-ghost self-start" onClick={() => setPages((was) => was + 1)}>
-          Показать ещё {Math.min(PAGE, page.total - shownTo)}
-        </button>
+      {/* Полоса месяцев - у листа, как вкладки месяцев в таблицах BBC; в «Записях»
+          месяц - поле в ряду отборов, рядом с юрлицом и счётом (владелец, 05.11.2026). */}
+      {view === "table" && canTable ? (
+        <nav className="jr-months" aria-label="Месяц движения денег">
+          {months.map((item) => (
+            <button
+              key={item.month}
+              type="button"
+              className="jr-month"
+              aria-current={shownMonth === item.month ? "page" : undefined}
+              onClick={() => setMonth(item.month)}
+            >
+              {item.title}
+              <span className="jr-month-n fin-mono">{item.count}</span>
+            </button>
+          ))}
+          <button type="button" className="jr-month" aria-current={month === ALL ? "page" : undefined} onClick={() => setMonth(ALL)}>
+            Весь журнал
+          </button>
+        </nav>
       ) : null}
-      {page && page.total > shownTo && items.length >= PAGE_CEILING ? (
-        // Окно в 5000 строк заполнено - дальше следующее окно, а не обрыв.
-        <button
-          type="button"
-          className="btn-ghost self-start"
-          onClick={() => {
-            setStart(shownTo);
-            setPages(1);
-            window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+
+      {error ? <p className="jr-bad text-sm" role="alert">{error}</p> : null}
+      {notice ? <p className="text-sm" role="status">{notice}</p> : null}
+      {removed ? (
+        <p className="text-sm" role="status">
+          Запись удалена: {formatMoney(removed.record.amount)} · {removed.record.counterparty || removed.record.comment}
+          {" · "}
+          <button type="button" className="fin-link-btn" onClick={() => void restore()}>
+            Вернуть
+          </button>
+        </p>
+      ) : null}
+
+      {view === "table" && canTable ? (
+        <TableView onChanged={onChanged} refresh={sheetRefresh + revision} canEdit={canTableEdit} month={shownMonth} />
+      ) : (
+        <>
+          <div className="jr-filters">
+            <select className="input-field" value={month || ALL} onChange={(event) => setMonth(event.target.value)} aria-label="Месяц">
+              {months.map((item) => (
+                <option key={item.month} value={item.month}>
+                  {item.title} · {item.count}
+                </option>
+              ))}
+              <option value={ALL}>Весь журнал</option>
+            </select>
+            <select className="input-field" value={firm} onChange={(event) => { setFirm(event.target.value); setAccount(""); }} aria-label="Юрлицо">
+              <option value="">Все юрлица</option>
+              {(dicts?.firms ?? []).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <select className="input-field" value={account} onChange={(event) => setAccount(event.target.value)} aria-label="Счёт">
+              <option value="">Все счета</option>
+              {shownAccounts.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <select className="input-field" value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Статья">
+              <option value="">Все статьи</option>
+              {(dicts?.categories ?? []).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.group && item.group !== item.name ? `${item.group} · ${item.name}` : item.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input-field jr-search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Контрагент, назначение, №Дог."
+              aria-label="Поиск"
+            />
+          </div>
+
+          {page ? (
+            <div className="jr-sums">
+              <span>
+                <span className="fin-label">Приход</span>
+                <span className="fin-num fin-in">{formatMoney(page.sums.income)}</span>
+              </span>
+              <span>
+                <span className="fin-label">Расход</span>
+                <span className="fin-num">{formatMoney(page.sums.expense)}</span>
+              </span>
+              <span>
+                <span className="fin-label">Разница</span>
+                <span className="fin-num">{formatMoney(page.sums.net, { sign: true })}</span>
+              </span>
+              <span>
+                <span className="fin-label">Перемещения</span>
+                <span className="fin-num">{formatMoney(page.sums.transfers)}</span>
+              </span>
+              <span>
+                <span className="fin-label">Записей</span>
+                <span className="fin-num">{page.total}</span>
+              </span>
+              <button type="button" className="fin-link-btn jr-balances-toggle" aria-expanded={showBalances} onClick={() => setShowBalances(!showBalances)}>
+                {showBalances ? "Скрыть остатки на счетах" : "Остатки на счетах"}
+              </button>
+            </div>
+          ) : null}
+
+          {page && showBalances ? (
+            <div className="fin-card overflow-x-auto">
+              <table className="fin-table jr-balances">
+                <thead>
+                  <tr>
+                    <th>Счёт</th>
+                    <th>Юрлицо</th>
+                    <th className="jr-r">{shownMonth ? `На 1 ${monthOf(shownMonth)}` : "Начало"}</th>
+                    <th className="jr-r">Приход</th>
+                    <th className="jr-r">Расход</th>
+                    <th className="jr-r">Остаток</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {page.balances.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.name}</td>
+                      <td>{item.firm || "-"}</td>
+                      <td className="fin-num">{formatMoney(item.opening)}</td>
+                      <td className="fin-num fin-in">{formatMoney(item.income)}</td>
+                      <td className="fin-num">{formatMoney(item.expense)}</td>
+                      <td className={`fin-num fin-strong ${Number(item.closing) < 0 ? "fin-out" : ""}`}>{formatMoney(item.closing)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {page ? (
+            <div className="jr-attention" role="group" aria-label="Требуют внимания">
+              {(Object.keys(ATTENTION_TITLES) as Exclude<Attention, "">[]).map((flag) =>
+                page.attention[flag] || attention === flag ? (
+                  <button
+                    key={flag}
+                    type="button"
+                    className="fin-chip"
+                    data-on={attention === flag ? "" : undefined}
+                    onClick={() => setAttention(attention === flag ? "" : flag)}
+                  >
+                    {ATTENTION_TITLES[flag]} <span className="fin-mono">{page.attention[flag]}</span>
+                  </button>
+                ) : null,
+              )}
+            </div>
+          ) : null}
+
+          <JournalRecords items={items} fresh={fresh} onOpen={(record) => setCard({ record, kind: record.kind })} />
+          {page && !items.length && !busy ? (
+            <div className="jr-empty">
+              {page.months.length ? (
+                <p>По этому отбору записей нет.</p>
+              ) : (
+                <>
+                  <p className="jr-empty-title">Журнал пуст</p>
+                  <p className="jr-soft">
+                    Загрузите выписку банка - PDF или Excel любого банка, - или заполненный шаблон журнала. До «Принять» в журнал ничего не ложится.
+                  </p>
+                </>
+              )}
+            </div>
+          ) : null}
+          {page && page.total > items.length ? (
+            <button type="button" className="btn-ghost self-start" disabled={busy} onClick={() => setPages((was) => was + 1)}>
+              Показать ещё {Math.min(PAGE, page.total - items.length)} из {page.total - items.length}
+            </button>
+          ) : null}
+        </>
+      )}
+
+      {preview ? (
+        <JournalPreviewDialog
+          key={preview.batch_id}
+          preview={preview}
+          dictionaries={dicts}
+          onAnswer={(params) => void answer(params)}
+          onClose={() => setPreview(null)}
+          onAccepted={accepted}
+          onRejected={() => {
+            setPreview(null);
+            pending.current = null;
+            setNotice("Загрузка отклонена - в журнал ничего не легло");
           }}
-        >
-          Следующие операции: с {shownTo + 1}-й из {page.total}
-        </button>
+        />
       ) : null}
 
-      <ConfirmDialog
-        open={asking !== null}
-        title="Удалить операцию?"
-        text={
-          asking
-            ? `${formatDate(asking.paid_at)} · ${formatMoney(asking.amount)}${asking.comment ? ` · ${asking.comment}` : ""}. Она уйдёт в корзину, остатки и отчёты пересчитаются; вернуть можно сразу здесь - «Вернуть».`
-            : ""
-        }
-        confirm="Удалить"
-        danger
-        onCancel={() => setAsking(null)}
-        onConfirm={() => {
-          if (asking) void remove(asking);
-        }}
-      />
-
-      {editing ? (
-        <OperationDialog
-          kind={editing.kind}
-          operation={editing}
-          dictionaries={dictionaries}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null);
-            onChanged();
+      {card && dicts ? (
+        <JournalCard
+          key={card.record ? `${card.record.id}:${card.record.version}` : `new-${card.kind}`}
+          record={card.record}
+          kind={card.kind}
+          dictionaries={dicts}
+          canEdit={canEdit}
+          hasNext={Boolean(card.record && items.findIndex((item) => item.id === card.record?.id) < items.length - 1)}
+          onClose={() => setCard(null)}
+          onDelete={(record) => void remove(record)}
+          onSaved={(record, next) => {
+            if (record) setFresh(new Set([record.id]));
+            if (next) openNext(record);
+            else setCard(null);
+            changed();
             void load();
+            void loadDicts();
           }}
         />
       ) : null}

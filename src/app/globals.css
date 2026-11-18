@@ -624,7 +624,7 @@ html, body { overflow-x: clip; }
    Поэтому у элемента с компонентным классом `display` всегда берётся из
    компонента, а `hidden`/`sm:hidden` рядом молча не работает.
 
-   Стоило это трёх дефектов на проде PDF-CONVERTER: нижний таб-бар висел на
+   Стоило это трёх дефектов на проде: нижний таб-бар висел на
    всех ширинах и дублировал верхнюю ленту вкладок; значок логотипа занимал
    место в однострочной шапке телефона, из-за чего заголовок обрезался; кнопки
    «Назад» и «Действия» (.btn-ghost) показывались на чужих экранах.
@@ -768,7 +768,7 @@ html, body { overflow-x: clip; }
    Номер слева, название во всю ширину, пометка в правом верхнем углу
    строки, стрелка справа. Пометка стоит над названием, а не своей колонкой:
    колонкой она отнимала у названия двести пикселей и на окне 1000px
-   выдавливала «Анализатор выписок» за край.                                */
+   выдавливала длинное название за край.                                */
 .ix {
   display: flex;
   flex-direction: column;
@@ -1746,8 +1746,8 @@ label.auth-row-label { cursor: pointer; }
      150%, браузер не на весь экран) вместо колонки шла лента из двадцати
      вкладок с прокруткой вбок, и до «Справочников» листали. Свёрнутая
      колонка - 60px, место под раздел остаётся и на 768.
-     Узкая полоса, которая расширяется под курсором. Ровно тот приём, что в
-     сайдбаре дашборда: место под таблицу остаётся, а счета в одном движении.
+     Узкая полоса, которая расширяется под курсором: место под таблицу
+     остаётся, а счета в одном движении.
      `:has(:focus-visible)`, а не `:focus-within`: второй срабатывает на клик
      мышью и оставляет панель залипшей раскрытой - этот дефект в проекте уже
      ловили. */
@@ -1947,10 +1947,8 @@ label.auth-row-label { cursor: pointer; }
      колонке здесь был второй навигацией, и не безобидной: колонка ложилась
      блоком над содержимым, двадцать пунктов и счета - 1183px, и раздел
      начинался на втором экране. Нажал «Интеграции» внизу списка - раздел
-     сменился где-то ниже, а экран остался на списке. Ровно тот класс
-     дефекта («навигация продублирована»), что уже стоил трёх правок в
-     дашборде. Правило стоит сразу после объявления - выше по файлу оно бы
-     проиграло. */
+     сменился где-то ниже, а экран остался на списке. Правило стоит сразу
+     после объявления - выше по файлу оно бы проиграло. */
   .fin-nav { display: none; }
   /* Без сводки (юрист с одними договорами, кассир с журналом) в колонке на
      узком окне не остаётся ничего - пустая полоса с рамкой над содержимым. */
@@ -2109,8 +2107,7 @@ label.auth-row-label { cursor: pointer; }
 @media (min-width: 768px) {
   /* Разделы живут в колонке слева, лента остаётся телефону. Правило стоит
      ПОСЛЕ объявления `.fin-tabs`: то же правило выше по файлу проигрывало по
-     порядку, и на десктопе показывались обе навигации сразу - ровно тот
-     дефект, что уже стоил трёх правок в дашборде. */
+     порядку, и на десктопе показывались обе навигации сразу. */
   .fin-tabs { display: none; }
 }
 .fin-tab {
@@ -4947,3 +4944,256 @@ button.cab-row:focus-visible { outline: 2px solid var(--fin-text); outline-offse
   .sup-strip-text { display: none; }
   .sup-strip-main { justify-content: space-between; }
 }
+
+/* ─── Журнал финансистов (journal.tsx, journal-records.tsx, journal-card.tsx, journal-preview.tsx) ───
+   Плотно, как лист: финансист разбирает сотни строк выписки подряд. Выбранное -
+   весом и чертой («Записи · Таблица», месяц), пустое, которое надо заполнить, -
+   словами и весом («Без статьи»), цвет - только отказу и приходу денег.
+   Единственное исключение - вспышка новых строк в окне загрузки (владелец,
+   04.11.2026): строка, которая добавится в журнал, мигает зелёным три раза. */
+.jr { display: flex; flex-direction: column; gap: 0.75rem; }
+.jr-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.5rem; }
+.jr-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+.jr-actions .btn-primary, .jr-actions .btn-ghost { white-space: nowrap; }
+
+.jr-months {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--fin-line);
+  padding-bottom: 0.1rem;
+}
+.jr-months::-webkit-scrollbar { display: none; }
+.jr-month {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.35rem 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  margin-bottom: -1px;
+  background: none;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--fin-text-soft);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.jr-month:hover { color: var(--fin-text); }
+.jr-month[aria-current="page"] { color: var(--fin-text); font-weight: 650; border-bottom-color: currentColor; }
+.jr-month:focus-visible { outline: 2px solid var(--fin-text); outline-offset: 2px; }
+.jr-month-n { font-size: 0.6875rem; color: var(--fin-text-soft); font-weight: 400; }
+
+/* Месяц - первым и не уже «Сентябрь 2026 · 929»: остальные поля уступают ему место. */
+.jr-filters { display: grid; grid-template-columns: minmax(12.5rem, 14rem) repeat(3, minmax(0, 13rem)) minmax(10rem, 1fr); gap: 0.5rem; }
+@media (max-width: 899.98px) { .jr-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.jr-sums { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 2rem; }
+.jr-sums > span { display: flex; flex-direction: column; gap: 0.1rem; }
+.jr-sums .fin-num { font-size: 1.0625rem; text-align: left; color: var(--fin-text); }
+.jr-sums .fin-num.fin-in { color: var(--fin-income); }
+.jr-balances-toggle { margin-left: auto; align-self: center; }
+.jr-balances td, .jr-balances th { white-space: nowrap; }
+.jr-r { text-align: right; }
+.jr-attention { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.jr-attention .fin-chip { font-size: 0.75rem; }
+
+.jr-list { display: flex; flex-direction: column; border-top: 1px solid var(--fin-line); }
+.jr-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.25rem 0.3rem;
+  background: var(--fin-plate);
+  border-bottom: 1px solid var(--fin-line);
+}
+.jr-day-title { font-weight: 650; font-size: 0.8125rem; color: var(--fin-text); }
+.jr-day-sums { display: flex; gap: 1rem; font-size: 0.75rem; color: var(--fin-text-soft); }
+.jr-row {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr) minmax(10rem, 17rem);
+  gap: 0.25rem 1rem;
+  align-items: start;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--fin-line);
+  cursor: pointer;
+  outline: none;
+}
+.jr-row:hover { background: rgba(127, 127, 127, 0.06); }
+.jr-row:focus-visible { box-shadow: inset 2px 0 0 var(--fin-text); background: rgba(127, 127, 127, 0.06); }
+.jr-row[data-fresh="true"] { animation: jr-flash 1.1s ease-in-out 3; box-shadow: inset 2px 0 0 var(--fin-income-line); }
+.jr-amount { text-align: right; font-size: 0.875rem; color: var(--fin-text); padding-top: 0.05rem; }
+.jr-amount.fin-in { color: var(--fin-income); }
+.jr-main { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.jr-who { font-size: 0.875rem; font-weight: 550; color: var(--fin-text); overflow-wrap: anywhere; }
+.jr-who[data-empty="true"] { font-weight: 400; color: var(--fin-text-soft); }
+.jr-comment {
+  font-size: 0.75rem;
+  color: var(--fin-text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jr-tags { display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; font-size: 0.75rem; color: var(--fin-text); }
+.jr-tag { white-space: nowrap; }
+.jr-tag[data-bad="true"] { color: var(--accent-rose); }
+.jr-missing { font-weight: 650; }
+.jr-note { font-size: 0.75rem; color: var(--fin-text); font-style: italic; }
+.jr-place { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.75rem; text-align: right; min-width: 0; }
+.jr-account { color: var(--fin-text); overflow-wrap: anywhere; }
+.jr-soft { color: var(--fin-text-soft); font-weight: 400; }
+.jr-bad { color: var(--accent-rose); }
+.jr-empty { padding: 2.5rem 0; text-align: center; font-size: 0.875rem; }
+.jr-empty-title { font-weight: 650; margin-bottom: 0.35rem; }
+@media (max-width: 719.98px) {
+  .jr-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .jr-amount { grid-column: 2; grid-row: 1; }
+  .jr-main { grid-column: 1; grid-row: 1 / span 2; }
+  .jr-place { grid-column: 2; grid-row: 2; }
+}
+
+@keyframes jr-flash {
+  0%, 100% { background-color: transparent; }
+  45% { background-color: var(--fin-income-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jr-row[data-fresh="true"], .jr-grid-row[data-new="true"] { animation: none; background-color: var(--fin-income-soft); }
+}
+
+/* Карточка записи - по центру, шире формы операции: полей журнала больше. */
+.jr-card { display: flex; flex-direction: column; gap: 0.85rem; }
+@media (min-width: 640px) { .fin-dialog.jr-card { max-width: 54rem; padding-bottom: 0; } }
+.jr-card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.jr-card-title { font-size: 1rem; font-weight: 650; color: var(--text-primary); }
+.jr-kinds { gap: 1.5rem; }
+.jr-kinds .fin-view[aria-checked="true"] { font-weight: 650; color: var(--fin-text); border-bottom-color: currentColor; }
+.jr-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem 0.9rem; }
+.jr-span2 { grid-column: span 2; }
+@media (max-width: 899.98px) { .jr-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .jr-span2 { grid-column: 1 / -1; } }
+.jr-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.jr-wide { grid-column: 1 / -1; }
+@media (max-width: 639.98px) { .jr-form { grid-template-columns: minmax(0, 1fr); } }
+.jr-contract-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--fin-line);
+  font-size: 0.8125rem;
+}
+.jr-split { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.8125rem; }
+.jr-split-edit { flex-direction: column; align-items: stretch; border: 1px solid var(--fin-line); padding: 0.6rem 0.75rem; }
+.jr-part { display: grid; grid-template-columns: 8rem 9rem 8rem minmax(0, 1fr) auto; gap: 0.4rem; align-items: center; }
+@media (max-width: 639.98px) { .jr-part { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.jr-split-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; justify-content: flex-end; }
+.jr-split-foot [role="status"] { margin-right: auto; }
+/* Кнопки карточки видны всегда: на окне ThinkPad (590 по высоте) форма длиннее окна. */
+.jr-card-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 -1.25rem;
+  padding: 0.75rem 1.25rem calc(0.75rem + var(--safe-b, 0px));
+  background: var(--bg-raised);
+  border-top: 1px solid var(--fin-line);
+}
+@media (max-width: 639.98px) { .jr-card-foot { margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; } }
+.jr-card-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Окно загрузки - почти во весь экран: журнал внутри шире любой формы. */
+.jr-preview-scrim { align-items: center; }
+.jr-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: min(96vw, 1600px);
+  height: min(92dvh, 980px);
+  padding: 1rem 1.1rem;
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  animation: fin-dialog-in var(--dur-base) var(--ease-out);
+}
+.jr-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.jr-preview-title { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.jr-preview-title h2 { font-size: 1rem; font-weight: 650; overflow-wrap: anywhere; }
+.jr-preview-title .jr-soft { font-size: 0.8125rem; }
+.jr-preview-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; font-size: 0.875rem; }
+.jr-preview-views { margin-left: auto; }
+.jr-preview-views .fin-view { font-size: 0.8125rem; }
+.jr-preview-note { font-size: 0.8125rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
+.jr-check { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+.jr-accounts summary { cursor: pointer; display: inline; }
+.jr-accounts[open] summary { margin-right: 0.4rem; }
+.jr-question-options { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.jr-new-account { display: inline-flex; gap: 0.4rem; align-items: center; }
+.jr-new-account .input-field { width: 16rem; }
+.jr-grid-box {
+  flex: 1;
+  min-height: 12rem;
+  overflow: auto;
+  border: 1px solid var(--fin-line);
+  overscroll-behavior: contain;
+}
+.jr-grid { position: relative; width: max-content; min-width: 100%; font-size: 0.75rem; }
+.jr-grid-row {
+  display: grid;
+  grid-template-columns: var(--jr-cols);
+  align-items: center;
+  height: 34px;
+  border-bottom: 1px solid var(--fin-line);
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+.jr-grid-row > * {
+  padding: 0 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.jr-grid-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--fin-card-line, var(--border-base));
+  font-weight: 650;
+  color: var(--fin-text);
+}
+.jr-grid-row[data-old="true"] { color: var(--fin-text-soft); }
+.jr-grid-row[data-new="true"] {
+  color: var(--fin-text);
+  box-shadow: inset 3px 0 0 var(--fin-income-line);
+  animation: jr-flash 1.1s ease-in-out 3;
+}
+.jr-grid-row[data-state="duplicate"], .jr-grid-row[data-state="skipped"] { color: var(--fin-text-soft); }
+.jr-line { display: flex; gap: 0.35rem; align-items: baseline; }
+.jr-edit {
+  width: calc(100% - 0.3rem);
+  height: 28px;
+  padding: 0 0.35rem;
+  margin: 0 0.15rem;
+  border: 1px solid var(--fin-line);
+  border-radius: 0;
+  background: var(--bg-base);
+  color: var(--fin-text);
+  font: inherit;
+}
+.jr-edit:focus { outline: none; border-color: var(--fin-text); }
+.jr-preview-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }

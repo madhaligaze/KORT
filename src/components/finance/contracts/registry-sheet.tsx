@@ -613,7 +613,7 @@ export function RegistrySheet({ me, onOpenCard, openId, book = "", onNeighbors }
           />
         ) : empty ? (
           <p className="creg-sheet-note" role="status" style={{ margin: "1rem" }}>
-            Листов в этой книге нет - их заводят в «Настроить реестр» → «Листы»
+            Листов здесь нет - их заводят в «Настроить реестр» → «Листы»
           </p>
         ) : state.phase === "error" ? (
           <p className="creg-sheet-note fin-fail" role="status" style={{ margin: "1rem" }}>

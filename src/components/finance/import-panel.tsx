@@ -176,7 +176,7 @@ export function ImportPanel({ accounts, onChanged, onNext }: Props) {
             }}
           >
             <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-              {busy ? "Читаем файл…" : "Перетащите выписку или книгу"}
+              {busy ? "Читаем файл…" : "Перетащите выписку или таблицу"}
             </span>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>
               PDF · XLSX · XLS · CSV · 1С

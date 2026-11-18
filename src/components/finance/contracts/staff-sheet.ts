@@ -59,7 +59,7 @@ export function staffMatrix(source: StaffSource, book = "oneoff"): StaffMatrix {
     row += 1;
   };
   if (!table || !table.rows.length) {
-    put([text("Договоров в книге пока нет")]);
+    put([text("Договоров здесь пока нет")]);
     return { cells, rows: row, cols, sig: JSON.stringify(cells) };
   }
   const { rows, totals, months, older, olderOf } = table;

@@ -32,6 +32,9 @@ concurrency:
 
 jobs:
   release:
+    # Только в репозитории прода: установленный KORT обновляется из его
+    # релизов, а пуш тестовой копии (KORT_dev) тратил бы сборку впустую.
+    if: github.repository == 'madhaligaze/KORT'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

@@ -118,7 +118,7 @@ export function InvoicesPanel({
     } catch (exc) {
       // Отказ книги приходит в `source.error`; сюда - только отказ самого KORT.
       setBoard((was) => was ?? { source: null, items: [], issued: [], counts: null, channel: null });
-      if (refresh) setError(exc instanceof Error ? exc.message : "Книга не прочиталась");
+      if (refresh) setError(exc instanceof Error ? exc.message : "Таблица не прочиталась");
     } finally {
       if (refresh) setReading(false);
     }
@@ -229,7 +229,7 @@ export function InvoicesPanel({
             onWritten={() => void loadBills()}
           />
         ) : (
-          <p className="text-xs fin-muted">Читаем книгу…</p>
+          <p className="text-xs fin-muted">Читаем таблицу…</p>
         )
       ) : (
         <>

@@ -1,8 +1,8 @@
 /**
- * Клиент раздела «Финансы».
+ * Клиент API учёта KORT.
  *
- * `credentials: "include"` обязателен: маршруты закрыты правом «finance» за
- * логином дашборда, и без куки каждый запрос вернул бы 401.
+ * `credentials: "include"` обязателен: маршруты закрыты сеансом KORT, и без
+ * куки каждый запрос вернул бы 401.
  *
  * Ошибки разворачиваются в текст один раз здесь, а не в каждом экране. FastAPI
  * кладёт человеческое объяснение в `detail`, и оно бывает единственным, что
@@ -310,12 +310,133 @@ export type GridColumn = {
 };
 
 export type GridRow = {
+  /** Строка листа: id записи, у перевода - со стороной («<id>:in», «<id>:out»). */
   id: string;
+  operation_id?: string;
+  side?: "in" | "out" | null;
   version: number;
   cells: Record<string, string>;
   kind: string;
+  status?: string;
+  split_count?: number;
+};
+
+// ── Журнал финансистов (`/finance/journal`) ─────────────────────────────────
+
+export type JournalAttention = "uncategorized" | "question" | "half" | "no_contract" | "split";
+
+export type JournalContract = {
+  id: string;
+  number: string;
+  customer: string;
+  executor: string;
+  department: string;
+  amount: string | null;
+  billing: string;
   status: string;
-  split_count: number;
+  paid: string | null;
+  /** Как реестр отнёс оплату: «number» - по №Дог., «auto» - по плательщику, «manual» - человек, «refund» - возврат. */
+  how: "number" | "auto" | "manual" | "refund";
+};
+
+export type JournalSplit = { group: string; total: string; parts: number; sum: string; ok: boolean };
+
+export type JournalRecord = {
+  id: string;
+  version: number;
+  kind: "income" | "expense" | "transfer";
+  paid_at: string;
+  amount: string;
+  currency: string;
+  account_from: string;
+  account_from_id: string | null;
+  account_to: string;
+  account_to_id: string | null;
+  firm: string;
+  counterparty: string;
+  category: string;
+  category_id: string | null;
+  group: string;
+  contract_ref: string;
+  contract: JournalContract | null;
+  /** «2026-06», «2027», подпись («Старые (до …)») или пусто - месяц платежа. */
+  pnl: string;
+  pnl_title: string;
+  pnl_differs: boolean;
+  details: string;
+  project: string;
+  comment: string;
+  note: string;
+  split: JournalSplit | null;
+  source: string;
+  half: boolean;
+  attention: JournalAttention[];
+};
+
+export type JournalBalance = {
+  id: string;
+  name: string;
+  firm: string;
+  opening: string;
+  income: string;
+  expense: string;
+  closing: string;
+};
+
+export type JournalPage = {
+  items: JournalRecord[];
+  total: number;
+  offset: number;
+  sums: { count: string; income: string; expense: string; net: string; transfers: string };
+  attention: Record<JournalAttention, number>;
+  balances: JournalBalance[];
+  months: { month: string; title: string; count: number }[];
+};
+
+export type JournalDictionaries = {
+  accounts: { id: string; name: string; firm: string; firm_id: string | null; number: string }[];
+  categories: { id: string; name: string; side: "income" | "expense" | "transfer"; group: string; parent_id: string | null }[];
+  firms: { id: string; name: string }[];
+  periods: { value: string; title: string }[];
+  contracts: { id: string; number: string; customer: string; ours: string | null; department: string }[];
+};
+
+export type JournalPreviewRow = {
+  line: number;
+  state: "imported" | "failed" | "skipped" | "duplicate";
+  problems: { field: string; text: string }[];
+  cells: Record<string, string>;
+  kind: string | null;
+  contract_auto: string;
+  paired_with: number | null;
+  maybe_duplicate: boolean;
+  operation_id: string | null;
+};
+
+export type JournalPreview = {
+  batch_id: string;
+  file_name: string;
+  status: string;
+  source: "template" | "statement" | "table";
+  counts: { total: number; ready: number; failed: number; skipped: number; duplicate: number };
+  accounts_new: { name: string; firm_id: string | null; number: string; opening: string }[];
+  statement_account: { number?: string; account?: string };
+  rows: JournalPreviewRow[];
+  context: GridRow[];
+  columns: { key: string; title: string; kind: string; width: number }[];
+  question?: ImportPreview["question"];
+  bank?: Record<string, unknown> | null;
+};
+
+export type JournalAccepted = {
+  imported: number;
+  completed: number;
+  failed: number;
+  duplicate: number;
+  skipped: number;
+  total: number;
+  accounts_created: string[];
+  operation_ids: string[];
 };
 
 export type GridPayload = {
@@ -472,7 +593,7 @@ export class FinanceApiError extends Error {
  * Сигналы раме раздела: сеанс пропал (401) и право отобрано (403).
  *
  * Без них каждый экран разбирался сам: заблокированный сотрудник оставался в
- * кабинете со своим именем и красным «Войдите в «Финансы»» во вкладке, а
+ * кабинете со своим именем и красной просьбой войти во вкладке, а
  * реестр после отзыва права минуту показывал все договоры с «Нет связи».
  * Рама на 401 уводит ко входу, на 403 - перечитывает права.
  */
@@ -1122,9 +1243,44 @@ export const financeApi = {
   exportJournalUrl: (params: Record<string, string | number | undefined>) =>
     `${API}/export/journal.xlsx${qs(params)}`,
   patchCell: (body: { operation_id: string; column: string; value: unknown; version?: number }) =>
-    request<Operation & { row: GridRow }>("/grid/cell", { method: "PATCH", body: JSON.stringify(body) }),
+    request<Operation & { row: GridRow; rows?: GridRow[] }>("/grid/cell", { method: "PATCH", body: JSON.stringify(body) }),
   addGridRow: (cells: Record<string, unknown>) =>
     request<Operation & { row: GridRow }>("/grid/row", { method: "POST", body: JSON.stringify({ cells }) }),
+
+  journal: (params: Record<string, string | number | undefined>) => request<JournalPage>(`/journal${qs(params)}`),
+  journalDictionaries: () => request<JournalDictionaries>("/journal/dictionaries"),
+  journalCreate: (fields: Record<string, unknown>) =>
+    request<{ record: JournalRecord }>("/journal", { method: "POST", body: JSON.stringify({ fields }) }),
+  journalEdit: (id: string, fields: Record<string, unknown>, version?: number, side?: string | null) =>
+    request<{ record: JournalRecord; lines: GridRow[] }>(`/journal/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ fields, version, side: side ?? undefined }),
+    }),
+  journalSplit: (id: string, parts: Record<string, string>[], version?: number) =>
+    request<{ records: JournalRecord[] }>(`/journal/${id}/split`, {
+      method: "POST",
+      body: JSON.stringify({ parts, version }),
+    }),
+  journalJoin: (group: string) => request<{ record: JournalRecord }>(`/journal/split/${group}/join`, { method: "POST" }),
+  journalPreview: (file: File, params: { date_order?: string; default_account?: string } = {}) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<JournalPreview>(`/journal/preview${qs(params)}`, { method: "POST", body: form });
+  },
+  journalPreviewRead: (batch: string) => request<JournalPreview>(`/journal/preview/${batch}`),
+  journalPreviewFix: (batch: string, line: number, fields: Record<string, unknown>) =>
+    request<JournalPreviewRow>(`/journal/preview/${batch}/rows/${line}`, {
+      method: "PATCH",
+      body: JSON.stringify({ fields }),
+    }),
+  journalAccept: (batch: string, createAccounts = true) =>
+    request<JournalAccepted>(`/journal/preview/${batch}/accept`, {
+      method: "POST",
+      body: JSON.stringify({ create_accounts: createAccounts }),
+    }),
+  journalReject: (batch: string) => request<{ status: string }>(`/journal/preview/${batch}/reject`, { method: "POST" }),
+  journalTemplate: () => requestFile("/journal/template.xlsx"),
+  journalExport: (params: Record<string, string | number | undefined>) => requestFile(`/journal/export.xlsx${qs(params)}`),
 
   cashFlow: (params: Record<string, string | undefined>) =>
     request<CashFlow>(`/reports/cash-flow${qs(params)}`),
@@ -1369,8 +1525,12 @@ export type PaymentItem = {
   counterparty: string;
   account: string;
   comment: string;
-  /** `auto` - разнесла система, `manual` - человек, `open` - спорный. */
-  how: "auto" | "manual" | "open";
+  /**
+   * `auto` - разнесла система по плательщику, `number` - по №Дог. в журнале,
+   * `refund` - возврат клиенту с №Дог. (уменьшает «Оплачено»), `manual` -
+   * человек, `open` - спорный.
+   */
+  how: "auto" | "number" | "refund" | "manual" | "open";
 };
 
 export type ContractPayments = { summary: PaymentSummary | null; items: PaymentItem[] };

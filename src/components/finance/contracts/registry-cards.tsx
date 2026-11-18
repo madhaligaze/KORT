@@ -372,7 +372,7 @@ export function Registry({
     // говорила, в чём дело.
     return (
       <p className="creg-empty">
-        Листов в этой книге нет
+        Листов здесь нет
         {schema.access.setup ? (
           <>
             {" · "}

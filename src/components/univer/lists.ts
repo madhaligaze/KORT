@@ -178,7 +178,7 @@ export function watchLists(
     const row = range.getRow();
     const column = range.getColumn();
     // Стрелка своя только у списка без оформления: у плашек и стрелок
-    // Univer (списки, заведённые в «Таблицах» панелью правил) она уже есть.
+    // Univer (списки, заведённые панелью правил) она уже есть.
     if (listRuleAt(ws, row, column)?.renderMode !== RENDER_TEXT) return events.arrow(null);
     const rect = cellRect(api, host, ws.getSheetId(), row, column);
     if (!rect?.visible) return events.arrow(null);

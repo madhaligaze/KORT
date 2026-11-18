@@ -19,7 +19,7 @@ const VIEW_TITLES: Record<View, string> = {
   overdue: "Просрочено",
   soon: "В ближайшие дни",
   early: "Ещё рано",
-  undated: "Без срока в книге",
+  undated: "Без срока в таблице",
   issued: "Выставлены",
 };
 
@@ -138,7 +138,7 @@ export function UnissuedBills({
         <span style={{ flex: 1 }} />
         {source ? <BillsTemplate canEdit={Boolean(board.can_edit)} onWritten={onWritten} /> : null}
         <button type="button" className="btn-ghost" disabled={busy} onClick={onRefresh}>
-          {busy ? "Читаем книгу…" : "Обновить"}
+          {busy ? "Читаем таблицу…" : "Обновить"}
         </button>
       </div>
 
@@ -146,10 +146,10 @@ export function UnissuedBills({
         <p className="text-xs fin-bills-source">
           {source.url ? (
             <a href={source.url} target="_blank" rel="noreferrer" className="fin-link-btn">
-              {source.title || "Книга-сводка"}
+              {source.title || "Сводная таблица"}
             </a>
           ) : (
-            source.title || "Книга-сводка"
+            source.title || "Сводная таблица"
           )}
           {source.worksheet ? ` · ${source.worksheet}` : ""}
           {source.read_at ? ` · прочитана в ${timeOf(source.read_at)}` : ""}
@@ -195,7 +195,7 @@ export function UnissuedBills({
               )}
               <th style={{ textAlign: "right" }}>Сумма</th>
               <th>Период с</th>
-              {done ? null : <th>Счёт по книге</th>}
+              {done ? null : <th>Счёт по таблице</th>}
             </tr>
           </thead>
           <tbody>
@@ -248,7 +248,7 @@ export function UnissuedBills({
             {!shown.length ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)" }}>
-                  {reading ? "Читаем книгу…" : EMPTY[view]}
+                  {reading ? "Читаем таблицу…" : EMPTY[view]}
                 </td>
               </tr>
             ) : null}

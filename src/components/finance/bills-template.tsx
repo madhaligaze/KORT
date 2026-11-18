@@ -230,7 +230,7 @@ function TemplateRows({
             expect: { bill_no: "" },
             defaults: row.defaults,
           });
-          const text = saved.changed.length ? "записано" : "в книге уже так";
+          const text = saved.changed.length ? "записано" : "в таблице уже так";
           setOutcomes((was) => ({
             ...was,
             [key]: { state: "done", text: saved.warning ? `${text}. ${saved.warning}` : text },
@@ -243,7 +243,7 @@ function TemplateRows({
             continue;
           }
           bad += 1;
-          const text = exc instanceof Error ? exc.message : "В книгу не записалось";
+          const text = exc instanceof Error ? exc.message : "В таблицу не записалось";
           setOutcomes((was) => ({ ...was, [key]: { state: "failed", text } }));
         }
         break;
@@ -259,7 +259,7 @@ function TemplateRows({
   const counts = read.counts;
   const summary = [
     `к записи: ${counts.ready}`,
-    counts.same ? `уже в книге: ${counts.same}` : "",
+    counts.same ? `уже в таблице: ${counts.same}` : "",
     counts.error ? `с отказом: ${counts.error}` : "",
     counts.empty ? `не заполнены: ${counts.empty}` : "",
   ]
@@ -270,10 +270,10 @@ function TemplateRows({
     ? `Записываем ${Math.min(progress.done + 1, progress.total)} из ${progress.total}…`
     : failed
       ? `Повторить не записанные (${pending.length})`
-      : `Записать в книги (${pending.length})`;
+      : `Записать в таблицы (${pending.length})`;
 
   const result = finished
-    ? `Записано в книги: ${written} из ${ready.length}.`
+    ? `Записано в таблицы: ${written} из ${ready.length}.`
     : !running && failed
       ? `Записано ${written} из ${ready.length}, не записано ${failed} - причины в строках.`
       : "";
@@ -286,7 +286,7 @@ function TemplateRows({
     const outcome = outcomes[key];
     if (outcome) return { text: outcome.text, tone: outcome.state === "failed" ? "fail" : "strong" };
     if (row.status === "error") return { text: row.problem, tone: "fail" };
-    if (row.status === "same") return { text: row.note || "в книге уже так", tone: "muted" };
+    if (row.status === "same") return { text: row.note || "в таблице уже так", tone: "muted" };
     return { text: "к записи", tone: "" };
   };
 

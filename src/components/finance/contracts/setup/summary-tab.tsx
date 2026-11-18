@@ -33,7 +33,7 @@ export function SummaryTab() {
     setResult("");
     const ok = await action.run("connect", async () => {
       const done = await contractsApi.setup.connectSummary(link.trim(), sheet.trim());
-      setResult(`Прочитано строк: ${done.rows}${done.drift ? ` · книгу поправили: ${done.drift}` : ""}`);
+      setResult(`Прочитано строк: ${done.rows}${done.drift ? ` · таблицу поправили: ${done.drift}` : ""}`);
     });
     if (ok) {
       setLink("");
@@ -53,7 +53,7 @@ export function SummaryTab() {
           </p>
           <p className="setup-summary-meta">
             {source.read_at ? `прочитана в ${formatTime(source.read_at)}, строк: ${source.rows}` : "ещё не читалась"}
-            {source.drift ? ` · книгу поправили: ${source.drift}` : ""}
+            {source.drift ? ` · таблицу поправили: ${source.drift}` : ""}
           </p>
           {source.error ? (
             <p className="setup-error" role="alert">
@@ -79,7 +79,7 @@ export function SummaryTab() {
         }}
       >
         <label className="setup-summary-field">
-          <span>{source ? "Другая книга" : "Ссылка на книгу"}</span>
+          <span>{source ? "Другая таблица" : "Ссылка на таблицу"}</span>
           <input
             type="url"
             className="setup-input"
@@ -97,7 +97,7 @@ export function SummaryTab() {
           className="btn-primary btn-sm"
           disabled={!link.trim() || !sheet.trim() || action.busy("connect")}
         >
-          {action.busy("connect") ? "Читаем книгу…" : "Подключить"}
+          {action.busy("connect") ? "Читаем таблицу…" : "Подключить"}
         </button>
         {action.error("connect") ? (
           <p className="setup-error" role="alert">

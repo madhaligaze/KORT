@@ -160,16 +160,16 @@ export function BillCardDialog({
       setConfirmClear(false);
       const after = saved.book.fields;
       const line = !saved.changed.length
-        ? "В книге уже так - записывать нечего."
+        ? "В таблице уже так - записывать нечего."
         : what === "clear"
-          ? "Отметка снята: «№ Счета» и дата в книге стёрты."
+          ? "Отметка снята: «№ Счета» и дата в таблице стёрты."
           : after.bill_no && !book.fields.bill_no
-            ? `Записано в книгу: счёт № ${after.bill_no}${after.bill_date ? ` от ${after.bill_date}` : ""}.`
-            : "Записано в книгу.";
+            ? `Записано в таблицу: счёт № ${after.bill_no}${after.bill_date ? ` от ${after.bill_date}` : ""}.`
+            : "Записано в таблицу.";
       setDone(saved.warning ? `${line} ${saved.warning}` : line);
       if (saved.changed.length) onSaved();
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "В книгу не записалось");
+      setError(exc instanceof Error ? exc.message : "В таблицу не записалось");
     } finally {
       setBusy(false);
     }
@@ -178,7 +178,7 @@ export function BillCardDialog({
   const submit = () => {
     if (!form) return;
     if (!issued && !form.bill_no.trim()) {
-      setError("Впишите № счёта - по нему книга ставит «Счет»");
+      setError("Впишите № счёта - по нему таблица ставит «Счет»");
       return;
     }
     if (form.bill_no.trim() && !form.bill_date) {
@@ -205,7 +205,7 @@ export function BillCardDialog({
         ...(bill.signed_at ? ([["Договор от", bill.signed_at]] as Array<[string, string]>) : []),
         ["Оплата", PAID[bill.paid]],
         ...(bill.status ? ([["Статус договора", bill.status]] as Array<[string, string]>) : []),
-        ["«Счет» в книге", book ? book.state || "-" : bill.text || "-"],
+        ["«Счет» в таблице", book ? book.state || "-" : bill.text || "-"],
       ]
     : [];
 
@@ -229,7 +229,7 @@ export function BillCardDialog({
         {loadError ? (
           <p className="text-sm fin-bill-fail">{loadError}</p>
         ) : !card || !bill ? (
-          <p className="text-sm fin-muted">Ищем строку в книге юрлица…</p>
+          <p className="text-sm fin-muted">Ищем строку в таблице юрлица…</p>
         ) : (
           <div className="flex flex-col gap-3">
             <p className="text-xs fin-bill-sub">
@@ -294,7 +294,7 @@ export function BillCardDialog({
                       disabled={busy || !dirty}
                       onClick={submit}
                     >
-                      {busy ? "Записываем…" : "Записать в книгу"}
+                      {busy ? "Записываем…" : "Записать в таблицу"}
                     </button>
                     {issued ? (
                       <button
@@ -308,7 +308,7 @@ export function BillCardDialog({
                         }
                         onBlur={() => setConfirmClear(false)}
                       >
-                        {confirmClear ? "Стереть № и дату в книге?" : "Снять отметку"}
+                        {confirmClear ? "Стереть № и дату в таблице?" : "Снять отметку"}
                       </button>
                     ) : null}
                   </div>

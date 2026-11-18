@@ -42,7 +42,7 @@ export function SheetsPanel({ accounts, onChanged }: { accounts: Account[]; onCh
       setBooks(next.items);
     } catch (exc) {
       setBooks([]);
-      setError(exc instanceof Error ? exc.message : "Список книг не пришёл");
+      setError(exc instanceof Error ? exc.message : "Список таблиц не пришёл");
     }
   }, []);
 
@@ -58,7 +58,7 @@ export function SheetsPanel({ accounts, onChanged }: { accounts: Account[]; onCh
     try {
       setBook(await financeApi.sheetBook(id));
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Книга не открылась");
+      setError(exc instanceof Error ? exc.message : "Таблица не открылась");
     } finally {
       setBusy(false);
     }
@@ -72,7 +72,7 @@ export function SheetsPanel({ accounts, onChanged }: { accounts: Account[]; onCh
    */
   const answersRef = useRef<ImportAnswer>({});
   const read = async (title: string, answer: ImportAnswer = {}) => {
-    if (!book) throw new Error("Книга не выбрана");
+    if (!book) throw new Error("Таблица не выбрана");
     answersRef.current = { ...answersRef.current, ...answer };
     return financeApi.sheetPreview({ book_id: book.id, tab: title, ...answersRef.current });
   };
@@ -147,7 +147,7 @@ export function SheetsPanel({ accounts, onChanged }: { accounts: Account[]; onCh
         <input
           className="input-field"
           style={{ maxWidth: "20rem" }}
-          placeholder="Книга"
+          placeholder="Таблица"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -170,7 +170,7 @@ export function SheetsPanel({ accounts, onChanged }: { accounts: Account[]; onCh
               Открыть в Google
             </a>
             <button type="button" className="btn-ghost text-xs" onClick={() => setBook(null)}>
-              Другая книга
+              Другая таблица
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -210,7 +210,7 @@ export function SheetsPanel({ accounts, onChanged }: { accounts: Account[]; onCh
             ))
           ) : (
             <p className="text-sm p-3" style={{ color: "var(--text-muted)" }}>
-              Книг не видно
+              Таблиц не видно
             </p>
           )}
         </div>

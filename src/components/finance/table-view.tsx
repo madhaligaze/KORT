@@ -28,11 +28,10 @@ import {
  *
  * Почему именно Univer, а не своя решётка
  * ───────────────────────────────────────
- * Это уже решалось в разделе «Книги» в сентябре 2026 и стоило переписанного
- * компонента. Своя решётка была: виртуализированная, с правкой по ячейке,
- * пустой строкой внизу, и она проходила все проверки. А человек из Excel
- * приходит с привычками - выделить диапазон и увидеть сумму, потянуть за угол,
- * вставить столбец из буфера, Ctrl+Z, - и ни одной из них она не отвечала.
+ * Своя решётка - виртуализированная, с правкой по ячейке и пустой строкой
+ * внизу - проходит все проверки. А человек из Excel приходит с привычками -
+ * выделить диапазон и увидеть сумму, потянуть за угол, вставить столбец из
+ * буфера, Ctrl+Z, - и ни одной из них она не отвечает.
  * Догонять по одной значит писать Univer заново и хуже.
  *
  * Разметка листа
@@ -63,8 +62,8 @@ const JOURNAL_REFUSALS: Partial<Record<StructureKind, SheetWarningSpec>> = {
   removeRows: {
     title: "Строку журнала не удалить отсюда",
     lines: [
-      "Строка - это операция с деньгами: её удаляют в «Журнале» списком - кнопкой «Удалить» у строки операции.",
-      "Удалённая операция остаётся в корзине кабинета - её можно вернуть.",
+      "Строка - это запись журнала с деньгами: её удаляют в «Записях» - кнопкой «Удалить» в карточке записи.",
+      "Удалённая запись остаётся в корзине кабинета - её можно вернуть.",
     ],
   },
   insertCols: {
@@ -96,7 +95,7 @@ const JOURNAL_REFUSALS: Partial<Record<StructureKind, SheetWarningSpec>> = {
   },
   renameSheet: { title: "Лист журнала не переименовывается", lines: ["Журнал один, его название задаёт учёт."] },
   removeSheet: { title: "Лист журнала не удаляется", lines: ["Это и есть журнал операций, а не копия."] },
-  addSheet: { title: "Новый лист здесь не заводится", lines: ["Журнал - один лист операций; свои таблицы ведутся в «Книгах Google»."] },
+  addSheet: { title: "Новый лист здесь не заводится", lines: ["Журнал - один лист операций; свои таблицы ведутся в «Google Таблицах»."] },
   orderSheets: { title: "Лист журнала один", lines: [] },
   protect: {
     title: "Защита листа не нужна",
@@ -354,11 +353,14 @@ export function TableView({
   onChanged,
   refresh = 0,
   canEdit = true,
+  month = "",
 }: {
   onChanged: () => void;
   refresh?: number;
   /** Право правки раздела «Таблица». Нет - лист только для чтения. */
   canEdit?: boolean;
+  /** Месяц журнала («2026-06»): лист показывает тот же месяц, что и записи. Пусто - весь журнал. */
+  month?: string;
 }) {
   const [sheet, setSheet] = useState<Mounted | null>(null);
   const [error, setError] = useState("");
@@ -400,7 +402,7 @@ export function TableView({
   useEffect(() => {
     let alive = true;
     financeApi
-      .grid({})
+      .grid({ month: month || undefined })
       .then((next) => {
         if (!alive) return;
         generation.current += 1;
@@ -413,7 +415,9 @@ export function TableView({
     return () => {
       alive = false;
     };
-  }, [refresh]);
+  }, [refresh, month]);
+  const monthRef = useRef(month);
+  monthRef.current = month;
 
   /**
    * Сообщение гаснет само.
@@ -429,7 +433,52 @@ export function TableView({
     return () => window.clearTimeout(id);
   }, [beat]);
 
+  /**
+   * Лист журнала открывается с конца, как реестр (`sheet-adapter.goBottom`):
+   * курсор - в первой пустой строке под последней записью, она у нижнего края,
+   * над ней - последние записи месяца. Вписывают новое и сверяют свежее, а не
+   * листают тысячу строк от начала месяца. Своё место человека
+   * (`univer/place.ts`) важнее: вернулся - лист там, где он его оставил.
+   */
+  const apiRef = useRef<UniverApi | null>(null);
+  const goBottom = useCallback((restored: boolean) => {
+    const api = apiRef.current;
+    const mine = current.current;
+    if (restored || !api || !mine) return;
+    const ws = api.getActiveWorkbook?.()?.getActiveSheet?.();
+    if (!ws) return;
+    const row = mine.payload.rows.length + 1;
+    const column = Math.max(0, mine.payload.columns.findIndex((item) => item.key === "paid_at"));
+    const scroll = (top: number) =>
+      api.syncExecuteCommand?.("sheet.command.scroll-view", {
+        sheetViewStartRow: Math.max(1, top),
+        sheetViewStartColumn: 0,
+        offsetX: 0,
+        offsetY: 0,
+      });
+    try {
+      ws.getRange(row, column, 1, 1).activate?.();
+      scroll(row);
+    } catch {
+      return; // лист ещё не измерил себя - останется в начале
+    }
+    // Сколько строк помещается, видно только после прокрутки: одна поправка
+    // по факту, пустая строка - вторая снизу.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        try {
+          const visible = ws.getVisibleRange?.() as { startRow: number; endRow: number } | null;
+          const top = Number((ws.getScrollState?.() as { sheetViewStartRow?: number } | undefined)?.sheetViewStartRow ?? 0);
+          if (visible) scroll(row + 1 - (visible.endRow - visible.startRow) - (visible.startRow - top));
+        } catch {
+          /* останется, где встала */
+        }
+      }),
+    );
+  }, []);
+
   const onReady = useCallback((api: UniverApi) => {
+    apiRef.current = api;
     const disposers: Array<() => void> = [];
     // Карта этого листа. Не `current.current` в момент правки: если лист
     // пересоберут, старый обработчик обязан работать со своими строками, а не
@@ -533,7 +582,7 @@ export function TableView({
     /** Строку успели поправить в другом окне: показать свежую и не гадать. */
     const refetch = async (sheetRow: number, id: string) => {
       try {
-        const fresh = (await financeApi.grid({})).rows.find((row) => row.id === id) ?? null;
+        const fresh = (await financeApi.grid({ month: monthRef.current || undefined })).rows.find((row) => row.id === id) ?? null;
         if (fresh) mine.rows.set(sheetRow, fresh);
         writeRow(sheetRow, fresh);
       } catch {
@@ -573,6 +622,16 @@ export function TableView({
         // становится датой, «1 500,5» - суммой с разрядами, и на экране ровно
         // то, что в учёте.
         writeRow(sheetRow, out.row);
+        // Перевод - две строки листа: правка суммы на одной стороне видна и
+        // на второй сразу, а не со следующим опросом.
+        for (const sibling of out.rows ?? []) {
+          if (sibling.id === out.row.id) continue;
+          const at = mine.ids.get(sibling.id);
+          if (at !== undefined) {
+            mine.rows.set(at, sibling);
+            writeRow(at, sibling);
+          }
+        }
         tally.saved += 1;
         tally.lastRow = sheetRow;
       } catch (exc) {
@@ -600,10 +659,9 @@ export function TableView({
       // напечатанной ячейки читается как каприз, хотя человек просто ещё не
       // дописал. Говорим, чего не хватает, - ровным тоном, это не ошибка.
       const missing: string[] = [];
-      if (!filled("paid_at")) missing.push("дата платежа");
-      if (!filled("amount")) missing.push("сумма");
-      if (!filled("account_from") && !filled("account_to"))
-        missing.push("счёт: «Со счёта» - расход, «На счёт» - поступление");
+      if (!filled("paid_at")) missing.push("дата");
+      if (!filled("account")) missing.push("счёт");
+      if (!filled("income") && !filled("expense")) missing.push("сумма в «Приходе» или «Расходе»");
       if (missing.length) {
         tally.missing = `строка ${shown(sheetRow)}: не хватает - ${missing.join(", ")}`;
         return;
@@ -895,9 +953,10 @@ export function TableView({
             key={`journal|${sheet?.generation ?? 0}|${remount}`}
             data={workbook}
             onReady={onReady}
+            onStart={goBottom}
             listEdit={false}
             formatting="look"
-            session="journal"
+            session={`journal.${month || "all"}`}
           />
         ) : null}
       </div>
@@ -930,9 +989,6 @@ export function TableView({
             Сбросить мой вид
           </button>
         ) : null}
-        <a className="btn-ghost text-xs" href={financeApi.exportJournalUrl({})} download>
-          Скачать в Excel
-        </a>
       </div>
     </div>
   );

@@ -36,7 +36,7 @@ const PREFIX = "ses|";
 
 const ScopeContext = createContext("");
 
-/** Чьё состояние: учётка и компания. Без области - общее (листы «Таблиц»). */
+/** Чьё состояние: учётка и компания. Без области - общее. */
 export function SessionScope({ scope, children }: { scope: string; children: ReactNode }) {
   return <ScopeContext.Provider value={scope}>{children}</ScopeContext.Provider>;
 }

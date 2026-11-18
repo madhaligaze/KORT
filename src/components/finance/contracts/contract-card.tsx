@@ -784,6 +784,8 @@ function Snapshot({ contractId }: { contractId: string }) {
 const PAYMENT_ACTIONS: Record<PaymentItem["how"], { label: string; action: "link" | "unlink" | "auto" }> = {
   open: { label: "Отнести к этому договору", action: "link" },
   auto: { label: "Не по этому договору", action: "unlink" },
+  number: { label: "Не по этому договору", action: "unlink" },
+  refund: { label: "Не по этому договору", action: "unlink" },
   manual: { label: "Как по выписке", action: "auto" },
 };
 
@@ -866,6 +868,7 @@ function Payments({ contractId, seq }: { contractId: string; seq: number }) {
           <div key={item.operation_id} className="amend-row" data-muted={isGone || item.how === "open" ? "true" : undefined}>
             <span className="amend-when fin-mono">{formatDay(item.paid_at)}</span>
             <span>
+              {item.how === "refund" && !isGone ? "−" : null}
               {isGone ? <s>{contractMoney(item.amount)}</s> : contractMoney(item.amount)}
               {place ? <span className="fin-soft"> · {place}</span> : null}
               {item.comment ? (
@@ -879,6 +882,9 @@ function Payments({ contractId, seq }: { contractId: string; seq: number }) {
               {isGone ? <span className="annot">не по договору</span> : null}
               {!isGone && item.how === "open" ? <span className="annot">спорный</span> : null}
               {!isGone && item.how === "manual" ? <span className="annot">вручную</span> : null}
+              {/* Номер договора записал финансист в журнале - так «Факт оплата» и считался в таблицах. */}
+              {!isGone && item.how === "number" ? <span className="annot">по №Дог. в журнале</span> : null}
+              {!isGone && item.how === "refund" ? <span className="annot">возврат клиенту</span> : null}
               {canEdit ? (
                 <>
                   {" "}

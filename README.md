@@ -4,11 +4,6 @@
 платёжный календарь), выписки банков Казахстана, реестр договоров, люди и
 права.
 
-Выделен 28.09.2026 из раздела «Финансы» монорепозитория PDF-CONVERTER
-механическим переносом: поведение то же, внутренние имена прежние (пакет
-`finance`, схема Postgres `finance`, API `/api/v1/finance/*`). Новое - вход
-(дым → знак → форма), знак KORT и сцена, которая в светлой теме серая.
-
 ## Устройство
 
 | Путь | Что там |
@@ -68,7 +63,7 @@ pnpm lint && pnpm build
 
 ## Деплой
 
-Как у PDF-CONVERTER: два репозитория, два сервиса Railway.
+Два репозитория, два сервиса Railway.
 
 | Репозиторий | Что в нём | Сервис Railway |
 | --- | --- | --- |
@@ -76,8 +71,7 @@ pnpm lint && pnpm build
 | [madhaligaze/KORT_backend](https://github.com/madhaligaze/KORT_backend) | содержимое `backend/` в корне | **API**: `Dockerfile`, миграции в ENTRYPOINT, проверка `/api/v1/health/live` |
 
 Правка в `backend/` пушится в оба: сначала сюда, потом те же файлы - в
-KORT_backend (`git subtree split --prefix=backend` или поштучно, как в
-PDF-CONVERTER).
+KORT_backend (`git subtree split --prefix=backend` или поштучно).
 
 ### Переменные
 
@@ -91,22 +85,21 @@ PDF-CONVERTER).
 
 | Переменная | Значение |
 | --- | --- |
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` - своя база KORT, не база PDF-CONVERTER |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` - своя база KORT |
 | `ENVIRONMENT` | `production` |
 | `ALLOWED_ORIGINS` | публичный адрес фронта |
-| `FINANCE_SERVICE_ACCOUNT_JSON` | JSON сервисного аккаунта Google (в PDF-CONVERTER - `BBC_SERVICE_ACCOUNT_JSON`) |
+| `FINANCE_SERVICE_ACCOUNT_JSON` | JSON сервисного аккаунта Google |
 | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` / `_KEY` | по желанию, распознавание сканов |
 | `FINANCE_SUPPORT_BOT_TOKEN` | токен бота поддержки @kort_support_bot - только у API прода |
 | `FINANCE_SUPPORT_CHAT_ID` | закрытый канал поддержки «KORT support»: `-1004474041636` |
 
-### Данные с прода PDF-CONVERTER
+### Перенос схемы из другой базы
 
 После первого старта API (он создаст пустую схему):
 
 ```
-SOURCE_DATABASE_URL=<база PDF-CONVERTER> TARGET_DATABASE_URL=<база KORT>   bash backend/scripts/copy_from_pdf_converter.sh
+SOURCE_DATABASE_URL=<база-источник> TARGET_DATABASE_URL=<база KORT>   bash backend/scripts/copy_finance_schema.sh
 ```
 
 Скрипт переносит схему `finance` целиком, ставит ревизию 0023, сверяет счёт
-записей и отказывается писать в базу, где уже есть учётки. Подробности -
-`backend/app/finance/README.md`, раздел «Данные с прода».
+записей и отказывается писать в базу, где уже есть учётки.
