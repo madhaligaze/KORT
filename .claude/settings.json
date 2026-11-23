@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(.claude/**)",
+      "Edit(.claude/**)",
+      "Write(.claude/**)",
+      "Read(.claude)",
+      "Edit(.claude)",
+      "Bash",
+      "PowerShell",
+      "Bash(*)",
+      "PowerShell(*)",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "NotebookEdit",
+      "Task",
+      "TodoWrite",
+      "Bash(OUT=shots-2 BBC_USER=admin node check.mjs)",
+      "Bash(node links.mjs)",
+      "Bash(node struct.mjs)",
+      "Bash(curl -s -o /dev/null -w \"root=%{http_code}\\\\n\" http://127.0.0.1:3010/)",
+      "Bash(grep -o \"^DATABASE_URL=.\\\\{0,28\\\\}\" .env)",
+      "Bash(curl -s -m 5 -X PATCH http://127.0.0.1:8000/api/v1/bbc/links/probe -H \"Content-Type: application/json\" -d '{\"expires_in_minutes\":5}' -w \"\\\\nstatus=%{http_code}\\\\n\")",
+      "Bash(node compact.mjs)",
+      "Bash(jq ' *)",
+      "Bash(mv settings.json.tmp settings.json)",
+      "mcp__plugin_figma_figma__whoami",
+      "mcp__plugin_figma_figma__create_new_file",
+      "mcp__plugin_figma_figma__use_figma"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "enableAllProjectMcpServers": true
+}
