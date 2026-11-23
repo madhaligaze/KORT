@@ -25,10 +25,9 @@
                                 Без обоих список живёт только в «Счетах»
     FINANCE_BILLS_WORKSPACE_ID - компания, чью книгу-сводку читает бот. Пусто -
                                 та единственная, у которой сводка подключена
-    FINANCE_BILLS_HOUR        - час первого напоминания по Астане (UTC+5),
-                                0-19 (9); новое бот пишет сразу, в любое время
-    FINANCE_BILLS_EVERY       - через сколько часов повторять напоминание до
-                                20:00 (2: 9, 11, 13, 15, 17, 19)
+    FINANCE_BILLS_HOURS       - часы напоминаний по Астане (UTC+5), через
+                                запятую, каждый 0-19 ("9,14"). В другое время
+                                бот только правит свои посты, нового не шлёт
     FINANCE_APP_URL           - адрес KORT для кнопки «Открыть в KORT»
                                 (https://kort.cards). Пусто - первый https из
                                 ALLOWED_ORIGINS
@@ -42,6 +41,7 @@
 """
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -87,11 +87,10 @@ class FinanceSettings(BaseSettings):
     bills_bot_token: str = Field(default="", validation_alias=AliasChoices("FINANCE_BILLS_BOT_TOKEN"))
     bills_chat_id: str = Field(default="", validation_alias=AliasChoices("FINANCE_BILLS_CHAT_ID"))
     bills_workspace_id: str = Field(default="", validation_alias=AliasChoices("FINANCE_BILLS_WORKSPACE_ID"))
-    #: Строкой, а не `int` с границами: «24» в переменной (22.10.2026, Render)
-    #: роняло весь API на старте. Неверный час выключает только бота - см.
-    #: `bills_hour_value` и `bills_ready`.
-    bills_hour: str = Field(default="9", validation_alias=AliasChoices("FINANCE_BILLS_HOUR"))
-    bills_every: str = Field(default="2", validation_alias=AliasChoices("FINANCE_BILLS_EVERY"))
+    #: Строкой, а не списком чисел с границами: «24» в переменной (22.10.2026,
+    #: Render) роняло весь API на старте. Неверные часы выключают только бота -
+    #: см. `bills_hours_value` и `bills_ready`.
+    bills_hours: str = Field(default="9,14", validation_alias=AliasChoices("FINANCE_BILLS_HOURS"))
     app_url: str = Field(default="", validation_alias=AliasChoices("FINANCE_APP_URL"))
 
     @property
@@ -114,21 +113,22 @@ class FinanceSettings(BaseSettings):
         return bool(
             self.bills_bot_token.strip().strip('"')
             and self.bills_chat_id.strip().strip('"')
-            and self.bills_hour_value is not None
-            and self.bills_every_value is not None
+            and self.bills_hours_value is not None
         )
 
     @property
-    def bills_hour_value(self) -> int | None:
-        """Час первого напоминания 0-23; иное - `None`: бот не выкладывает, а не угадывает час."""
-        hour = _whole(self.bills_hour)
-        return hour if hour is not None and 0 <= hour <= 23 else None
+    def bills_hours_value(self) -> tuple[int, ...] | None:
+        """Часы напоминаний по Астане по возрастанию, каждый 0-19; иное - `None`.
 
-    @property
-    def bills_every_value(self) -> int | None:
-        """Шаг напоминаний в часах 1-24; иное - `None`, как и у часа."""
-        every = _whole(self.bills_every)
-        return every if every is not None and 1 <= every <= 24 else None
+        Бот не выкладывает, а не угадывает часы. После 20:00 он не напоминает
+        (`bills_bot.LAST_HOUR`), так что час 20-23 молча не сработал бы - это
+        тоже отказ, а не пропуск.
+        """
+        parts = [part for part in re.split(r"[\s,;]+", self.bills_hours.strip().strip('"')) if part]
+        hours = [_whole(part) for part in parts]
+        if not hours or any(hour is None or not 0 <= hour <= 19 for hour in hours):
+            return None
+        return tuple(sorted(set(hours)))
 
     @property
     def import_max_bytes(self) -> int:

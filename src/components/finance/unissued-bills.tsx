@@ -41,6 +41,12 @@ function timeOf(iso: string | null): string {
     : at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Часы постов бота: «09:00 и 14:00». */
+function hoursText(hours: number[]): string {
+  const times = hours.map((hour) => `${String(hour).padStart(2, "0")}:00`);
+  return times.length > 1 ? `${times.slice(0, -1).join(", ")} и ${times[times.length - 1]}` : times.join("");
+}
+
 /**
  * «Счета → Не выставлены»: строки книги-сводки без галочки «Счет» - и
  * выставленные за прошлый и этот месяц.
@@ -163,9 +169,7 @@ export function UnissuedBills({
               ) : (
                 board.channel.title
               )}
-              {board.channel.hours.length
-                ? ` - посты в ${board.channel.hours.map((hour) => `${String(hour).padStart(2, "0")}:00`).join(", ")}, новое сразу`
-                : " - новое сразу"}
+              {board.channel.hours.length ? ` - посты в ${hoursText(board.channel.hours)}` : ""}
             </>
           ) : null}
         </p>

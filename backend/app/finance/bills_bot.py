@@ -15,6 +15,9 @@
 * 24.10 - владелец: просроченное - отдельным постом, а не разделом среди
   счетов дня. Пост просроченного - у каждого вида свой: абонентскую плату и
   аренду владелец уже развёл по постам, и общий пост смешал бы их снова.
+* 23.11 - владелец: напоминания только два раза в день, в 9:00 и в 14:00.
+  Вместо поста каждые 2 часа - часы списком, «новое - сразу» (круглосуточно и
+  со звуком) снято.
 
 Что попадает в пост
 ───────────────────
@@ -35,32 +38,34 @@
 
 Когда
 ─────
-* **По часам** - с `FINANCE_BILLS_HOUR` через `FINANCE_BILLS_EVERY` до 20:00
-  по Астане (9, 11 … 19), каждый день: все посты заново, прошлые удаляются, в
-  канале по одному актуальному. Строка под шапкой - что изменилось с прошлого,
-  если изменилось.
-* **Новое - сразу**, в любое время и со звуком: счёт впервые попал в пост
-  (наступил его день, в книгу добавили строку, сняли отметку) - его пост
-  выходит заново. Чаще раза в `NEW_GAP` не выходит, а правится: книгу
-  заполняют строка за строкой, и каждая звенела бы.
+* **По часам** - `FINANCE_BILLS_HOURS` по Астане (9:00 и 14:00), каждый
+  день: все посты заново, прошлые удаляются, в канале по одному актуальному.
+  Строка под шапкой - что изменилось с прошлого, если изменилось. Других
+  постов со звуком нет: счёт, чей день наступил между ними (или ночью),
+  отдельно не приходит - он появляется в висящем посте правкой, без звука, и
+  звенит в следующем посте по часу.
 * **Кнопка «Прислать сейчас»** - в закреплённом сообщении канала и под каждым
   постом: бот перечитывает книгу и, если что-то изменилось, присылает посты
   заново, без звука; итог («Новых счетов нет…») он кладёт в канал и через
   5 секунд убирает - иначе кнопка выглядела сломанной. `/bind` в канале
   ставит закреплённое сообщение заново.
 * Между ними бот **правит текущие посты**: счёт отметили (в книге или в
-  KORT) - строка уходит; выставлено всё - пост удаляется.
+  KORT) - строка уходит, добавили - появляется; выставлено всё - пост
+  удаляется.
 
 Не дважды
 ─────────
 Час поста (`counters`: `bills.day`, `bills.post`, `bills.hash` - абонентская
-плата, `….rent` - аренда, `….late` - их просроченное) и «счёт уже был в
-посте» (`bill_notices`, группа `due`) помнит база, а не процесс: перезапуск и
-два экземпляра API на время выкладки не повторят пост. Telegram не принял -
-час и счета освобождаются, следующий проход (через минуту) пробует снова.
+плата, `….rent` - аренда, `….late` - их просроченное) помнит база, а не
+процесс: перезапуск и два экземпляра API на время выкладки не повторят пост.
+Telegram не принял - час освобождается, следующий проход (через минуту)
+пробует снова.
 
-Первый запуск запоминает текущий список молча (`bills.seeded`): иначе бот на
-выкладке выдал бы весь список «новым». Переход, пока в канале висят посты
+«Счёт уже был в посте» (`bill_notices`, группа `due`) база помнит и без
+«нового - сразу» (до 23.11 по нему бот узнавал новое): вернуть звонок о
+новом - вернуть одну проверку в `_tick`, и бот не выдаст весь список
+«новым» разом. Первый запуск запоминает текущий список молча
+(`bills.seeded`) по той же причине. Переход, пока в канале висят посты
 прежнего вида (`bills.seeded` 2 или 3 → 4): висящие правятся в новый вид, а
 недостающие посты (аренда, просроченное) выходят рядом без звука.
 
@@ -100,12 +105,10 @@ log = logging.getLogger(__name__)
 LIMIT = 3900
 #: Сколько выделений (жирное, ссылки, курсив) в посте: после сотни Telegram их не показывает.
 ENTITIES = 100
-#: Посты по часам - до этого часа (не включая): ночью выходит только новое.
+#: Пост по часу, пропущенный (API лежал), выходит не позже этого часа: вечером и ночью - нет.
 LAST_HOUR = 20
 #: Как часто проверять, не пора ли выложить или поправить пост.
 TICK = 60
-#: Новое заново не выкладывается чаще этого - пост правится.
-NEW_GAP = 600.0
 #: Кнопка «Прислать сейчас» чаще этого не присылает.
 PULL_GAP = 30.0
 #: Сколько ждать книгу по кнопке. Нажавшему уже ответили «Проверяю книгу…»,
@@ -279,12 +282,6 @@ def stage_of(bill: bills.Bill, today: date) -> str:
 def is_late(kind: str | None) -> bool:
     """Пост просроченного, а не счетов дня."""
     return kind in (ABON_LATE, RENT_LATE)
-
-
-def post_of(bill: bills.Bill, today: date) -> str:
-    """В каком посте счёт, чей день наступил: в посте своего вида или в его просроченном."""
-    kind = kind_of(bill)
-    return LATE_POSTS[kind] if stage_of(bill, today) == LATE else kind
 
 
 @dataclass(frozen=True)
@@ -605,26 +602,22 @@ def _swap(workspace_id: uuid.UUID, name: str, was: int, value: int) -> bool:
 def slot_of(now: datetime) -> int | None:
     """Пост, который пора выложить, - `ГГГГММДДЧЧ` его часа; `None` - не время.
 
-    Часы - с `FINANCE_BILLS_HOUR` через `FINANCE_BILLS_EVERY` до `LAST_HOUR`:
-    9, 11, 13 … 19. API, поднявшийся в 10:30, выкладывает пост 9:00 сразу, а
-    не ждёт 11:00.
+    Час - последний из `FINANCE_BILLS_HOURS`, который уже наступил, и не позже
+    `LAST_HOUR`. API, поднявшийся в 10:30, выкладывает пост 9:00 сразу, а не
+    ждёт 14:00; поднявшийся в 21:00 молчит до утра.
     """
-    hour, every = finance_settings.bills_hour_value, finance_settings.bills_every_value
-    if hour is None or every is None:
-        return None
     local = now.astimezone(TZ)
-    if not hour <= local.hour < LAST_HOUR:
+    if local.hour >= LAST_HOUR:
         return None
-    at = hour + (local.hour - hour) // every * every
+    at = max((hour for hour in reminder_hours() if hour <= local.hour), default=None)
+    if at is None:
+        return None
     return (local.year * 10000 + local.month * 100 + local.day) * 100 + at
 
 
 def reminder_hours() -> list[int]:
-    """Часы постов по Астане: [9, 11, 13, 15, 17, 19]; пусто - бот выключен неверной настройкой."""
-    hour, every = finance_settings.bills_hour_value, finance_settings.bills_every_value
-    if hour is None or every is None:
-        return []
-    return list(range(hour, LAST_HOUR, every))
+    """Часы постов по Астане: [9, 14]; пусто - бот выключен неверной настройкой."""
+    return list(finance_settings.bills_hours_value or ())
 
 
 def slot_time(slot: int) -> datetime:
@@ -802,15 +795,6 @@ def remember(workspace_id: uuid.UUID, board: bills.Board, now: datetime) -> None
         _set(workspace_id, SEEDED, SEED_VERSION)
 
 
-def claim_new(workspace_id: uuid.UUID, board: bills.Board, now: datetime) -> set[str]:
-    """Счета, которых ещё не было в посте, - за этим процессом. Пусто - нового нет."""
-    fresh = plan(board, now).keys - _known(workspace_id)
-    if not fresh:
-        return set()
-    with finance_session() as session:
-        return _insert(session, _rows(workspace_id, fresh))
-
-
 def forget_issued(workspace_id: uuid.UUID, board: bills.Board, now: datetime) -> None:
     """Выставленное - из памяти: снимут отметку, и счёт снова придёт новым.
 
@@ -831,12 +815,11 @@ def forget_issued(workspace_id: uuid.UUID, board: bills.Board, now: datetime) ->
 
 @dataclass(frozen=True)
 class _Last:
-    """Прошлый пост вида - для строки «С 13:00 выставлено 3» и паузы `NEW_GAP`."""
+    """Прошлый пост вида - для строки «С 09:00 выставлено 3»."""
 
     at: datetime
     keys: frozenset[str]
     note: str
-    sent: float
 
 
 _last: dict[tuple[uuid.UUID, str], _Last] = {}
@@ -848,7 +831,7 @@ _pulled: dict[uuid.UUID, float] = {}
 
 
 def _first_of_day(slot: int) -> bool:
-    return slot % 100 == finance_settings.bills_hour_value
+    return slot % 100 == min(reminder_hours(), default=None)
 
 
 def _publish(
@@ -877,7 +860,7 @@ def _publish(
         _set(workspace_id, POSTS[kind], message_id)
         _set(workspace_id, HASHES[kind], post.digest)
         with _last_lock:
-            _last[(workspace_id, kind)] = _Last(at=at, keys=post.keys, note=note, sent=time.monotonic())
+            _last[(workspace_id, kind)] = _Last(at=at, keys=post.keys, note=note)
         result = "posted"
     if old:
         _delete(api, chat, old)  # старше 48 часов не удалится - пусть висит, новый всё равно ниже
@@ -908,33 +891,17 @@ def _edit_post(api: Bot, chat: str, workspace_id: uuid.UUID, board: bills.Board,
     if post.digest == _value(workspace_id, HASHES[kind]):
         return "same"
     if not _edit(api, chat, post_id, post.text):
-        _set(workspace_id, POSTS[kind], 0)  # пост удалили руками - следующий выйдет по часу или новому
+        _set(workspace_id, POSTS[kind], 0)  # пост удалили руками - следующий выйдет по часу или кнопкой
         return "deleted"
     _set(workspace_id, HASHES[kind], post.digest)
     return "edited"
 
 
-def _announce(
-    api: Bot, chat: str, workspace_id: uuid.UUID, board: bills.Board, now: datetime, kind: str, fresh: set[str]
-) -> str:
-    """Новое - сразу: пост вида заново и со звуком. Только что выходил - его правка, а не второй звонок."""
-    with _last_lock:
-        last = _last.get((workspace_id, kind))
-    if last is not None and time.monotonic() - last.sent < NEW_GAP and _value(workspace_id, POSTS[kind]):
-        return ""
-    try:
-        result = _publish(api, chat, workspace_id, board, now, kind, at=now)
-    except TelegramError:
-        _drop(workspace_id, fresh)
-        raise
-    return "new" if result == "posted" else result
-
-
 def tick(api: Bot, chat: str, now: datetime | None = None) -> str:
-    """Один проход: посты по часу, новое - сразу, правка текущих.
+    """Один проход: посты по часу и правка текущих.
 
     Возвращает сделанное через «+» с постом (`abon-posted+abon-late-posted`,
-    `rent-new`, `seeded`, `abon-edited`, `rent-late-deleted`, `abon-same`),
+    `seeded`, `abon-edited`, `rent-late-deleted`, `abon-same`),
     `wait` - ничего; `no-workspace` / `no-board` - читать нечего.
     """
     now = now or _now()
@@ -988,18 +955,8 @@ def _tick(api: Bot, chat: str, workspace_id: uuid.UUID, board: bills.Board, now:
         # Первый запуск: всё, что сейчас в постах, - запомнить молча.
         remember(workspace_id, board, now)
         done.append("seeded")
-    elif "seeded" not in done:
-        fresh = claim_new(workspace_id, board, now)
-        if fresh:
-            p = plan(board, now)
-            for kind in ORDER:
-                mine = {bill.key for bill in p.due if bill.key in fresh and post_of(bill, p.today) == kind}
-                if not mine or kind in fresh_post:
-                    continue
-                announced = _announce(api, chat, workspace_id, board, now, kind, mine)
-                if announced:
-                    done.append(f"{kind}-{announced}")
-                    fresh_post.add(kind)
+    # Новое между часами не звенит (владелец, 23.11): оно попадёт в висящий
+    # пост правкой ниже и прозвенит постом следующего часа.
     forget_issued(workspace_id, board, now)
     for kind in ORDER:
         if kind in fresh_post:
@@ -1072,10 +1029,11 @@ def pull(api: Bot, chat: str, now: datetime | None = None) -> str:
 
 
 def panel_text() -> str:
-    hours = ", ".join(f"{hour:02d}:00" for hour in reminder_hours())
+    *head, last = [f"{hour:02d}:00" for hour in reminder_hours()] or [""]
+    hours = f"{', '.join(head)} и {last}" if head else last
     return (
         "<b>Счета к выставлению</b>\n"
-        f"Абонентская плата и аренда - в {hours} и сразу, когда наступает день счёта."
+        f"Абонентская плата и аренда - в {hours}."
     )
 
 
@@ -1301,7 +1259,7 @@ async def _poll(api: Bot, chat: str) -> None:
 
 
 async def run_forever() -> None:
-    """Фоновая задача API: посты по часам и новому, правка, кнопка - пока приложение живо."""
+    """Фоновая задача API: посты по часам, правка, кнопка - пока приложение живо."""
     if not finance_settings.bills_ready:
         return
     api = Bot(_clean(finance_settings.bills_bot_token))
@@ -1348,7 +1306,6 @@ __all__ = [
     "bind",
     "channel_out",
     "claim",
-    "claim_new",
     "ensure_panel",
     "handle",
     "kind_of",
