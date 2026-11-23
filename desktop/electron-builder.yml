@@ -32,8 +32,11 @@ nsis:
   perMachine: false
   shortcutName: KORT
   deleteAppDataOnUninstall: false
+# Откуда установленный KORT берёт обновления. С 23.11.2026 проект ведёт
+# 1stsultanb-dev/KORT_production; версии до 1.0.5 смотрели в madhaligaze/KORT,
+# и последний релиз там (мост) уже указывает сюда.
 publish:
   provider: github
-  owner: madhaligaze
-  repo: KORT
+  owner: 1stsultanb-dev
+  repo: KORT_production
   releaseType: release

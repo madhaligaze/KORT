@@ -63,15 +63,24 @@ pnpm lint && pnpm build
 
 ## Деплой
 
-Два репозитория, два сервиса Railway.
+Два репозитория, проект Railway KORT-PRODUCTION (регион Амстердам): фронт,
+API и Postgres. Пуш в `main` репозитория выкладывает его сервис.
 
 | Репозиторий | Что в нём | Сервис Railway |
 | --- | --- | --- |
-| [madhaligaze/KORT](https://github.com/madhaligaze/KORT) | весь проект, вместе с `backend/` | **фронт**: `Dockerfile` в корне, `backend/` в образ не попадает (`.dockerignore`) |
-| [madhaligaze/KORT_backend](https://github.com/madhaligaze/KORT_backend) | содержимое `backend/` в корне | **API**: `Dockerfile`, миграции в ENTRYPOINT, проверка `/api/v1/health/live` |
+| [1stsultanb-dev/KORT_production](https://github.com/1stsultanb-dev/KORT_production) | весь проект, вместе с `backend/` | **фронт** (KORT, домен `kort.cards`): `Dockerfile` в корне, `backend/` в образ не попадает (`.dockerignore`); здесь же релизы десктопа |
+| [1stsultanb-dev/KORT_production_backend](https://github.com/1stsultanb-dev/KORT_production_backend) | содержимое `backend/` в корне | **API** (KORT_backend): `Dockerfile`, миграции в ENTRYPOINT, проверка `/api/v1/health/live` |
 
 Правка в `backend/` пушится в оба: сначала сюда, потом те же файлы - в
-KORT_backend (`git subtree split --prefix=backend` или поштучно).
+KORT_production_backend:
+
+```
+git subtree split --prefix=backend -b backend-only
+git push <remote KORT_production_backend> backend-only:main
+```
+
+До 23.11.2026 проект жил в madhaligaze/KORT и madhaligaze/KORT_backend; домен
+`kort.cards` куплен в том, первом аккаунте Railway (там его DNS и продление).
 
 ### Переменные
 

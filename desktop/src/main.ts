@@ -39,7 +39,7 @@ const PORTS = [47823, 47824, 47825, 47826, 47827];
  * лежит только фронт сайта. Для проверки - `KORT_API` через запятую или
  * `upstreams` в `settings.json` папки приложения.
  */
-const UPSTREAMS = ["https://kort.cards/api/backend", "https://kortbackend-production.up.railway.app"];
+const UPSTREAMS = ["https://kort.cards/api/backend", "https://kortbackend-production-7741b364.up.railway.app"];
 
 const MAX_SAVED = 20 * 1024 * 1024;
 

@@ -32,9 +32,13 @@ concurrency:
 
 jobs:
   release:
-    # Только в репозитории прода: установленный KORT обновляется из его
+    # Только в репозиториях прода: установленный KORT обновляется из их
     # релизов, а пуш тестовой копии (KORT_dev) тратил бы сборку впустую.
-    if: github.repository == 'madhaligaze/KORT'
+    # С 23.11.2026 прод - 1stsultanb-dev/KORT_production (адрес обновлений -
+    # `publish` в desktop/electron-builder.yml). madhaligaze/KORT оставлен,
+    # чтобы выпустить мост: версию, которая уже смотрит в новый репозиторий, -
+    # её получат все установленные KORT 1.0.5 и старше.
+    if: github.repository == '1stsultanb-dev/KORT_production' || github.repository == 'madhaligaze/KORT'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,13 +60,20 @@ jobs:
         working-directory: desktop
         run: pnpm install --frozen-lockfile
 
+      # Номер сборки - номер запуска в этом репозитории. В KORT_production счёт
+      # начался заново, а у людей уже 1.0.5 и мост из madhaligaze/KORT:
+      # обновление ставится, только если номер больше. Поэтому там к номеру
+      # прибавляется 100 - сотня с запасом выше всего, что вышло из
+      # madhaligaze/KORT.
       - name: Версия
         id: version
         working-directory: desktop
         shell: bash
         run: |
           level=$(node -p "require('./release.json').level")
-          echo "value=${level}.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          offset=0
+          if [ "$GITHUB_REPOSITORY" = "1stsultanb-dev/KORT_production" ]; then offset=100; fi
+          echo "value=${level}.0.$(( ${{ github.run_number }} + offset ))" >> "$GITHUB_OUTPUT"
 
       - name: Сборка
         working-directory: desktop
